@@ -8,6 +8,7 @@ const LoginPage = () => {
   const [sid, setSid] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
+  const [role, setRole] = useState('');
 
   const handleLogin = async () => {
     const email = `${sid}@ielts.local`;
@@ -27,10 +28,12 @@ const LoginPage = () => {
       localStorage.setItem('uid', response.data.uid);
       localStorage.setItem('role', response.data.role);
       localStorage.setItem("student_id", response.data.student_id);
+      setRole(response.data.role);
 
+      window.dispatchEvent(new Event('local-storage'));
 
-      if (response.data.role === 'admin') {
-        navigate('/admin/essays');
+      if (role === 'admin') {
+        navigate('/admin/dashboard');
       } else {
         navigate('/dashboard');
       }
@@ -42,24 +45,27 @@ const LoginPage = () => {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', textAlign: 'center' }}>
-      <input
-        type="text"
-        placeholder="Enter StudentID"
-        value={sid}
-        onChange={(e) => setSid(e.target.value)}
-        style={{ width: '100%', padding: 8, marginBottom: 10 }}
-      />
-      <input
-        type="password"
-        placeholder="Enter password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ width: '100%', padding: 8, marginBottom: 10 }}
-      />
-      <button onClick={handleLogin} style={{ padding: 10, width: '100%' }}>
-        Login
-      </button>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-center mb-6">Вход</h2>
+        <input
+          type="text"
+          value={sid}
+          onChange={(e) => setSid(e.target.value)}
+          placeholder="Enter StudentID"
+          className="w-full p-2 mb-4 border rounded"
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter password"
+          className="w-full p-2 mb-4 border rounded"
+        />
+        <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
+          Войти
+        </button>
+      </div>
     </div>
   );
 };

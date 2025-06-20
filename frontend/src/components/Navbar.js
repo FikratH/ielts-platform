@@ -1,47 +1,46 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
-const Navbar = () => {
+const Navbar = ({ role, setRole }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [role, setRole] = useState(null);
-
-  useEffect(() => {
-    setRole(localStorage.getItem("role"));
-  }, [location.pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("uid");
-    localStorage.removeItem("role");
-    navigate("/");
+    localStorage.removeItem('token');
+    localStorage.removeItem('uid');
+    localStorage.removeItem('role');
+    setRole(null);
+    navigate('/login');
   };
-
-  const commonLinks = <></>;
 
   const studentLinks = (
     <>
-      <Link to="/writing/start" className="hover:underline">Writing</Link>
-      <Link to="/reading" className="hover:underline">Reading</Link>
-      <Link to="/dashboard" className="hover:underline">Кабинет</Link>
+      <Link to="/writing/start" className="text-white hover:text-gray-200">Writing</Link>
+      <Link to="/reading" className="text-white hover:text-gray-200">Reading</Link>
+      <Link to="/dashboard" className="text-white hover:text-gray-200">Личный кабинет</Link>
     </>
   );
 
   const adminLinks = (
     <>
-      <Link to="/admin/assignments" className="hover:underline">Задания</Link>
-      <Link to="/admin/essays" className="hover:underline">Эссе студентов</Link>
+      <Link to="/admin/dashboard" className="text-white hover:text-gray-200">Панель</Link>
+      <Link to="/admin/assignments" className="text-white hover:text-gray-200">Сабмиты студентов</Link>
+      <Link to="/admin/reading" className="text-white hover:text-gray-200">Reading</Link>
+      <Link to="/admin/prompts" className="text-white hover:text-gray-200">Writing</Link>
     </>
   );
 
   return (
-    <nav className="bg-white border-b shadow-sm p-4 flex justify-between items-center">
-      <Link to="/dashboard" className="text-xl font-bold text-blue-700">IELTS Platform</Link>
-      <div className="flex gap-5 items-center text-sm text-gray-700">
-        {commonLinks}
+    <nav className="bg-blue-600 text-white p-4 flex justify-between items-center fixed top-0 left-0 right-0 z-50">
+      <Link to={!role ? '/login' : (role === 'admin' ? '/admin/assignments' : '/dashboard')} className="text-xl font-bold">
+        IELTS Platform
+      </Link>
+      <div className="flex items-center gap-6">
         {role === 'student' && studentLinks}
         {role === 'admin' && adminLinks}
-        <button onClick={handleLogout} className="text-red-600 hover:underline">Выйти</button>
+        {role && (
+          <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+            Выйти
+          </button>
+        )}
       </div>
     </nav>
   );

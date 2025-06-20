@@ -48,18 +48,15 @@ const ReadingTestPage = () => {
     const token = localStorage.getItem('token');
     axios.post(`/api/reading/sessions/${sessionId}/submit/`, {
       answers,
-      time_taken: test && test.time_limit ? test.time_limit * 60 : 0,
-      test_id: test ? test.id : null,
     }, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(res => {
-        setSubmitted(true);
-        setResult(res.data);
-        navigate(`/reading-result/${sessionId}`, { state: res.data });
+        navigate(`/reading-result/${sessionId}`);
       })
       .catch(err => {
-        setError('Ошибка при отправке теста');
+        setError('Ошибка при отправке теста. Пожалуйста, попробуйте еще раз.');
+        console.error("Submit error:", err.response ? err.response.data : err);
       })
       .finally(() => setSubmitting(false));
   };
@@ -92,7 +89,7 @@ const ReadingTestPage = () => {
                   checked={answers[q.id] === opt.label}
                   onChange={() => handleChange(q.id, opt.label)}
                   className="mr-2"
-                  disabled={submitting || submitted}
+                  disabled={submitting}
                 />
                 {opt.label}. {opt.text}
               </label>
@@ -104,26 +101,18 @@ const ReadingTestPage = () => {
               onChange={(e) => handleChange(q.id, e.target.value)}
               placeholder="Введите ваш ответ"
               className="mt-1 w-full p-2 border rounded"
-              disabled={submitting || submitted}
+              disabled={submitting}
             />
           )}
         </div>
       ))}
       <button
         onClick={handleSubmit}
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-        disabled={submitting || submitted}
+        className="w-full mt-4 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-300"
+        disabled={submitting}
       >
-        {submitting ? "Отправка..." : submitted ? "Отправлено" : "Submit Test"}
+        {submitting ? "Отправка..." : "Завершить и посмотреть результат"}
       </button>
-      {submitted && result && (
-        <div className="mt-4 p-4 border rounded-lg">
-          <h3 className="text-xl font-bold mb-2">Результаты теста</h3>
-          <p>Баллы: {result.score}</p>
-          <p>Правильные ответы: {result.correct_answers.join(', ')}</p>
-          <p>Неправильные ответы: {result.incorrect_answers.join(', ')}</p>
-        </div>
-      )}
     </div>
   );
 };
