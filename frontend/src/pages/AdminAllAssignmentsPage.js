@@ -43,7 +43,7 @@ export default function AdminAllAssignmentsPage() {
 
   const handleOpenDetails = async (assignment) => {
     setSelectedItem(assignment);
-    setItemDetails(assignment.item); // For Writing, show immediately
+    setItemDetails(assignment.item); 
 
     if (assignment.type === 'Reading') {
       setDetailsLoading(true);

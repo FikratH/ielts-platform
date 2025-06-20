@@ -17,7 +17,7 @@ import AdminReadingManagePage from './pages/AdminReadingManagePage';
 import AdminAssignmentsPage from './pages/AdminAssignmentsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 
-// Компонент-обертка для страниц, требующих навигационной панели
+
 const MainLayout = ({ role, setRole, children }) => {
   const location = useLocation();
   const noNavRoutes = ['/login'];
@@ -44,7 +44,7 @@ function App() {
       setRole(localStorage.getItem('role'));
     };
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('local-storage', handleStorageChange); // For custom events
+    window.addEventListener('local-storage', handleStorageChange); 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('local-storage', handleStorageChange);

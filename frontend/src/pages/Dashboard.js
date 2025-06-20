@@ -47,7 +47,7 @@ export default function Dashboard() {
         setItemDetails(res.data);
       } catch (err) {
         console.error("Failed to load session details", err);
-        setItemDetails(null); // Clear previous details on error
+        setItemDetails(null); 
       } finally {
         setDetailsLoading(false);
       }

@@ -21,7 +21,7 @@ const AdminDashboardPage = () => {
 
         {/* Карточка Управления Промптами */}
         <Link to="/admin/prompts" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-xl font-bold text-gray-800">Управление Writing промптами</h2>
+          <h2 className="text-xl font-bold text-gray-800">Управление Writing заданиями</h2>
           <p className="text-gray-600 mt-2">Управлять темами и заданиями для секции Writing.</p>
         </Link>
 
