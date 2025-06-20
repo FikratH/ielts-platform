@@ -198,19 +198,28 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
 
     def get_question_feedback(self, obj):
         feedback = []
-        for q in obj.test.questions.all().order_by('order'):
-            user_answer = obj.answers.get(str(q.id), '').strip()
+        for question in obj.test.questions.all().order_by('order'):
+            user_answer_text = obj.answers.get(str(question.id), 'No Answer')
+            correct_answer_text = 'N/A'
+            is_correct = False
+            
             try:
-                correct_answer = AnswerKey.objects.get(question=q).correct_answer.strip()
-                is_correct = user_answer.strip().upper() == correct_answer.strip().upper()
+                correct_answer_key = AnswerKey.objects.get(question=question)
+                correct_answer_text = correct_answer_key.correct_answer
+                
+                if user_answer_text.strip().lower() == correct_answer_text.strip().lower():
+                    is_correct = True
+
             except AnswerKey.DoesNotExist:
-                correct_answer = None
-                is_correct = False
+                # Если нет ключа ответа, мы не можем проверить правильность
+                pass
+
             feedback.append({
-                'question_order': q.order,
-                'question_text': q.question_text,
-                'user_answer': user_answer,
-                'correct_answer': correct_answer,
-                'correct': is_correct,
+                'question_id': question.id,
+                'question_text': question.question_text,
+                'user_answer': user_answer_text,
+                'correct_answer': correct_answer_text,
+                'is_correct': is_correct,
+                'question_type': question.question_type,
             })
         return feedback

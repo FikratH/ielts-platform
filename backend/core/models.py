@@ -133,20 +133,25 @@ class ReadingTestSession(models.Model):
         return f"Reading Test Session #{self.id} - {self.user.student_id}"
 
     def calculate_score(self):
-        total = self.test.questions.count()
-        correct = 0
-        for q in self.test.questions.all():
-            user_answer = self.answers.get(str(q.id), "").strip().upper()
-            try:
-                correct_answer = AnswerKey.objects.get(question=q).correct_answer.strip().upper()
-                if user_answer == correct_answer:
-                    correct += 1
-            except AnswerKey.DoesNotExist:
-                continue
+        """
+        Calculates the number of correct answers.
+        This method does NOT save the instance.
+        """
+        correct_answers_count = 0
+        questions = self.test.questions.all().select_related('answerkey')
         
-        self.raw_score = round((correct / total) * 40)
-        self.band_score = self.convert_to_band(self.raw_score)
-        self.save()
+        # Создаем словарь правильных ответов для быстрой проверки
+        correct_answers_map = {
+            str(q.id): q.answerkey.correct_answer.strip().lower()
+            for q in questions if hasattr(q, 'answerkey')
+        }
+
+        for question_id, user_answer in self.answers.items():
+            correct_answer = correct_answers_map.get(question_id)
+            if correct_answer and user_answer.strip().lower() == correct_answer:
+                correct_answers_count += 1
+        
+        return correct_answers_count
 
     def convert_to_band(self, raw_score):
         if raw_score >= 39: return 9.0
@@ -159,6 +164,7 @@ class ReadingTestSession(models.Model):
         if raw_score >= 19: return 5.5
         if raw_score >= 15: return 5.0
         if raw_score >= 12: return 4.5
-        return 4.0
+        if raw_score <= 11: return 4.0
+        return 0.0
 
 

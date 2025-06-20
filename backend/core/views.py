@@ -28,6 +28,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
 import json
+from rest_framework.exceptions import PermissionDenied
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -329,21 +330,27 @@ class SubmitReadingTestView(APIView):
         try:
             session = ReadingTestSession.objects.get(id=session_id, user=user)
         except ReadingTestSession.DoesNotExist:
-            # Если сессия не найдена, создаем новую (например, если студент перезагрузил страницу)
-            test_id = request.data.get("test_id")
-            if not test_id:
-                return Response({"error": "Test ID not provided"}, status=400)
-            test = ReadingTest.objects.get(pk=test_id)
-            session = ReadingTestSession.objects.create(user=user, test=test, completed=False)
-        
-        # Обновляем сессию (всегда)
+            return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Новая, чистая логика сохранения и подсчета
         session.answers = request.data.get("answers", {})
         session.completed = True
         session.completed_at = timezone.now()
-        session.time_taken = request.data.get("time_taken")
-        session.calculate_score()
+        
+        # 1. Считаем
+        raw_score = session.calculate_score()
+        band_score = session.convert_to_band(raw_score)
+        
+        # 2. Присваиваем
+        session.raw_score = raw_score
+        session.band_score = band_score
+        
+        # 3. Сохраняем один раз
         session.save()
-        return Response({ "message": "Test submitted successfully", "band_score": session.band_score, "raw_score": session.raw_score, "time_taken": session.time_taken })
+        
+        # 4. Отдаем полный результат
+        serializer = ReadingTestSessionResultSerializer(session, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ReadingTestSessionListView(ListAPIView):
     serializer_class = ReadingTestSessionSerializer
@@ -753,6 +760,60 @@ class ReadingQuestionUpdateDeleteView(RetrieveUpdateDestroyAPIView):
             return ReadingQuestion.objects.none()
 
         return ReadingQuestion.objects.all()
+
+class AdminReadingSessionListView(ListAPIView):
+    serializer_class = ReadingTestSessionSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return ReadingTestSession.objects.none()
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return ReadingTestSession.objects.none()
+        
+        try:
+            user = User.objects.get(uid=decoded['uid'])
+            if user.role != 'admin':
+                return ReadingTestSession.objects.none()
+        except User.DoesNotExist:
+            return ReadingTestSession.objects.none()
+        
+        queryset = ReadingTestSession.objects.filter(completed=True).select_related('user', 'test').order_by('-completed_at')
+
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            queryset = queryset.filter(user__student_id=student_id)
+
+        return queryset
+
+class AdminReadingSessionDetailView(RetrieveAPIView):
+    serializer_class = ReadingTestSessionResultSerializer
+    permission_classes = [AllowAny] # Using token auth instead
+    queryset = ReadingTestSession.objects.all()
+
+    def get_object(self):
+        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            raise PermissionDenied("No auth token provided.")
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            raise PermissionDenied("Invalid token.")
+        
+        try:
+            user = User.objects.get(uid=decoded['uid'])
+            if user.role != 'admin':
+                raise PermissionDenied("You must be an admin to view this.")
+        except User.DoesNotExist:
+            raise PermissionDenied("User not found.")
+        
+        # Если все проверки пройдены, получаем объект
+        return super().get_object()
 
 
 

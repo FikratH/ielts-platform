@@ -20,6 +20,8 @@ from .views import (
     ActivateReadingTestView,
     ReadingTestUpdateDeleteView,
     ReadingQuestionUpdateDeleteView,
+    AdminReadingSessionListView,
+    AdminReadingSessionDetailView
 )
 
 router = DefaultRouter()
@@ -42,6 +44,11 @@ urlpatterns = router.urls + [
     path('start-writing-session/', StartWritingSessionView.as_view(), name='start-writing-session'),
     path('submit-task/', SubmitTaskView.as_view(), name='submit-task'),
     path('finish-writing-session/', FinishWritingSessionView.as_view(), name='finish-writing-session'),
-    path('admin/essays/', AdminEssayListView.as_view(), name='admin-essays'),
+    path('admin/essays/', AdminEssayListView.as_view(), name='admin-essay-list'),
+    path('admin/reading-sessions/', AdminReadingSessionListView.as_view(), name='admin-reading-session-list'),
+    path('admin/reading-sessions/<int:pk>/', AdminReadingSessionDetailView.as_view(), name='admin-reading-session-detail'),
+    path('admin/reading/create/', ReadingTestCreateView.as_view(), name='reading-test-create'),
+    path('admin/reading/<int:pk>/activate/', ActivateReadingTestView.as_view(), name='reading-test-activate'),
+    path('admin/reading/<int:pk>/', ReadingTestUpdateDeleteView.as_view(), name='reading-test-update-delete'),
     path('reading/questions/<int:pk>/', ReadingQuestionUpdateDeleteView.as_view(), name='reading-question-update-delete'),
 ]
