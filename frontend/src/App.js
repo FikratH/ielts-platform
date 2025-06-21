@@ -16,6 +16,10 @@ import AdminAllAssignmentsPage from './pages/AdminAllAssignmentsPage';
 import AdminReadingManagePage from './pages/AdminReadingManagePage';
 import AdminAssignmentsPage from './pages/AdminAssignmentsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ListeningTestListPage from './pages/ListeningTestListPage';
+import ListeningTestPage from './pages/ListeningTestPage';
+import ListeningResultPage from './pages/ListeningResultPage';
+import AdminListeningManagePage from './pages/AdminListeningManagePage';
 
 
 const MainLayout = ({ role, setRole, children }) => {
@@ -54,31 +58,35 @@ function App() {
   return (
     <Router>
       <MainLayout role={role} setRole={setRole}>
-        <Routes>
+      <Routes>
           <Route path="/login" element={<LoginPage setRole={setRole} />} />
           <Route path="/" element={
             !role ? <Navigate to="/login" /> : 
             (role === 'admin' ? <Navigate to="/admin/dashboard" /> : <Navigate to="/dashboard" />)
           } />
           
-          {/* Student Routes */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/essays/:id" element={<EssayDetail />} />
-          <Route path="/reading" element={<ReadingTestListPage />} />
-          <Route path="/reading-test/:id" element={<ReadingTestPage />} />
-          <Route path="/reading-result/:sessionId" element={<ReadingResultPage />} />
-          <Route path="/writing/start" element={<WritingStartPage />} />
-          <Route path="/writing/task1/:sessionId" element={<WritingTaskPage />} />
-          <Route path="/writing/task2/:sessionId" element={<WritingTaskPage />} />
-          <Route path="/writing/result/:sessionId" element={<WritingResultPage />} />
           
-          {/* Admin Routes */}
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/essays/:id" element={<EssayDetail />} />
+        <Route path="/reading" element={<ReadingTestListPage />} />
+        <Route path="/reading-test/:id" element={<ReadingTestPage />} />
+          <Route path="/reading-result/:sessionId" element={<ReadingResultPage />} />
+        <Route path="/writing/start" element={<WritingStartPage />} />
+        <Route path="/writing/task1/:sessionId" element={<WritingTaskPage />} />
+        <Route path="/writing/task2/:sessionId" element={<WritingTaskPage />} />
+        <Route path="/writing/result/:sessionId" element={<WritingResultPage />} />
+          
+          
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/prompts" element={<WritingPromptsAdminPage />} />
+        <Route path="/admin/prompts" element={<WritingPromptsAdminPage />} />
           <Route path="/admin/assignments" element={<AdminAllAssignmentsPage />} />
           <Route path="/admin/reading" element={<AdminReadingManagePage />} />
+          <Route path="/listening" element={<ListeningTestListPage />} />
+          <Route path="/listening-test/:id" element={<ListeningTestPage />} />
+          <Route path="/listening-result/:sessionId" element={<ListeningResultPage />} />
+          <Route path="/admin/listening" element={<AdminListeningManagePage />} />
           
-        </Routes>
+      </Routes>
       </MainLayout>
     </Router>
   );

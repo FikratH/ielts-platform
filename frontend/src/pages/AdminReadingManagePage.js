@@ -10,7 +10,7 @@ const TRUE_FALSE_OPTIONS = [
 const AdminReadingManagePage = () => {
   const [tests, setTests] = useState([]);
   const [currentTest, setCurrentTest] = useState({ title: '', description: '', passage: '', questions: [] });
-  const [newQuestion, setNewQuestion] = useState({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: 1, options: [], image: null });
+  const [newQuestion, setNewQuestion] = useState({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: 1, options: [], image: null, correct_answer: '' });
   const [newOption, setNewOption] = useState({ label: '', text: '' });
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef();
@@ -20,6 +20,8 @@ const AdminReadingManagePage = () => {
   const [editQuestionData, setEditQuestionData] = useState(null);
   const [showDeleteTestId, setShowDeleteTestId] = useState(null);
   const [showDeleteQuestionIdx, setShowDeleteQuestionIdx] = useState(null);
+  const [currentTestId, setCurrentTestId] = useState(null);
+  const [testCreated, setTestCreated] = useState(false);
 
   useEffect(() => {
     fetchTests();
@@ -80,7 +82,7 @@ const AdminReadingManagePage = () => {
   const addQuestion = () => {
     if (newQuestion.question_text) {
       setCurrentTest(prev => ({ ...prev, questions: [...prev.questions, { ...newQuestion }] }));
-      setNewQuestion({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: newQuestion.order + 1, options: [], image: null });
+      setNewQuestion({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: newQuestion.order + 1, options: [], image: null, correct_answer: '' });
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -94,40 +96,65 @@ const AdminReadingManagePage = () => {
     setLoading(true);
     const token = localStorage.getItem('token');
 
-   
-    const questions = currentTest.questions.map((q, idx) => {
-      const { image, ...rest } = q;
-      return { ...rest, image: image && image instanceof File ? `question_image_${idx}` : image };
-    });
-
-    const formData = new FormData();
-    formData.append('title', currentTest.title);
-    formData.append('description', currentTest.description);
-    formData.append('passage', currentTest.passage);
-    formData.append('questions', JSON.stringify(questions));
-   
-    currentTest.questions.forEach((q, idx) => {
-      if (q.image && q.image instanceof File) {
-        formData.append(`question_image_${idx}`, q.image);
-      }
-    });
-
     try {
-      await axios.post('/api/reading/tests/create/', formData, {
+     
+      const formData = new FormData();
+      formData.append('title', currentTest.title);
+      formData.append('description', currentTest.description);
+      formData.append('passage', currentTest.passage);
+
+      const response = await axios.post('/api/reading/tests/create/', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
       });
-      alert('Тест успешно добавлен');
+
+      const testId = response.data.test_id;
+      setCurrentTestId(testId);
+      setTestCreated(true);
+
+      
+      for (let i = 0; i < currentTest.questions.length; i++) {
+        const question = currentTest.questions[i];
+        const questionFormData = new FormData();
+        
+        questionFormData.append('question_type', question.question_type);
+        questionFormData.append('question_text', question.question_text);
+        questionFormData.append('order', question.order);
+        questionFormData.append('paragraph_ref', question.paragraph_ref || '');
+        
+        if (question.image && question.image instanceof File) {
+          questionFormData.append('image', question.image);
+        }
+        
+    
+        questionFormData.append('options', JSON.stringify(question.options));
+        
+       
+        if (question.correct_answer) {
+          questionFormData.append('correct_answer', question.correct_answer);
+        }
+
+        await axios.post(`/api/reading/tests/${testId}/questions/add/`, questionFormData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      }
+
+      alert('Тест успешно создан со всеми вопросами!');
       setCurrentTest({ title: '', description: '', passage: '', questions: [] });
-      setNewQuestion({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: 1, options: [], image: null });
+      setNewQuestion({ question_type: 'MULTIPLE_CHOICE', question_text: '', order: 1, options: [], image: null, correct_answer: '' });
+      setCurrentTestId(null);
+      setTestCreated(false);
       setLoading(false);
       fetchTests();
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error(err);
-      alert('Ошибка при добавлении теста');
+      alert('Ошибка при создании теста: ' + (err.response?.data?.error || err.message));
       setLoading(false);
     }
   };

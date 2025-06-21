@@ -5,6 +5,7 @@ import axios from 'axios';
 export default function Dashboard() {
   const [essays, setEssays] = useState([]);
   const [readingSessions, setReadingSessions] = useState([]);
+  const [listeningSessions, setListeningSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
   const [itemDetails, setItemDetails] = useState(null);
@@ -16,16 +17,20 @@ export default function Dashboard() {
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
-        const [essRes, readRes] = await Promise.all([
+        const [essRes, readRes, listenRes] = await Promise.all([
           axios.get('http://localhost:8000/api/essays/', {
             headers: { Authorization: `Bearer ${token}` },
           }),
           axios.get('http://localhost:8000/api/reading/sessions/', {
             headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get('http://localhost:8000/api/listening/sessions/', {
+            headers: { Authorization: `Bearer ${token}` },
           })
         ]);
         setEssays(essRes.data);
         setReadingSessions(readRes.data);
+        setListeningSessions(listenRes.data);
       } catch (err) {
         console.error('Ошибка при загрузке истории:', err);
       } finally {
@@ -42,6 +47,20 @@ export default function Dashboard() {
       try {
         const token = localStorage.getItem('token');
         const res = await axios.get(`http://localhost:8000/api/reading/sessions/${item.item.id}/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setItemDetails(res.data);
+      } catch (err) {
+        console.error("Failed to load session details", err);
+        setItemDetails(null); 
+      } finally {
+        setDetailsLoading(false);
+      }
+    } else if (item.type === 'Listening') {
+      setDetailsLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`http://localhost:8000/api/listening/sessions/${item.item.id}/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setItemDetails(res.data);
@@ -75,13 +94,21 @@ export default function Dashboard() {
       task: r.test_title,
       score: r.band_score || '-',
       item: r,
+    })),
+    ...listeningSessions.map(l => ({
+      type: 'Listening',
+      date: l.completed_at?.slice(0, 10),
+      task: l.test_title,
+      score: l.band_score || '-',
+      item: l,
     }))
   ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const getStats = () => {
     const scores = [
       ...essays.map(e => e.overall_band).filter(Boolean),
-      ...readingSessions.map(r => r.band_score).filter(Boolean)
+      ...readingSessions.map(r => r.band_score).filter(Boolean),
+      ...listeningSessions.map(l => l.band_score).filter(Boolean)
     ];
     const avg = scores.length ? (scores.reduce((a, b) => a + b) / scores.length).toFixed(1) : '-';
     const max = scores.length ? Math.max(...scores).toFixed(1) : '-';
@@ -205,6 +232,65 @@ export default function Dashboard() {
               </>
             ) : <p>Не удалось загрузить детали.</p>}
           </div>
+        </div>
+      )}
+
+      {selectedItem && selectedItem.type === 'Listening' && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Результаты: {selectedItem.item.test_title}</h3>
+              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Закрыть</button>
+            </div>
+
+            {detailsLoading ? (
+              <p>Загрузка деталей...</p>
+            ) : itemDetails ? (
+              <>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                    <div className="p-4 bg-blue-100 rounded-lg">
+                        <p className="text-sm text-blue-800">Правильные ответы</p>
+                        <p className="text-2xl font-bold text-blue-900">{itemDetails.raw_score} / {itemDetails.total_questions}</p>
+                    </div>
+                    <div className="p-4 bg-purple-100 rounded-lg">
+                        <p className="text-sm text-purple-800">Band Score</p>
+                        <p className="text-2xl font-bold text-purple-900">{itemDetails.band_score}</p>
+                    </div>
+                </div>
+
+                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
+                <div className="space-y-3">
+                  {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
+                    itemDetails.question_feedback.map((feedback, index) => (
+                      <div key={feedback.question_id} className={`p-3 border-l-4 rounded-r-lg text-sm ${feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+                         <p className="font-semibold text-gray-800">Вопрос {index + 1}: <span className="font-normal text-gray-600">{feedback.question_text}</span></p>
+                         <div className="mt-1">
+                             <p>Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-700' : 'text-red-700'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
+                             {!feedback.is_correct && <p>Правильный ответ: <span className="font-medium text-blue-700">{feedback.correct_answer}</span></p>}
+                         </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">Детальный разбор недоступен.</p>
+                  )}
+                </div>
+              </>
+            ) : <p>Не удалось загрузить детали.</p>}
+          </div>
+        </div>
+      )}
+
+      {listeningSessions.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-bold mb-2">Listening</h3>
+          <ul className="space-y-2">
+            {listeningSessions.map(session => (
+              <li key={session.id} className="border p-2 rounded flex items-center justify-between">
+                <span>Тест: {session.test_title} | Band: {session.band_score}</span>
+                <button onClick={() => handleOpenDetails({ type: 'Listening', item: session })} className="text-blue-600 underline">Подробнее</button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

@@ -32,7 +32,7 @@ const LoginPage = () => {
 
       window.dispatchEvent(new Event('local-storage'));
 
-      if (role === 'admin') {
+      if (response.data.role === 'admin') {
         navigate('/admin/dashboard');
       } else {
         navigate('/dashboard');

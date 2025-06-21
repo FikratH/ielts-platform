@@ -18,18 +18,22 @@ export default function AdminAllAssignmentsPage() {
     setSearched(true);
     try {
       const studentQuery = studentId ? `?student_id=${studentId}` : '';
-      const [essaysRes, readingRes] = await Promise.all([
+      const [essaysRes, readingRes, listeningRes] = await Promise.all([
         axios.get(`http://localhost:8000/api/admin/essays/${studentQuery}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         axios.get(`http://localhost:8000/api/admin/reading-sessions/${studentQuery}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`http://localhost:8000/api/admin/listening-sessions/${studentQuery}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
 
       const combined = [
         ...essaysRes.data.map(e => ({ type: 'Writing', date: e.submitted_at, score: e.overall_band, task: e.task_type?.toUpperCase(), item: e })),
-        ...readingRes.data.map(r => ({ type: 'Reading', date: r.completed_at, score: r.band_score, task: r.test_title, item: r }))
+        ...readingRes.data.map(r => ({ type: 'Reading', date: r.completed_at, score: r.band_score, task: r.test_title, item: r })),
+        ...listeningRes.data.map(l => ({ type: 'Listening', date: l.completed_at, score: l.band_score, task: l.test_title, item: l }))
       ].sort((a, b) => new Date(b.date) - new Date(a.date));
       
       setAllAssignments(combined);
@@ -50,6 +54,22 @@ export default function AdminAllAssignmentsPage() {
       try {
         const token = localStorage.getItem('token');
         const res = await axios.get(`http://localhost:8000/api/admin/reading-sessions/${assignment.item.id}/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setItemDetails(res.data);
+      } catch (err) {
+        console.error("Failed to load session details", err);
+        setItemDetails(null); 
+      } finally {
+        setDetailsLoading(false);
+      }
+    }
+
+    if (assignment.type === 'Listening') {
+      setDetailsLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`http://localhost:8000/api/admin/listening-sessions/${assignment.item.id}/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setItemDetails(res.data);
@@ -94,6 +114,24 @@ export default function AdminAllAssignmentsPage() {
       <div>
           <p className="font-semibold">Фидбек:</p>
           <pre className="bg-gray-100 p-2 rounded whitespace-pre-wrap text-sm">{itemDetails.feedback}</pre>
+      </div>
+    </>
+  );
+
+  const renderListeningDetails = () => (
+    <>
+       <div className="p-4 bg-blue-100 rounded-lg text-center mb-4">
+          <p className="text-sm text-blue-800">Результат</p>
+          <p className="text-2xl font-bold text-blue-900">{itemDetails.raw_score} / {itemDetails.total_questions}</p>
+      </div>
+      <div className="space-y-2">
+        {itemDetails.question_feedback?.map((fb, i) => (
+          <div key={i} className={`p-2 border-l-4 ${fb.is_correct ? 'border-green-500' : 'border-red-500'}`}>
+            <p><strong>{i + 1}.</strong> {fb.question_text}</p>
+            <p className={`${fb.is_correct ? 'text-green-700' : 'text-red-700'}`}>Ваш ответ: {fb.user_answer}</p>
+            {!fb.is_correct && <p className="text-gray-600">Правильный: {fb.correct_answer}</p>}
+          </div>
+        ))}
       </div>
     </>
   );
@@ -172,7 +210,9 @@ export default function AdminAllAssignmentsPage() {
             {detailsLoading ? (
               <p>Загрузка деталей...</p>
             ) : itemDetails ? (
-                selectedItem.type === 'Reading' ? renderReadingDetails() : renderWritingDetails()
+                selectedItem.type === 'Reading' ? renderReadingDetails() :
+                selectedItem.type === 'Listening' ? renderListeningDetails() :
+                renderWritingDetails()
             ) : (
               <p className="text-red-500">Не удалось загрузить подробные детали.</p>
             )}
