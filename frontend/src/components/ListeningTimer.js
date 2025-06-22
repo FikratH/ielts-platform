@@ -25,7 +25,7 @@ const ListeningTimer = ({ onTimeUp, initialSeconds = 1800 }) => {
   const formatted = `${min}:${sec.toString().padStart(2, '0')}`;
 
   return (
-    <div className="text-xl font-bold mb-4">Listening Timer: {formatted}</div>
+    <div className="text-xl font-bold mb-4 text-black-600">Timer: {formatted}</div>
   );
 };
 

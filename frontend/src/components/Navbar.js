@@ -27,7 +27,7 @@ const Navbar = ({ role, setRole }) => {
       <Link to="/admin/assignments" className="text-white hover:text-gray-200">Сабмиты студентов</Link>
       <Link to="/admin/reading" className="text-white hover:text-gray-200">Reading</Link>
       <Link to="/admin/prompts" className="text-white hover:text-gray-200">Writing</Link>
-      <Link to="/admin/listening" className="text-white hover:text-gray-200">Управление Listening</Link>
+      <Link to="/admin/listening" className="text-white hover:text-gray-200">Listening</Link>
     </>
   );
 

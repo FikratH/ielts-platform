@@ -14,7 +14,7 @@ const ReadingTestListPage = () => {
       .catch(err => console.error(err));
 
    
-    const role = localStorage.getItem('userRole');
+    const role = localStorage.getItem('role');
     setUserRole(role);
   }, []);
 
@@ -34,12 +34,14 @@ const ReadingTestListPage = () => {
       ) : (
         <ul className="space-y-4">
           {tests.map(test => (
-            <li key={test.id} className="border p-4 rounded shadow-sm">
-              <p className="font-semibold">{test.title}</p>
-              <p className="text-sm text-gray-600">{test.description}</p>
+            <li key={test.id} className="border p-4 rounded shadow-sm flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{test.title}</p>
+                <p className="text-sm text-gray-600">{test.description}</p>
+              </div>
               <button
                 onClick={() => navigate(`/reading-test/${test.id}`)}
-                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                className="ml-4 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
               >
                 Start Test
               </button>

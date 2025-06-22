@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ListeningTimer from '../components/ListeningTimer';
 import AudioPlayer from '../components/AudioPlayer';
+import TestLayout from '../components/TestLayout';
 
 const ListeningTestPage = () => {
   const { id } = useParams();
@@ -31,22 +32,15 @@ const ListeningTestPage = () => {
       });
   }, [id]);
 
-  if (!sessionId && !loading) return <p className="p-4 text-red-600">Ошибка: не удалось получить sessionId для теста. Попробуйте обновить страницу или обратитесь к администратору.</p>;
-
   const handleChange = (questionId, value) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
 
   const handleSubmit = () => {
-    if (!sessionId) {
-      setError('Ошибка: не удалось получить sessionId для теста. Попробуйте обновить страницу.');
-      return;
-    }
+    if (submitting || !sessionId) return;
     setSubmitting(true);
     const token = localStorage.getItem('token');
-    axios.post(`/api/listening/sessions/${sessionId}/submit/`, {
-      answers,
-    }, {
+    axios.post(`/api/listening/sessions/${sessionId}/submit/`, { answers }, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(res => {
@@ -55,39 +49,50 @@ const ListeningTestPage = () => {
       .catch(err => {
         setError('Ошибка при отправке теста. Пожалуйста, попробуйте еще раз.');
         console.error("Submit error:", err.response ? err.response.data : err);
-      })
-      .finally(() => setSubmitting(false));
+        setSubmitting(false);
+      });
   };
 
-  if (loading) return <p className="p-4">Loading...</p>;
-  if (error) return <p className="p-4 text-red-600">{error}</p>;
-  if (!test) return <p className="p-4 text-red-600">Ошибка загрузки теста.</p>;
+  if (loading) return <p className="p-4 flex justify-center items-center h-screen">Loading test...</p>;
+  if (error) return <p className="p-4 text-red-600 flex justify-center items-center h-screen">{error}</p>;
+  if (!test) return <p className="p-4 text-red-600 flex justify-center items-center h-screen">Ошибка загрузки теста.</p>;
 
-  const timeLimit = test.time_limit ? test.time_limit * 60 : 30 * 60;
+  const timeLimit = test.time_limit ? test.time_limit * 60 : 40 * 60;
 
-  return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <ListeningTimer onTimeUp={handleSubmit} initialSeconds={timeLimit} />
-      <h2 className="text-xl font-bold mb-4">{test.title}</h2>
-      {test.audio && test.audio.audio_url && (
+  const renderLeftPanel = () => (
+    <div>
+      <h3 className="text-xl font-bold mb-4">Audio Player</h3>
+      {test.audio && test.audio.audio_url ? (
         <AudioPlayer src={test.audio.audio_url} />
+      ) : (
+        <p className="text-red-500">Audio file not found for this test.</p>
       )}
+      <div className="prose max-w-none mt-4">
+        <p>Listen to the audio and answer the questions on the right. You will hear the audio only once.</p>
+      </div>
+    </div>
+  );
+
+  const renderRightPanel = () => (
+    <div>
+      <h3 className="text-xl font-bold mb-4">Questions</h3>
       {(test.questions || []).map(q => (
-        <div key={q.id} className="mb-6 border p-4 rounded shadow-sm">
-          <p className="font-medium">Q{q.order}. {q.question_text}</p>
+        <div key={q.id} className="mb-6 pb-4 border-b">
+          <p className="font-medium mb-2">Q{q.order}. {q.question_text}</p>
           {q.image && (
-            <img src={q.image} alt="Question image" className="my-2 w-full max-w-xl rounded border" />
+            <img src={q.image} alt={`Question ${q.order}`} className="my-2 max-w-sm rounded border" />
           )}
-          {q.options ? (
+          
+          {q.question_type === 'MULTIPLE_CHOICE' || (q.options && q.options.length > 0) ? (
             q.options.map(opt => (
-              <label key={opt.label} className="block mt-1">
+              <label key={opt.id || opt.label} className="block mt-1 cursor-pointer p-2 rounded hover:bg-gray-100">
                 <input
                   type="radio"
                   name={`question-${q.id}`}
                   value={opt.label}
                   checked={answers[q.id] === opt.label}
                   onChange={() => handleChange(q.id, opt.label)}
-                  className="mr-2"
+                  className="mr-3"
                   disabled={submitting}
                 />
                 {opt.label}. {opt.text}
@@ -98,21 +103,25 @@ const ListeningTestPage = () => {
               type="text"
               value={answers[q.id] || ""}
               onChange={(e) => handleChange(q.id, e.target.value)}
-              placeholder="Введите ваш ответ"
+              placeholder="Your answer"
               className="mt-1 w-full p-2 border rounded"
               disabled={submitting}
             />
           )}
         </div>
       ))}
-      <button
-        onClick={handleSubmit}
-        className="w-full mt-4 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-300"
-        disabled={submitting}
-      >
-        {submitting ? "Отправка..." : "Завершить и посмотреть результат"}
-      </button>
     </div>
+  );
+
+  return (
+    <TestLayout
+      title={test.title}
+      timer={<ListeningTimer onTimeUp={handleSubmit} initialSeconds={timeLimit} />}
+      leftPanel={renderLeftPanel()}
+      rightPanel={renderRightPanel()}
+      onSubmit={handleSubmit}
+      isSubmitting={submitting}
+    />
   );
 };
 
