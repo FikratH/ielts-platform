@@ -74,7 +74,7 @@ class ReadingTestListSerializer(serializers.ModelSerializer):
     def get_has_attempted(self, obj):
         request = self.context.get('request')
         if request:
-            # Проверяем аутентификацию через Firebase token
+           
             auth_header = request.META.get('HTTP_AUTHORIZATION', '')
             if auth_header.startswith('Bearer '):
                 from .firebase_config import verify_firebase_token
@@ -127,11 +127,15 @@ class ReadingQuestionCreateSerializer(serializers.ModelSerializer):
 
 class ReadingTestCreateSerializer(serializers.ModelSerializer):
     questions = ReadingQuestionCreateSerializer(many=True)
-    passage = serializers.CharField(write_only=True)
+    passage = serializers.CharField(write_only=True, required=False)
+    passage_text = serializers.CharField(source='passage.text', read_only=True)
 
     class Meta:
         model = ReadingTest
-        fields = ['title', 'description', 'questions', 'passage']
+        fields = ['id', 'title', 'description', 'questions', 'passage', 'passage_text', 'time_limit']
+        extra_kwargs = {
+            'time_limit': {'required': False, 'default': 60}
+        }
 
     def create(self, validated_data):
         questions_data = validated_data.pop('questions')
@@ -148,6 +152,68 @@ class ReadingTestCreateSerializer(serializers.ModelSerializer):
             if correct_answer:
                 AnswerKey.objects.create(question=question, correct_answer=correct_answer)
         return test
+
+    def update(self, instance, validated_data):
+        # Обновляем поля самого теста
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.time_limit = validated_data.get('time_limit', instance.time_limit)
+        
+        # Обновляем или создаем текст
+        passage_text = validated_data.get('passage')
+        if passage_text:
+            if hasattr(instance, 'passage'):
+                instance.passage.text = passage_text
+                instance.passage.save()
+            else:
+                ReadingPassage.objects.create(test=instance, text=passage_text)
+
+        instance.save()
+
+        # Обновляем вопросы
+        questions_data = validated_data.get('questions', [])
+        question_ids = [q_data.get('id') for q_data in questions_data if q_data.get('id')]
+
+        # Удаляем вопросы, которых нет в запросе
+        for question in instance.questions.all():
+            if question.id not in question_ids:
+                question.delete()
+
+        for q_data in questions_data:
+            question_id = q_data.get('id')
+            options_data = q_data.pop('options', [])
+            correct_answer = q_data.pop('correct_answer', None)
+
+            if question_id:
+                # Обновляем существующий вопрос
+                question = ReadingQuestion.objects.get(id=question_id, test=instance)
+                question.question_type = q_data.get('question_type', question.question_type)
+                question.question_text = q_data.get('question_text', question.question_text)
+                question.order = q_data.get('order', question.order)
+                question.save()
+            else:
+                # Создаем новый вопрос
+                question = ReadingQuestion.objects.create(test=instance, **q_data)
+
+            # Обновляем или создаем ключ ответа
+            if correct_answer is not None:
+                AnswerKey.objects.update_or_create(question=question, defaults={'correct_answer': correct_answer})
+
+            # Обновляем варианты ответов
+            option_ids = [opt.get('id') for opt in options_data if opt.get('id')]
+            for option in question.options.all():
+                if option.id not in option_ids:
+                    option.delete()
+            
+            for opt_data in options_data:
+                option_id = opt_data.get('id')
+                if option_id:
+                    option = AnswerOption.objects.get(id=option_id, question=question)
+                    option.label = opt_data.get('label', option.label)
+                    option.text = opt_data.get('text', option.text)
+                    option.save()
+
+        return instance
 
 class ReadingQuestionUpdateSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)
@@ -344,27 +410,91 @@ class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
 
 class ListeningTestCreateSerializer(serializers.ModelSerializer):
     questions = ListeningQuestionCreateSerializer(many=True)
-    audio_file = serializers.FileField(write_only=True)
+    audio_file = serializers.FileField(write_only=True, required=False)
+    audio_url = serializers.CharField(source='audio.audio_url', read_only=True)
 
     class Meta:
         model = ListeningTest
-        fields = ['title', 'description', 'questions', 'audio_file']
+        fields = ['id', 'title', 'description', 'questions', 'audio_file', 'audio_url', 'time_limit']
+        extra_kwargs = {
+            'time_limit': {'required': False, 'default': 30}
+        }
 
     def create(self, validated_data):
         questions_data = validated_data.pop('questions')
         audio_file = validated_data.pop('audio_file')
         test = ListeningTest.objects.create(**validated_data)
         ListeningAudio.objects.create(test=test, audio_file=audio_file)
+        
         for q_data in questions_data:
             options_data = q_data.pop('options', [])
             image = q_data.pop('image', None)
             correct_answer = q_data.pop('correct_answer', None)
+            
             question = ListeningQuestion.objects.create(test=test, image=image, **q_data)
+            
             for opt_data in options_data:
                 ListeningAnswerOption.objects.create(question=question, **opt_data)
+            
             if correct_answer:
                 ListeningAnswerKey.objects.create(question=question, correct_answer=correct_answer)
         return test
+
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.time_limit = validated_data.get('time_limit', instance.time_limit)
+        
+        audio_file = validated_data.get('audio_file')
+        if audio_file:
+            if hasattr(instance, 'audio'):
+                instance.audio.audio_file = audio_file
+                instance.audio.save()
+            else:
+                ListeningAudio.objects.create(test=instance, audio_file=audio_file)
+
+        instance.save()
+
+        questions_data = validated_data.get('questions', [])
+        question_ids = [q_data.get('id') for q_data in questions_data if q_data.get('id')]
+
+        for question in instance.questions.all():
+            if question.id not in question_ids:
+                question.delete()
+
+        for q_data in questions_data:
+            question_id = q_data.get('id')
+            options_data = q_data.pop('options', [])
+            correct_answer = q_data.pop('correct_answer', None)
+
+            if question_id:
+                question = ListeningQuestion.objects.get(id=question_id, test=instance)
+                question.question_type = q_data.get('question_type', question.question_type)
+                question.question_text = q_data.get('question_text', question.question_text)
+                question.order = q_data.get('order', question.order)
+                question.save()
+            else:
+                question = ListeningQuestion.objects.create(test=instance, **q_data)
+
+            if correct_answer is not None:
+                ListeningAnswerKey.objects.update_or_create(question=question, defaults={'correct_answer': correct_answer})
+
+            option_ids = [opt.get('id') for opt in options_data if opt.get('id')]
+            for option in question.options.all():
+                if option.id not in option_ids:
+                    option.delete()
+            
+            for opt_data in options_data:
+                option_id = opt_data.get('id')
+                if option_id:
+                    option = ListeningAnswerOption.objects.get(id=option_id, question=question)
+                    option.label = opt_data.get('label', option.label)
+                    option.text = opt_data.get('text', option.text)
+                    option.save()
+                else:
+                    ListeningAnswerOption.objects.create(question=question, **opt_data)
+
+        return instance
 
 
 class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):

@@ -33,8 +33,9 @@ const Navbar = ({ role, setRole }) => {
 
   return (
     <nav className="bg-blue-600 text-white p-4 flex justify-between items-center fixed top-0 left-0 right-0 z-50">
-      <Link to={!role ? '/login' : (role === 'admin' ? '/admin/assignments' : '/dashboard')} className="text-xl font-bold">
-        IELTS Platform
+      <Link to={!role ? '/login' : (role === 'admin' ? '/admin/assignments' : '/dashboard')} className="flex items-center gap-3">
+        <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-full shadow bg-white object-cover" />
+        <span className="hidden sm:inline text-xl font-bold tracking-tight">Master Education</span>
       </Link>
       <div className="flex items-center gap-6">
         {role === 'student' && studentLinks}

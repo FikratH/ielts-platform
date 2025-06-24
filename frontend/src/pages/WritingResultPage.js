@@ -36,7 +36,7 @@ const WritingResultPage = () => {
   if (error) return <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg">{error}</div>;
   if (essays.length === 0) return <div className="p-6 text-center">Нет данных для отображения.</div>;
 
-  // Подготавливаем данные для TestResultLayout
+
   const averageBand = essays.reduce((sum, essay) => sum + parseFloat(essay.overall_band), 0) / essays.length;
   
   const sessionData = {
@@ -49,7 +49,7 @@ const WritingResultPage = () => {
       question_text: `Task ${essay.task_type.toUpperCase()}: ${essay.question_text.substring(0, 100)}...`,
       user_answer: essay.submitted_text.substring(0, 200) + "...",
       correct_answer: `Band Score: ${essay.overall_band}`,
-      is_correct: true, // Всегда true для Writing, так как это не тест с правильными ответами
+      is_correct: true, 
       detailed_feedback: essay.feedback,
       scores: {
         task_response: essay.score_task,

@@ -10,25 +10,25 @@ const AdminDashboardPage = () => {
         
         <Link to="/admin/assignments" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Поиск заданий студентов</h2>
-          <p className="text-gray-600 mt-2">Найти и проверить работы, сданные студентами (Reading & Writing).</p>
+          
         </Link>
 
         
         <Link to="/admin/reading" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Управление Reading тестами</h2>
-          <p className="text-gray-600 mt-2">Создавать, редактировать и активировать тесты для секции Reading.</p>
+         
         </Link>
 
         
         <Link to="/admin/prompts" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Управление Writing заданиями</h2>
-          <p className="text-gray-600 mt-2">Управлять темами и заданиями для секции Writing.</p>
+          
         </Link>
 
         
         <Link to="/admin/listening" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Управление Listening тестами</h2>
-          <p className="text-gray-600 mt-2">Создавать, редактировать и активировать тесты для секции Listening.</p>
+          
         </Link>
 
       </div>

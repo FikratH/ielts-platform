@@ -91,14 +91,14 @@ const WritingTaskPage = () => {
   };
 
   const handleTimeUp = async () => {
-    if (loading) return; // Предотвращаем множественные вызовы
+    if (loading) return; 
     
     setLoading(true);
     
     try {
       const token = localStorage.getItem("token");
       
-      // Если есть текст, сохраняем его
+
       if (text.trim()) {
         await axios.post('/api/submit-task/', {
           session_id: sessionId,
@@ -112,11 +112,11 @@ const WritingTaskPage = () => {
         });
       }
 
-      // Если это Task 1, переходим к Task 2
+     
       if (taskType === "task1") {
         navigate(`/writing/task2/${sessionId}`);
       } else {
-        // Если это Task 2, завершаем сессию
+       
         await axios.post('/api/finish-writing-session/', {
           session_id: sessionId
         }, {
@@ -134,7 +134,7 @@ const WritingTaskPage = () => {
     }
   };
 
-  const timeLimit = taskType === "task1" ? 20 * 60 : 40 * 60; // 20 мин для Task 1, 40 мин для Task 2
+  const timeLimit = taskType === "task1" ? 20 * 60 : 40 * 60; 
 
   const renderLeftPanel = () => (
     <div>
@@ -171,6 +171,13 @@ const WritingTaskPage = () => {
     </div>
   );
 
+  let submitLabel = "Завершить и посмотреть результат";
+  if (taskType === "task1") {
+    submitLabel = "Перейти к Task 2";
+  } else {
+    submitLabel = "Завершить и посмотреть результат";
+  }
+
   if (loading) {
     return (
       <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
@@ -187,6 +194,7 @@ const WritingTaskPage = () => {
       rightPanel={renderRightPanel()}
       onSubmit={handleSubmit}
       isSubmitting={loading}
+      submitLabel={submitLabel}
     />
   );
 };

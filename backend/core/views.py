@@ -70,16 +70,13 @@ class EssaySubmissionView(CsrfExemptAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -147,16 +144,13 @@ class AdminEssayListView(ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Essay.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Essay.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -181,12 +175,10 @@ class EssayListView(ListAPIView):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Essay.objects.none()
-
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Essay.objects.none()
-
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -207,12 +199,10 @@ class EssayDetailView(RetrieveAPIView):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Essay.objects.none()
-
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Essay.objects.none()
-
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -228,7 +218,6 @@ class ReadingTestListView(ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if auth_header.startswith('Bearer '):
             id_token = auth_header.split(' ')[1]
@@ -262,16 +251,13 @@ class StartReadingTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -283,7 +269,6 @@ class StartReadingTestView(APIView):
         except ReadingTest.DoesNotExist:
             return Response({"error": "Test not found"}, status=404)
 
-        # Check if user has an incomplete session
         existing_session = ReadingTestSession.objects.filter(
             user=user,
             test=test,
@@ -300,7 +285,6 @@ class StartReadingTestView(APIView):
                 "message": "Resuming existing session"
             })
 
-        # Create new session
         session = ReadingTestSession.objects.create(
             user=user,
             test=test
@@ -316,16 +300,13 @@ class SubmitReadingTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, session_id):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -337,23 +318,14 @@ class SubmitReadingTestView(APIView):
         except ReadingTestSession.DoesNotExist:
             return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Новая, чистая логика сохранения и подсчета
         session.answers = request.data.get("answers", {})
         session.completed = True
         session.completed_at = timezone.now()
-        
-        # 1. Считаем
         raw_score = session.calculate_score()
         band_score = session.convert_to_band(raw_score)
-        
-        # 2. Присваиваем
         session.raw_score = raw_score
         session.band_score = band_score
-        
-        # 3. Сохраняем один раз
         session.save()
-        
-        # 4. Отдаем полный результат
         serializer = ReadingTestSessionResultSerializer(session, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -362,16 +334,13 @@ class ReadingTestSessionListView(ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ReadingTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ReadingTestSession.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -387,16 +356,13 @@ class ReadingTestSessionDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ReadingTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ReadingTestSession.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -410,16 +376,13 @@ class StartWritingSessionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -427,8 +390,8 @@ class StartWritingSessionView(APIView):
             return Response({'error': 'User not found'}, status=401)
 
         session = WritingTestSession.objects.create(user=user)
-        task1_prompt = WritingPrompt.objects.filter(task_type="task1").order_by("?").first()
-        task2_prompt = WritingPrompt.objects.filter(task_type="task2").order_by("?").first()
+        task1_prompt = WritingPrompt.objects.filter(task_type="task1", is_active=True).order_by("?").first()
+        task2_prompt = WritingPrompt.objects.filter(task_type="task2", is_active=True).order_by("?").first()
 
         return Response({
             'session_id': session.id,
@@ -443,93 +406,102 @@ class SubmitTaskView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=401)
 
-        serializer = EssaySerializer(data=request.data)
-        if serializer.is_valid():
-            essay = serializer.save(user=user)
+        session_id = request.data.get('session_id')
+        task_type = request.data.get('task_type')
+        prompt_text = request.data.get('question_text')
+        submitted_text = request.data.get('submitted_text')
 
-            prompt = f"""
-                        You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
-                        Score each from 0 to 9 and return the result in plain text format like:
-                        
+        try:
+            session = WritingTestSession.objects.get(id=session_id, user=user)
+        except WritingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        prompt = WritingPrompt.objects.filter(task_type=task_type, prompt_text=prompt_text).first()
+
+        essay = Essay.objects.create(
+            user=user,
+            test_session=session,
+            task_type=task_type,
+            question_text=prompt_text,
+            submitted_text=submitted_text,
+            prompt=prompt
+        )
+
+        prompt_str = f"""
+You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
+Score each from 0 to 9 and return the result in plain text format like:
+
 Task Response: 8.5
-                        Coherence and Cohesion: 8
-                        Lexical Resource: 8
-                        Grammatical Range and Accuracy: 9
-                        
-                        Feedback: <full feedback here>
+Coherence and Cohesion: 8
+Lexical Resource: 8
+Grammatical Range and Accuracy: 9
+
+Feedback: <full feedback here>
 
 Essay:
 {essay.submitted_text}
 """
 
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an IELTS writing examiner."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an IELTS writing examiner."},
+                {"role": "user", "content": prompt_str}
+            ]
+        )
 
-            content = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content.strip()
 
-            def extract_score(label):
-                match = re.search(rf"{label}[:：]?\s*(\d+(\.\d+)?)", content, re.IGNORECASE)
-                return float(match.group(1)) if match else 0
+        def extract_score(label):
+            match = re.search(rf"{label}[:：]?\\s*(\\d+(\\.\\d+)?)", content, re.IGNORECASE)
+            return float(match.group(1)) if match else 0
 
-            def round_ielts_band(score):
-                decimal = score - int(score)
-                if decimal < 0.25:
-                    return float(int(score))
-                elif decimal < 0.75:
-                    return float(int(score)) + 0.5
-                else:
-                    return float(int(score)) + 1.0
+        def round_ielts_band(score):
+            decimal = score - int(score)
+            if decimal < 0.25:
+                return float(int(score))
+            elif decimal < 0.75:
+                return float(int(score)) + 0.5
+            else:
+                return float(int(score)) + 1.0
 
-            essay.score_task = extract_score("Task Response")
-            essay.score_coherence = extract_score("Coherence and Cohesion")
-            essay.score_lexical = extract_score("Lexical Resource")
-            essay.score_grammar = extract_score("Grammatical Range and Accuracy")
-            essay.overall_band = round_ielts_band((
-                essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
-            ) / 4)
-            essay.feedback = content
-            essay.save()
+        essay.score_task = extract_score("Task Response")
+        essay.score_coherence = extract_score("Coherence and Cohesion")
+        essay.score_lexical = extract_score("Lexical Resource")
+        essay.score_grammar = extract_score("Grammatical Range and Accuracy")
+        essay.overall_band = round_ielts_band((
+            essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
+        ) / 4)
+        essay.feedback = content
+        essay.save()
 
-            return Response(EssaySerializer(essay).data)
-
-        return Response(serializer.errors, status=400)
+        return Response(EssaySerializer(essay).data)
 
 
 class FinishWritingSessionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -549,10 +521,9 @@ class FinishWritingSessionView(APIView):
         if not essays.exists():
             return Response({'error': 'No essays found for this session'}, status=400)
 
-        # Calculate overall band score
         total_score = 0
         essay_count = 0
-        
+
         for essay in essays:
             if essay.overall_band:
                 total_score += essay.overall_band
@@ -584,16 +555,13 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return WritingPrompt.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return WritingPrompt.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -617,12 +585,10 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -633,20 +599,15 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
 
         return super().update(request, *args, **kwargs)
 
-class ReadingTestCreateView(APIView):
-    permission_classes = [AllowAny]  # Временно разрешаем всем для отладки
-
-    def post(self, request):
-        # Проверяем аутентификацию через Firebase token
+    @action(detail=True, methods=['post'], url_path='set_active', permission_classes=[AllowAny])
+    def set_active(self, request, pk=None):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -655,26 +616,44 @@ class ReadingTestCreateView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=401)
 
-        # Создаем только тест без вопросов
+        prompt = self.get_object()
+        prompt.is_active = True
+        prompt.save()
+        return Response({'message': 'Prompt activated', 'id': prompt.id})
+
+class ReadingTestCreateView(APIView):
+    permission_classes = [AllowAny]  
+
+    def post(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
         test_data = {
             'title': request.data.get('title'),
             'description': request.data.get('description', ''),
             'passage': request.data.get('passage')
         }
-        
-        # Создаем тест
         test = ReadingTest.objects.create(
             title=test_data['title'],
             description=test_data['description']
         )
-        
-        # Создаем пассаж
         if test_data['passage']:
             ReadingPassage.objects.create(
                 test=test,
                 text=test_data['passage']
             )
-        
         return Response({
             'id': test.id, 
             'message': 'Test created successfully. Now you can add questions.',
@@ -685,16 +664,13 @@ class ReadingQuestionAddView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, test_id):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -708,7 +684,6 @@ class ReadingQuestionAddView(APIView):
         except ReadingTest.DoesNotExist:
             return Response({'error': 'Test not found'}, status=404)
 
-        # Получаем данные вопроса
         question_data = {
             'question_type': request.data.get('question_type'),
             'question_text': request.data.get('question_text'),
@@ -717,29 +692,21 @@ class ReadingQuestionAddView(APIView):
             'image': request.FILES.get('image'),
             'test': test
         }
-        
-        # Создаем вопрос
         question = ReadingQuestion.objects.create(**question_data)
-        
-        # Добавляем варианты ответов
         options_json = request.data.get('options', '[]')
         options_data = json.loads(options_json)
-        
         for opt_data in options_data:
             AnswerOption.objects.create(
                 question=question,
                 label=opt_data.get('label'),
                 text=opt_data.get('text')
             )
-        
-        # Добавляем правильный ответ
         correct_answer = request.data.get('correct_answer')
         if correct_answer:
             AnswerKey.objects.create(
                 question=question,
                 correct_answer=correct_answer
             )
-        
         return Response({
             'message': 'Question added successfully',
             'question_id': question.id
@@ -749,16 +716,13 @@ class ActivateReadingTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -779,16 +743,13 @@ class ReadingTestUpdateDeleteView(RetrieveUpdateDestroyAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ReadingTest.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ReadingTest.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -805,16 +766,13 @@ class ReadingQuestionUpdateDeleteView(RetrieveUpdateDestroyAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ReadingQuestion.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ReadingQuestion.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -833,59 +791,48 @@ class AdminReadingSessionListView(ListAPIView):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ReadingTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ReadingTestSession.objects.none()
-        
         try:
             user = User.objects.get(uid=decoded['uid'])
             if user.role != 'admin':
                 return ReadingTestSession.objects.none()
         except User.DoesNotExist:
             return ReadingTestSession.objects.none()
-        
         queryset = ReadingTestSession.objects.filter(completed=True).select_related('user', 'test').order_by('-completed_at')
-
         student_id = self.request.query_params.get('student_id')
         if student_id:
             queryset = queryset.filter(user__student_id=student_id)
-
         return queryset
 
 class AdminReadingSessionDetailView(RetrieveAPIView):
     serializer_class = ReadingTestSessionResultSerializer
-    permission_classes = [AllowAny] # Using token auth instead
+    permission_classes = [AllowAny]
     queryset = ReadingTestSession.objects.all()
 
     def get_object(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             raise PermissionDenied("No auth token provided.")
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             raise PermissionDenied("Invalid token.")
-        
         try:
             user = User.objects.get(uid=decoded['uid'])
             if user.role != 'admin':
                 raise PermissionDenied("You must be an admin to view this.")
         except User.DoesNotExist:
             raise PermissionDenied("User not found.")
-        
-        # Если все проверки пройдены, получаем объект
         return super().get_object()
 
-# Listening Views
 class ListeningTestListView(ListAPIView):
     serializer_class = ListeningTestListSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if auth_header.startswith('Bearer '):
             id_token = auth_header.split(' ')[1]
@@ -921,16 +868,13 @@ class StartListeningTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -942,7 +886,6 @@ class StartListeningTestView(APIView):
         except ListeningTest.DoesNotExist:
             return Response({"error": "Test not found"}, status=404)
 
-        # Check if user has an incomplete session
         existing_session = ListeningTestSession.objects.filter(
             user=user,
             test=test,
@@ -959,7 +902,6 @@ class StartListeningTestView(APIView):
                 "message": "Resuming existing session"
             })
 
-        # Create new session
         session = ListeningTestSession.objects.create(
             user=user,
             test=test
@@ -976,16 +918,13 @@ class SubmitListeningTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, session_id):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -997,23 +936,14 @@ class SubmitListeningTestView(APIView):
         except ListeningTestSession.DoesNotExist:
             return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Новая, чистая логика сохранения и подсчета
         session.answers = request.data.get("answers", {})
         session.completed = True
         session.completed_at = timezone.now()
-        
-        # 1. Считаем
         raw_score = session.calculate_score()
         band_score = session.convert_to_band(raw_score)
-        
-        # 2. Присваиваем
         session.raw_score = raw_score
         session.band_score = band_score
-        
-        # 3. Сохраняем один раз
         session.save()
-        
-        # 4. Отдаем полный результат
         from .serializers import ListeningTestSessionResultSerializer
         serializer = ListeningTestSessionResultSerializer(session, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1024,16 +954,13 @@ class ListeningTestSessionListView(ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ListeningTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ListeningTestSession.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1050,16 +977,13 @@ class ListeningTestSessionDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ListeningTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ListeningTestSession.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1074,16 +998,13 @@ class ListeningTestCreateView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1092,26 +1013,20 @@ class ListeningTestCreateView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=401)
 
-        # Создаем только тест без вопросов
         test_data = {
             'title': request.data.get('title'),
             'description': request.data.get('description', ''),
             'audio_file': request.FILES.get('audio_file')
         }
-        
-        # Создаем тест
         test = ListeningTest.objects.create(
             title=test_data['title'],
             description=test_data['description']
         )
-        
-        # Создаем аудио файл
         if test_data['audio_file']:
             ListeningAudio.objects.create(
                 test=test,
                 audio_file=test_data['audio_file']
             )
-        
         return Response({
             'id': test.id, 
             'message': 'Test created successfully. Now you can add questions.',
@@ -1123,16 +1038,13 @@ class ListeningQuestionAddView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, test_id):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1146,7 +1058,6 @@ class ListeningQuestionAddView(APIView):
         except ListeningTest.DoesNotExist:
             return Response({'error': 'Test not found'}, status=404)
 
-        # Получаем данные вопроса
         question_data = {
             'question_type': request.data.get('question_type'),
             'question_text': request.data.get('question_text'),
@@ -1154,29 +1065,21 @@ class ListeningQuestionAddView(APIView):
             'image': request.FILES.get('image'),
             'test': test
         }
-        
-        # Создаем вопрос
         question = ListeningQuestion.objects.create(**question_data)
-        
-        # Добавляем варианты ответов
         options_json = request.data.get('options', '[]')
         options_data = json.loads(options_json)
-        
         for opt_data in options_data:
             ListeningAnswerOption.objects.create(
                 question=question,
                 label=opt_data.get('label'),
                 text=opt_data.get('text')
             )
-        
-        # Добавляем правильный ответ
         correct_answer = request.data.get('correct_answer')
         if correct_answer:
             ListeningAnswerKey.objects.create(
                 question=question,
                 correct_answer=correct_answer
             )
-        
         return Response({
             'message': 'Question added successfully',
             'question_id': question.id
@@ -1187,16 +1090,13 @@ class ActivateListeningTestView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
-        # Проверяем аутентификацию через Firebase token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return Response({'error': 'Invalid token'}, status=401)
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1218,16 +1118,13 @@ class ListeningTestUpdateDeleteView(RetrieveUpdateDestroyAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ListeningTest.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ListeningTest.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1245,16 +1142,13 @@ class ListeningQuestionUpdateDeleteView(RetrieveUpdateDestroyAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Проверяем аутентификацию через Firebase token
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ListeningQuestion.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ListeningQuestion.objects.none()
-        
         uid = decoded['uid']
         try:
             user = User.objects.get(uid=uid)
@@ -1274,25 +1168,20 @@ class AdminListeningSessionListView(ListAPIView):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return ListeningTestSession.objects.none()
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             return ListeningTestSession.objects.none()
-        
         try:
             user = User.objects.get(uid=decoded['uid'])
             if user.role != 'admin':
                 return ListeningTestSession.objects.none()
         except User.DoesNotExist:
             return ListeningTestSession.objects.none()
-        
         queryset = ListeningTestSession.objects.filter(completed=True).select_related('user', 'test').order_by('-completed_at')
-
         student_id = self.request.query_params.get('student_id')
         if student_id:
             queryset = queryset.filter(user__student_id=student_id)
-
         return queryset
 
 
@@ -1305,21 +1194,14 @@ class AdminListeningSessionDetailView(RetrieveAPIView):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             raise PermissionDenied("No auth token provided.")
-        
         id_token = auth_header.split(' ')[1]
         decoded = verify_firebase_token(id_token)
         if not decoded:
             raise PermissionDenied("Invalid token.")
-        
         try:
             user = User.objects.get(uid=decoded['uid'])
             if user.role != 'admin':
                 raise PermissionDenied("You must be an admin to view this.")
         except User.DoesNotExist:
             raise PermissionDenied("User not found.")
-        
-        # Если все проверки пройдены, получаем объект
         return super().get_object()
-
-
-

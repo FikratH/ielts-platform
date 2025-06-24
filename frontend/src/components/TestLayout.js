@@ -7,6 +7,7 @@ const TestLayout = ({
   rightPanel,
   onSubmit,
   isSubmitting,
+  submitLabel
 }) => {
   return (
     <div className="flex flex-col h-screen">
@@ -33,7 +34,7 @@ const TestLayout = ({
           className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-300"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Отправка..." : "Завершить и посмотреть результат"}
+          {isSubmitting ? "Отправка..." : (submitLabel || "Завершить и посмотреть результат")}
         </button>
       </footer>
     </div>

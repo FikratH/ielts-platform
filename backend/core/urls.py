@@ -68,7 +68,7 @@ urlpatterns = router.urls + [
     path('admin/reading/<int:pk>/', ReadingTestUpdateDeleteView.as_view(), name='reading-test-update-delete'),
     path('reading/questions/<int:pk>/', ReadingQuestionUpdateDeleteView.as_view(), name='reading-question-update-delete'),
     
-    # Listening URLs
+
     path('listening/tests/', ListeningTestListView.as_view(), name='listening-test-list'),
     path('listening/tests/create/', ListeningTestCreateView.as_view(), name='listening-test-create'),
     path('listening/tests/<int:test_id>/questions/add/', ListeningQuestionAddView.as_view(), name='listening-question-add'),

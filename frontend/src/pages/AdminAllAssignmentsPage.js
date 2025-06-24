@@ -143,7 +143,7 @@ export default function AdminAllAssignmentsPage() {
       <div className="mb-6 flex gap-2">
         <input
           type="text"
-          placeholder="Введите StudentID или оставьте пустым для всех"
+          placeholder="Введите StudentID"
           value={studentId}
           onChange={(e) => setStudentId(e.target.value)}
           className="border p-2 rounded w-full md:w-80"

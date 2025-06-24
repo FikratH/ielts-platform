@@ -214,14 +214,21 @@ export default function Dashboard() {
                 </div>
 
                 <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
                     itemDetails.question_feedback.map((feedback, index) => (
-                      <div key={feedback.question_id} className={`p-3 border-l-4 rounded-r-lg text-sm ${feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
-                         <p className="font-semibold text-gray-800">Вопрос {index + 1}: <span className="font-normal text-gray-600">{feedback.question_text}</span></p>
-                         <div className="mt-1">
-                             <p>Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-700' : 'text-red-700'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
-                             {!feedback.is_correct && <p>Правильный ответ: <span className="font-medium text-blue-700">{feedback.correct_answer}</span></p>}
+                      <div key={feedback.question_id} className={`p-4 border rounded-lg ${feedback.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                        <div className="flex justify-between items-start">
+                           <p className="font-semibold text-gray-800 pr-4">Вопрос {index + 1}: {feedback.question_text}</p>
+                           {feedback.is_correct ? (
+                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Правильно</span>
+                           ) : (
+                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Неправильно</span>
+                           )}
+                        </div>
+                         <div className="mt-2 text-sm">
+                             <p className="text-gray-600">Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
+                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Правильный ответ: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
                          </div>
                       </div>
                     ))
@@ -259,14 +266,21 @@ export default function Dashboard() {
                 </div>
 
                 <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
                     itemDetails.question_feedback.map((feedback, index) => (
-                      <div key={feedback.question_id} className={`p-3 border-l-4 rounded-r-lg text-sm ${feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
-                         <p className="font-semibold text-gray-800">Вопрос {index + 1}: <span className="font-normal text-gray-600">{feedback.question_text}</span></p>
-                         <div className="mt-1">
-                             <p>Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-700' : 'text-red-700'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
-                             {!feedback.is_correct && <p>Правильный ответ: <span className="font-medium text-blue-700">{feedback.correct_answer}</span></p>}
+                      <div key={feedback.question_id} className={`p-4 border rounded-lg ${feedback.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                        <div className="flex justify-between items-start">
+                           <p className="font-semibold text-gray-800 pr-4">Вопрос {index + 1}: {feedback.question_text}</p>
+                           {feedback.is_correct ? (
+                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Правильно</span>
+                           ) : (
+                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Неправильно</span>
+                           )}
+                        </div>
+                         <div className="mt-2 text-sm">
+                             <p className="text-gray-600">Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
+                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Правильный ответ: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
                          </div>
                       </div>
                     ))
@@ -277,20 +291,6 @@ export default function Dashboard() {
               </>
             ) : <p>Не удалось загрузить детали.</p>}
           </div>
-        </div>
-      )}
-
-      {listeningSessions.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-lg font-bold mb-2">Listening</h3>
-          <ul className="space-y-2">
-            {listeningSessions.map(session => (
-              <li key={session.id} className="border p-2 rounded flex items-center justify-between">
-                <span>Тест: {session.test_title} | Band: {session.band_score}</span>
-                <button onClick={() => handleOpenDetails({ type: 'Listening', item: session })} className="text-blue-600 underline">Подробнее</button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>
