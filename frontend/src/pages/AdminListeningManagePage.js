@@ -1,278 +1,180 @@
-import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import QuestionForm from '../components/QuestionForm';
-
-
-const QUESTION_TYPES = {
-  MULTIPLE_CHOICE: 'MULTIPLE_CHOICE',
-  FILL_IN_THE_BLANK: 'FILL_IN_THE_BLANK',
-  TRUE_FALSE_NOT_GIVEN: 'TRUE_FALSE_NOT_GIVEN',
-};
-
-const TRUE_FALSE_OPTIONS = [
-  { label: 'A', text: 'True' },
-  { label: 'B', text: 'False' },
-  { label: 'C', text: 'Not Given' },
-];
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  Box, Typography, Button, Card, CardContent, 
+  Chip, IconButton, Switch, Alert, Snackbar 
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const AdminListeningManagePage = () => {
   const [tests, setTests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [audioFile, setAudioFile] = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [editingTest, setEditingTest] = useState(null);
-  const [editingQuestion, setEditingQuestion] = useState(null);
-
-  const audioInputRef = useRef();
-
-  const api = axios.create({
-    baseURL: 'http://localhost:8000/api',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
-  });
+  const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
-    fetchTests();
+    loadTests();
   }, []);
 
-  const fetchTests = async () => {
-    setLoading(true);
+  const loadTests = async () => {
     try {
-      const res = await api.get('/listening/tests/');
-      setTests(res.data);
-    } catch (err) {
-      setError('Could not fetch tests.');
-      console.error(err);
+      const response = await fetch('/api/listening-tests/');
+      if (response.ok) {
+        const data = await response.json();
+        setTests(data);
+      }
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to load tests', severity: 'error' });
     } finally {
       setLoading(false);
     }
   };
   
-  const handleEdit = async (testId) => {
+  const toggleTestStatus = async (testId, isActive) => {
     try {
-      setLoading(true);
-      const res = await api.get(`/listening/tests/${testId}/`);
-      const testData = res.data;
-      setEditingTest(testData);
-      setTitle(testData.title);
-      setDescription(testData.description);
-      setQuestions(testData.questions || []);
-      setAudioFile(null); // Reset file input
-      setError('');
-      setEditingQuestion(null);
-      window.scrollTo(0, 0);
-    } catch (err) {
-      setError('Could not fetch test details.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const response = await fetch(`/api/listening-tests/${testId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_active: isActive }),
+      });
 
-  const handleCancelEdit = () => {
-    setEditingTest(null);
-    setTitle('');
-    setDescription('');
-    setQuestions([]);
-    setAudioFile(null);
-    setError('');
-    setEditingQuestion(null);
-  };
-
-  const handleTestChange = (e) => {
-    const { name, value } = e.target;
-    if (editingTest) {
-      setEditingTest(prev => ({ ...prev, [name]: value }));
-    } else {
-      setTitle(value);
-    }
-  };
-
-  const handleAudioChange = (e) => {
-    const file = e.target.files[0];
-    if (file) setAudioFile(file);
-  };
-
-  const addQuestion = (question) => {
-    const order = questions.length > 0 ? Math.max(...questions.map(q => q.order)) + 1 : 1;
-    setQuestions([...questions, { ...question, order, id: `new-${Date.now()}` }]);
-  };
-
-  const removeQuestion = (index) => {
-    setQuestions(questions.filter((_, i) => i !== index));
-  };
-
-  const editQuestion = (question) => {
-    setEditingQuestion(question);
-  };
-
-  const updateQuestion = (updatedQuestion) => {
-    if (!updatedQuestion) { // Cancel edit
-      setEditingQuestion(null);
-      return;
-    }
-    setQuestions(questions.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
-    setEditingQuestion(null);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title || (!audioFile && !editingTest) || questions.length === 0) {
-      setError('Please fill title, upload an audio file, and add at least one question.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('description', description);
-    
-    const preparedQuestions = questions.map(q => {
-      const newQ = {...q};
-      if (String(q.id).startsWith('new-')) {
-        delete newQ.id;
-      }
-      return newQ;
-    });
-    formData.append('questions', JSON.stringify(preparedQuestions));
-    
-    if (audioFile) {
-      formData.append('audio_file', audioFile);
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      if (editingTest) {
-        await api.put(`/admin/listening/${editingTest.id}/`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      } else {
-        await api.post('/listening/tests/create/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+      if (response.ok) {
+        setTests(tests.map(test => 
+          test.id === testId ? { ...test, is_active: isActive } : test
+        ));
+        setSnackbar({ 
+          open: true, 
+          message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`, 
+          severity: 'success' 
         });
       }
-      handleCancelEdit();
-      fetchTests();
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-      console.error(err.response ? err.response.data : err);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to update test status', severity: 'error' });
     }
   };
 
-  const handleDelete = async (testId) => {
-    if (window.confirm('Are you sure you want to delete this test?')) {
-      try {
-        await api.delete(`/admin/listening/${testId}/`);
-        fetchTests();
-      } catch (err) {
-        setError('Could not delete the test.');
-        console.error(err);
-      }
-    }
-  };
+  const deleteTest = async (testId) => {
+    if (!window.confirm('Are you sure you want to delete this test?')) return;
 
-  const activateTest = async (testId, isActive) => {
     try {
-      await api.post(`/admin/listening/${testId}/activate/`, { is_active: isActive });
-      fetchTests();
-    } catch (err) {
-      setError('Could not change test status.');
-      console.error(err);
+      const response = await fetch(`/api/listening-tests/${testId}/`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setTests(tests.filter(test => test.id !== testId));
+        setSnackbar({ open: true, message: 'Test deleted successfully', severity: 'success' });
+      }
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to delete test', severity: 'error' });
     }
   };
 
-  const activeTest = tests.find(t => t.is_active);
+  if (loading) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography>Loading tests...</Typography>
+      </Box>
+    );
+  }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Управление тестами Listening</h2>
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <h3 className="text-xl font-semibold border-b pb-2">{editingTest ? 'Редактировать тест' : 'Создать новый тест'}</h3>
-          
-          <div>
-            <label className="block font-semibold">Название теста</label>
-            <input type="text" name="title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full p-2 border rounded" required />
-          </div>
-          <div>
-            <label className="block font-semibold">Описание</label>
-            <textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-2 border rounded" rows="2" />
-          </div>
-          <div>
-            <label className="block font-semibold">Аудиофайл</label>
-            <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files[0])} ref={audioInputRef} className="w-full text-sm" />
-            {editingTest && editingTest.audio_url && (
-              <div className="mt-2">
-                <span className="text-sm font-medium">Текущее аудио: </span>
-                <audio controls src={editingTest.audio_url} className="w-full max-w-sm"></audio>
-              </div>
-            )}
-          </div>
+    <Box sx={{ p: 3 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h4">Listening Tests Management</Typography>
+        <Link to="/admin/listening/builder/new" style={{ textDecoration: 'none' }}>
+          <Button variant="contained" startIcon={<AddIcon />}>
+            Create New Test
+          </Button>
+        </Link>
+      </Box>
 
-          <div>
-            <h4 className="font-semibold">Вопросы в тесте ({questions.length})</h4>
-            <div className="space-y-2 mt-2 max-h-60 overflow-y-auto border p-2 rounded-md">
-              {questions.length > 0 ? questions.map((q, idx) => (
-                <div key={q.id || `new-${idx}`} className="border p-2 rounded flex items-center justify-between bg-gray-50">
-                  <div><span className="font-semibold">Q{q.order}:</span> {q.question_text.substring(0, 50)}...</div>
-                  <div className="flex items-center space-x-2">
-                    <button type="button" onClick={() => editQuestion(q)} className="text-blue-600 text-sm hover:underline">Редактировать</button>
-                    <button type="button" onClick={() => removeQuestion(idx)} className="text-red-500 text-sm hover:underline">Удалить</button>
-                  </div>
-                </div>
-              )) : <p className="text-sm text-gray-500">Пока нет вопросов.</p>}
-            </div>
-          </div>
+      {tests.length === 0 ? (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" textAlign="center" color="text.secondary">
+              No listening tests found
+            </Typography>
+            <Box textAlign="center" sx={{ mt: 2 }}>
+              <Link to="/admin/listening/builder/new" style={{ textDecoration: 'none' }}>
+                <Button variant="contained" startIcon={<AddIcon />}>
+                  Create Your First Test
+                </Button>
+              </Link>
+            </Box>
+          </CardContent>
+        </Card>
+      ) : (
+        <Box sx={{ display: 'grid', gap: 2 }}>
+          {tests.map((test) => (
+            <Card key={test.id}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                  <Box flex={1}>
+                    <Typography variant="h6" gutterBottom>
+                      {test.title}
+                    </Typography>
+                    <Box display="flex" gap={1} sx={{ mb: 2 }}>
+                      <Chip 
+                        label={test.is_active ? 'Active' : 'Inactive'} 
+                        color={test.is_active ? 'success' : 'default'}
+                        size="small"
+                      />
+                      <Chip 
+                        label={`${test.parts?.length || 0} sections`} 
+                        variant="outlined"
+                        size="small"
+                      />
+                      <Chip 
+                        label={`${test.parts?.reduce((total, part) => total + (part.questions?.length || 0), 0) || 0} questions`} 
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Created: {new Date(test.created_at).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                  
+                  <Box display="flex" gap={1} alignItems="center">
+                    <Switch
+                      checked={test.is_active}
+                      onChange={(e) => toggleTestStatus(test.id, e.target.checked)}
+                      size="small"
+                    />
+                    <Link to={`/admin/listening/builder/${test.id}`} style={{ textDecoration: 'none' }}>
+                      <IconButton size="small" color="primary">
+                        <EditIcon />
+                      </IconButton>
+                    </Link>
+                    <IconButton 
+                      size="small" 
+                      color="error"
+                      onClick={() => deleteTest(test.id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+      )}
 
-          <QuestionForm 
-            onSubmit={addQuestion}
-            onUpdate={updateQuestion}
-            initialData={editingQuestion}
-            initialOrder={questions.length + 1}
-          />
-
-          <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 mt-4">
-            {editingTest ? 'Обновить тест' : 'Создать и сохранить тест'}
-          </button>
-          {editingTest && (
-            <button type="button" onClick={handleCancelEdit} className="w-full bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 mt-2">
-              Отмена
-            </button>
-          )}
-        </form>
-      </div>
-
-      <div className="mt-8">
-        <h3 className="text-xl font-semibold border-b pb-2 mb-4">Список тестов</h3>
-        {loading ? <p>Загрузка...</p> : (
-          <div className="space-y-4">
-            {tests.map(test => (
-              <div key={test.id} className="border p-4 rounded-lg shadow-sm bg-white flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">{test.title} <span className={`text-xs font-mono p-1 rounded ${test.is_active ? 'bg-green-200 text-green-800' : 'bg-gray-200'}`}>{test.is_active ? 'АКТИВЕН' : 'НЕАКТИВЕН'}</span></p>
-                  <p className="text-sm text-gray-600 mt-1">{test.description}</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button onClick={() => handleEdit(test.id)} className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600">Редактировать</button>
-                  <button onClick={() => activateTest(test.id, !test.is_active)} className={`px-3 py-1 rounded text-sm text-white ${test.is_active ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-500 hover:bg-green-600'}`}>
-                    {test.is_active ? 'Деактивировать' : 'Активировать'}
-                  </button>
-                  <button onClick={() => handleDelete(test.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Удалить</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 };
 

@@ -6,11 +6,11 @@ from .utils import CsrfExemptAPIView
 from .firebase_config import verify_firebase_token
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
-from .models import ReadingTest, ReadingQuestion, AnswerKey, ReadingTestSession, AnswerOption, ReadingPassage, ListeningTest, ListeningQuestion, ListeningAnswerKey, ListeningTestSession, ListeningAnswerOption, ListeningAudio
+from .models import ReadingTest, ReadingQuestion, AnswerKey, ReadingTestSession, AnswerOption, ReadingPassage, ListeningTest, ListeningTestSession
 from .serializers import (
     ReadingTestListSerializer, ReadingTestDetailSerializer, EssaySerializer, WritingPromptSerializer,
     ReadingTestSessionSerializer, ReadingPassageSerializer, ReadingTestCreateSerializer, ReadingQuestionSerializer, ReadingQuestionUpdateSerializer, ReadingTestSessionResultSerializer,
-    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningQuestionUpdateSerializer, ListeningTestSessionResultSerializer
+    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer
 )
 from .models import WritingTestSession
 from rest_framework import serializers
@@ -30,10 +30,22 @@ from rest_framework.permissions import AllowAny
 from django.utils import timezone
 import json
 from rest_framework.exceptions import PermissionDenied
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware.csrf import get_token
-from rest_framework.parsers import JSONParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+from .models import (
+    ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption,
+    ListeningTestSession, ListeningStudentAnswer, ListeningTestResult, ListeningTestClone
+)
+from .serializers import (
+    ListeningTestSerializer, ListeningPartSerializer, ListeningQuestionSerializer,
+    ListeningTestSessionSerializer, ListeningTestResultSerializer, ListeningTestCloneSerializer
+)
+from .serializers import ListeningTestSessionSyncSerializer, ListeningTestSessionSubmitSerializer, ListeningTestResultSerializer
+from django.conf import settings
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -854,7 +866,7 @@ class ListeningTestListView(ListAPIView):
 
 
 class ListeningTestDetailView(RetrieveAPIView):
-    serializer_class = ListeningTestDetailSerializer
+    serializer_class = ListeningTestSerializer
     permission_classes = [AllowAny]
     queryset = ListeningTest.objects.all()
 
@@ -892,8 +904,8 @@ class StartListeningTestView(APIView):
             completed=False
         ).first()
 
-        from .serializers import ListeningTestDetailSerializer
-        test_data = ListeningTestDetailSerializer(test).data
+        from .serializers import ListeningTestFullSerializer
+        test_data = ListeningTestFullSerializer(test).data
 
         if existing_session:
             return Response({
@@ -994,214 +1006,291 @@ class ListeningTestSessionDetailView(RetrieveAPIView):
             return ListeningTestSession.objects.none()
 
 
-class ListeningTestCreateView(APIView):
-    permission_classes = [AllowAny]
+# --- ListeningTest CRUD ---
+class ListeningTestViewSet(viewsets.ModelViewSet):
+    queryset = ListeningTest.objects.all().order_by('-created_at')
+    serializer_class = ListeningTestSerializer
+    permission_classes = [AllowAny]  # TODO: restrict to admin for write operations
 
-    def post(self, request):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
+    def get_queryset(self):
+        # Students can only see active tests
+        if self.action in ['list', 'retrieve']:
+            return ListeningTest.objects.filter(is_active=True).order_by('-created_at')
+        # Admins can see all tests
+        return ListeningTest.objects.all().order_by('-created_at')
 
-        test_data = {
-            'title': request.data.get('title'),
-            'description': request.data.get('description', ''),
-            'audio_file': request.FILES.get('audio_file')
-        }
-        test = ListeningTest.objects.create(
-            title=test_data['title'],
-            description=test_data['description']
-        )
-        if test_data['audio_file']:
-            ListeningAudio.objects.create(
-                test=test,
-                audio_file=test_data['audio_file']
-            )
-        return Response({
-            'id': test.id, 
-            'message': 'Test created successfully. Now you can add questions.',
-            'test_id': test.id
-        }, status=201)
-
-
-class ListeningQuestionAddView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, test_id):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        try:
-            test = ListeningTest.objects.get(id=test_id)
-        except ListeningTest.DoesNotExist:
-            return Response({'error': 'Test not found'}, status=404)
-
-        question_data = {
-            'question_type': request.data.get('question_type'),
-            'question_text': request.data.get('question_text'),
-            'order': request.data.get('order'),
-            'image': request.FILES.get('image'),
-            'test': test
-        }
-        question = ListeningQuestion.objects.create(**question_data)
-        options_json = request.data.get('options', '[]')
-        options_data = json.loads(options_json)
-        for opt_data in options_data:
-            ListeningAnswerOption.objects.create(
-                question=question,
-                label=opt_data.get('label'),
-                text=opt_data.get('text')
-            )
-        correct_answer = request.data.get('correct_answer')
-        if correct_answer:
-            ListeningAnswerKey.objects.create(
-                question=question,
-                correct_answer=correct_answer
-            )
-        return Response({
-            'message': 'Question added successfully',
-            'question_id': question.id
-        }, status=201)
-
-
-class ActivateListeningTestView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, pk):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        ListeningTest.objects.all().update(is_active=False)
-        test = ListeningTest.objects.get(pk=pk)
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        test = self.get_object()
         test.is_active = True
         test.save()
-        return Response({'message': 'Test activated', 'id': test.id})
+        return Response({'message': 'Test activated successfully'})
 
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        test = self.get_object()
+        test.is_active = False
+        test.save()
+        return Response({'message': 'Test deactivated successfully'})
 
-class ListeningTestUpdateDeleteView(RetrieveUpdateDestroyAPIView):
-    queryset = ListeningTest.objects.all()
-    serializer_class = ListeningTestCreateSerializer
-    permission_classes = [AllowAny]
+    @action(detail=True, methods=['post'])
+    def clone(self, request, pk=None):
+        source_test = self.get_object()
+        
+        # Create new test with cloned data
+        cloned_test = ListeningTest.objects.create(
+            title=f"{source_test.title} (Copy)",
+            description=source_test.description,
+            is_active=False  # Cloned tests start as inactive
+        )
+        
+        # Clone all parts and their questions
+        for part in source_test.parts.all():
+            cloned_part = ListeningPart.objects.create(
+                test=cloned_test,
+                part_number=part.part_number,
+                audio=part.audio,  # Reference to same audio file
+                audio_duration=part.audio_duration,
+                instructions=part.instructions
+            )
+            
+            # Clone questions for this part
+            for question in part.questions.all():
+                cloned_question = ListeningQuestion.objects.create(
+                    part=cloned_part,
+                    question_type=question.question_type,
+                    question_text=question.question_text,
+                    order=question.order,
+                    extra_data=question.extra_data,
+                    correct_answers=question.correct_answers
+                )
+                
+                # Clone answer options
+                for option in question.options.all():
+                    ListeningAnswerOption.objects.create(
+                        question=cloned_question,
+                        label=option.label,
+                        text=option.text
+                    )
+        
+        # Create clone record
+        clone_record = ListeningTestClone.objects.create(
+            source_test=source_test,
+            cloned_test=cloned_test
+        )
+        
+        return Response({
+            'message': 'Test cloned successfully',
+            'cloned_test_id': cloned_test.id,
+            'clone_record_id': clone_record.id
+        }, status=status.HTTP_201_CREATED)
 
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ListeningTest.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ListeningTest.objects.none()
-        uid = decoded['uid']
+# --- ListeningPart CRUD ---
+class ListeningPartViewSet(viewsets.ModelViewSet):
+    queryset = ListeningPart.objects.all().order_by('test', 'part_number')
+    serializer_class = ListeningPartSerializer
+    permission_classes = [AllowAny]  # TODO: restrict to admin for write
+
+# --- ListeningQuestion CRUD ---
+class ListeningQuestionViewSet(viewsets.ModelViewSet):
+    queryset = ListeningQuestion.objects.all().order_by('part', 'order')
+    serializer_class = ListeningQuestionSerializer
+    permission_classes = [AllowAny]  # TODO: restrict to admin for write
+
+# --- ListeningTestSession: start, sync, submit ---
+class ListeningTestSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, test_id=None, session_id=None):
+        # Start or submit session
+        if test_id is not None:
+            # Start new session
+            test = get_object_or_404(ListeningTest, pk=test_id, is_active=True)
+            
+            # Check if user already has an active session for this test (IELTS rule: one sitting)
+            # existing_session = ListeningTestSession.objects.filter(
+            #     user=request.user, 
+            #     test=test, 
+            #     submitted=False
+            # ).first()
+            #
+            # if existing_session:
+            #     return Response({
+            #         'detail': 'You already have an active session for this test. Complete it first.',
+            #         'session_id': existing_session.id
+            #     }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create new session with IELTS rules
+            session = ListeningTestSession.objects.create(
+                user=request.user, 
+                test=test,
+                time_left=1800,  # 30 minutes for IELTS Listening
+                status='in_progress'
+            )
+            serializer = ListeningTestSessionSerializer(session)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        elif session_id is not None:
+            # Submit session
+            session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
+            
+            if session.submitted:
+                return Response({'detail': 'Session already submitted'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            serializer = ListeningTestSessionSubmitSerializer(session, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            session = serializer.save(submitted=True)
+            result_serializer = ListeningTestResultSerializer(session)
+            return Response(result_serializer.data, status=status.HTTP_200_OK)
+        return Response({'detail': 'Invalid request'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, session_id=None):
+        # Sync answers (save progress)
+        session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
+        serializer = ListeningTestSessionSyncSerializer(session, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': 'Progress saved'}, status=status.HTTP_200_OK)
+
+# --- ListeningTestResult: student/admin view ---
+class ListeningTestResultView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, session_id):
+        session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
+        
+        if not session.submitted:
+            return Response({'detail': 'Session not submitted yet'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = ListeningTestResultSerializer(session)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+# --- ListeningTestClone: admin view ---
+class ListeningTestCloneViewSet(viewsets.ModelViewSet):
+    queryset = ListeningTestClone.objects.all().order_by('-cloned_at')
+    serializer_class = ListeningTestCloneSerializer
+    permission_classes = [AllowAny]  # TODO: restrict to admin
+
+    @action(detail=True, methods=['post'])
+    def clone(self, request, pk=None):
+        # Get source test
+        source_test = self.get_object()
+        
+        # Create new test with cloned data
+        cloned_test = ListeningTest.objects.create(
+            title=f"{source_test.title} (Copy)",
+            description=source_test.description,
+            is_active=False  # Cloned tests start as inactive
+        )
+        
+        # Clone all parts and their questions
+        for part in source_test.parts.all():
+            cloned_part = ListeningPart.objects.create(
+                test=cloned_test,
+                part_number=part.part_number,
+                audio=part.audio,  # Reference to same audio file
+                audio_duration=part.audio_duration,
+                instructions=part.instructions
+            )
+            
+            # Clone questions for this part
+            for question in part.questions.all():
+                cloned_question = ListeningQuestion.objects.create(
+                    part=cloned_part,
+                    question_type=question.question_type,
+                    question_text=question.question_text,
+                    order=question.order,
+                    extra_data=question.extra_data,
+                    correct_answers=question.correct_answers
+                )
+                
+                # Clone answer options
+                for option in question.options.all():
+                    ListeningAnswerOption.objects.create(
+                        question=cloned_question,
+                        label=option.label,
+                        text=option.text
+                    )
+        
+        # Create clone record
+        clone_record = ListeningTestClone.objects.create(
+            source_test=source_test,
+            cloned_test=cloned_test
+        )
+        
+        return Response({
+            'message': 'Test cloned successfully',
+            'cloned_test_id': cloned_test.id,
+            'clone_record_id': clone_record.id
+        }, status=status.HTTP_201_CREATED)
+
+# --- Admin Check ---
+class AdminCheckView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
         try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return ListeningTest.objects.none()
+            user = User.objects.get(uid=request.user.uid)
+            return Response({
+                'is_admin': user.role == 'admin',
+                'user_id': user.uid,
+                'role': user.role
+            })
         except User.DoesNotExist:
-            return ListeningTest.objects.none()
+            return Response({'is_admin': False}, status=status.HTTP_404_NOT_FOUND)
 
-        return ListeningTest.objects.all()
-
-
-class ListeningQuestionUpdateDeleteView(RetrieveUpdateDestroyAPIView):
-    queryset = ListeningQuestion.objects.all()
-    serializer_class = ListeningQuestionUpdateSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ListeningQuestion.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ListeningQuestion.objects.none()
-        uid = decoded['uid']
+# --- Secure Audio Upload ---
+class SecureAudioUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def post(self, request):
+        # Check admin permissions
         try:
-            user = User.objects.get(uid=uid)
+            user = User.objects.get(uid=request.user.uid)
             if user.role != 'admin':
-                return ListeningQuestion.objects.none()
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
         except User.DoesNotExist:
-            return ListeningQuestion.objects.none()
-
-        return ListeningQuestion.objects.all()
-
-
-class AdminListeningSessionListView(ListAPIView):
-    serializer_class = ListeningTestSessionSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ListeningTestSession.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ListeningTestSession.objects.none()
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Validate file
+        audio_file = request.FILES.get('audio')
+        if not audio_file:
+            return Response({'error': 'No audio file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check file size (max 50MB for IELTS audio)
+        if audio_file.size > 50 * 1024 * 1024:
+            return Response({'error': 'File too large. Maximum size is 50MB'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check file type
+        allowed_types = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a']
+        if audio_file.content_type not in allowed_types:
+            return Response({'error': 'Invalid file type. Allowed: MP3, WAV, OGG, M4A'}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            user = User.objects.get(uid=decoded['uid'])
-            if user.role != 'admin':
-                return ListeningTestSession.objects.none()
-        except User.DoesNotExist:
-            return ListeningTestSession.objects.none()
-        queryset = ListeningTestSession.objects.filter(completed=True).select_related('user', 'test').order_by('-completed_at')
-        student_id = self.request.query_params.get('student_id')
-        if student_id:
-            queryset = queryset.filter(user__student_id=student_id)
-        return queryset
+            # Generate secure filename
+            import uuid
+            import hashlib
+            file_hash = hashlib.md5(audio_file.read()).hexdigest()
+            audio_file.seek(0)  # Reset file pointer
+            
+            file_extension = os.path.splitext(audio_file.name)[1]
+            secure_filename = f"secure_audio/{file_hash}{file_extension}"
+            
+            # Save file
+            path = default_storage.save(secure_filename, ContentFile(audio_file.read()))
+            
+            # Get file duration (optional, requires additional processing)
+            duration = 0  # TODO: implement audio duration extraction
+            
+            return Response({
+                'success': True,
+                'file_url': default_storage.url(path),
+                'file_path': path,
+                'duration': duration,
+                'size': audio_file.size
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to upload file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-class AdminListeningSessionDetailView(RetrieveAPIView):
-    serializer_class = ListeningTestSessionResultSerializer
-    permission_classes = [AllowAny]
-    queryset = ListeningTestSession.objects.all()
-
-    def get_object(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            raise PermissionDenied("No auth token provided.")
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            raise PermissionDenied("Invalid token.")
-        try:
-            user = User.objects.get(uid=decoded['uid'])
-            if user.role != 'admin':
-                raise PermissionDenied("You must be an admin to view this.")
-        except User.DoesNotExist:
-            raise PermissionDenied("User not found.")
-        return super().get_object()
+# --- TODO: Secure audio upload/serve, admin submission review, etc. ---

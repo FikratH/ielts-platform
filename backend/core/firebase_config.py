@@ -10,7 +10,7 @@ if not firebase_admin._apps:
 
 def verify_firebase_token(id_token):
     try:
-        decoded_token = auth.verify_id_token(id_token)
+        decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
         print("✅ TOKEN OK:", decoded_token)
         return decoded_token
     except Exception as e:

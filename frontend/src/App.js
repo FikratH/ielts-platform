@@ -17,9 +17,11 @@ import AdminReadingManagePage from './pages/AdminReadingManagePage';
 import AdminAssignmentsPage from './pages/AdminAssignmentsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ListeningTestListPage from './pages/ListeningTestListPage';
-import ListeningTestPage from './pages/ListeningTestPage';
+import ListeningTestPlayerPage from './pages/ListeningTestPlayerPage';
 import ListeningResultPage from './pages/ListeningResultPage';
 import AdminListeningManagePage from './pages/AdminListeningManagePage';
+import AdminListeningTestBuilderPage from './pages/AdminListeningTestBuilderPage';
+import StudentSubmissionView from './components/StudentSubmissionView';
 
 
 const MainLayout = ({ role, setRole, children }) => {
@@ -82,9 +84,11 @@ function App() {
           <Route path="/admin/assignments" element={<AdminAllAssignmentsPage />} />
           <Route path="/admin/reading" element={<AdminReadingManagePage />} />
           <Route path="/listening" element={<ListeningTestListPage />} />
-          <Route path="/listening-test/:id" element={<ListeningTestPage />} />
-          <Route path="/listening-result/:sessionId" element={<ListeningResultPage />} />
+          <Route path="/listening-test/:id" element={<ListeningTestPlayerPage />} />
+          <Route path="/listening-result/:sessionId" element={<StudentSubmissionView />} />
           <Route path="/admin/listening" element={<AdminListeningManagePage />} />
+          <Route path="/admin/listening/builder/new" element={<AdminListeningTestBuilderPage />} />
+          <Route path="/admin/listening/builder/:testId" element={<AdminListeningTestBuilderPage />} />
           
       </Routes>
       </MainLayout>

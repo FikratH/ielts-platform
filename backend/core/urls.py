@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     FirebaseLoginView,
@@ -17,38 +17,39 @@ from .views import (
     ReadingTestSessionListView,
     ReadingTestSessionDetailView,
     ReadingTestCreateView,
-    ReadingQuestionAddView,
     ActivateReadingTestView,
     ReadingTestUpdateDeleteView,
-    ReadingQuestionUpdateDeleteView,
     AdminReadingSessionListView,
     AdminReadingSessionDetailView,
-    ListeningTestListView,
-    ListeningTestDetailView,
-    StartListeningTestView,
-    SubmitListeningTestView,
-    ListeningTestSessionListView,
-    ListeningTestSessionDetailView,
-    ListeningTestCreateView,
-    ListeningQuestionAddView,
-    ActivateListeningTestView,
-    ListeningTestUpdateDeleteView,
-    ListeningQuestionUpdateDeleteView,
-    AdminListeningSessionListView,
-    AdminListeningSessionDetailView
+    ListeningTestViewSet,
+    ListeningPartViewSet,
+    ListeningQuestionViewSet,
+    ListeningTestSessionView,
+    ListeningTestResultView,
+    ListeningTestCloneViewSet,
+    AdminCheckView,
+    SecureAudioUploadView
 )
 
 router = DefaultRouter()
 router.register(r'prompts', WritingPromptViewSet, basename='prompt')
+router.register(r'listening-tests', ListeningTestViewSet, basename='listening-test')
+router.register(r'listening-parts', ListeningPartViewSet, basename='listening-part')
+router.register(r'listening-questions', ListeningQuestionViewSet, basename='listening-question')
+router.register(r'listening-clones', ListeningTestCloneViewSet, basename='listening-clone')
 
 urlpatterns = router.urls + [
+    # Firebase Authentication
     path('login/', FirebaseLoginView.as_view(), name='firebase-login'),
+    
+    # Essay endpoints
     path('essay/', EssaySubmissionView.as_view(), name='essay-submit'),
     path('essays/', EssayListView.as_view(), name='essay-list'),
     path('essays/<int:pk>/', EssayDetailView.as_view(), name='essay-detail'),
+    
+    # Reading test endpoints
     path('reading/tests/', ReadingTestListView.as_view(), name='reading-test-list'),
     path('reading/tests/create/', ReadingTestCreateView.as_view(), name='reading-test-create'),
-    path('reading/tests/<int:test_id>/questions/add/', ReadingQuestionAddView.as_view(), name='reading-question-add'),
     path('reading/tests/<int:pk>/', ReadingTestDetailView.as_view(), name='reading-test-detail'),
     path('reading/tests/<int:pk>/start/', StartReadingTestView.as_view(), name='reading-test-start'),
     path('reading/tests/<int:pk>/activate/', ActivateReadingTestView.as_view(), name='reading-test-activate'),
@@ -56,34 +57,22 @@ urlpatterns = router.urls + [
     path('reading/sessions/<int:session_id>/submit/', SubmitReadingTestView.as_view(), name='reading-test-submit'),
     path('reading/sessions/', ReadingTestSessionListView.as_view(), name='reading-session-list'),
     path('reading/sessions/<int:pk>/', ReadingTestSessionDetailView.as_view(), name='reading-session-detail'),
+    
+    # Writing session endpoints
     path('start-writing-session/', StartWritingSessionView.as_view(), name='start-writing-session'),
     path('submit-task/', SubmitTaskView.as_view(), name='submit-task'),
     path('finish-writing-session/', FinishWritingSessionView.as_view(), name='finish-writing-session'),
+    
+    # Admin endpoints
     path('admin/essays/', AdminEssayListView.as_view(), name='admin-essay-list'),
     path('admin/reading-sessions/', AdminReadingSessionListView.as_view(), name='admin-reading-session-list'),
     path('admin/reading-sessions/<int:pk>/', AdminReadingSessionDetailView.as_view(), name='admin-reading-session-detail'),
-    path('admin/reading/create/', ReadingTestCreateView.as_view(), name='reading-test-create'),
-    path('admin/reading/<int:test_id>/questions/add/', ReadingQuestionAddView.as_view(), name='reading-question-add'),
-    path('admin/reading/<int:pk>/activate/', ActivateReadingTestView.as_view(), name='reading-test-activate'),
-    path('admin/reading/<int:pk>/', ReadingTestUpdateDeleteView.as_view(), name='reading-test-update-delete'),
-    path('reading/questions/<int:pk>/', ReadingQuestionUpdateDeleteView.as_view(), name='reading-question-update-delete'),
+    path('admin/check/', AdminCheckView.as_view(), name='admin-check'),
+    path('admin/audio/upload/', SecureAudioUploadView.as_view(), name='secure-audio-upload'),
     
-
-    path('listening/tests/', ListeningTestListView.as_view(), name='listening-test-list'),
-    path('listening/tests/create/', ListeningTestCreateView.as_view(), name='listening-test-create'),
-    path('listening/tests/<int:test_id>/questions/add/', ListeningQuestionAddView.as_view(), name='listening-question-add'),
-    path('listening/tests/<int:pk>/', ListeningTestDetailView.as_view(), name='listening-test-detail'),
-    path('listening/tests/<int:pk>/start/', StartListeningTestView.as_view(), name='listening-test-start'),
-    path('listening/tests/<int:pk>/activate/', ActivateListeningTestView.as_view(), name='listening-test-activate'),
-    path('listening/tests/<int:pk>/update/', ListeningTestUpdateDeleteView.as_view(), name='listening-test-update-delete'),
-    path('listening/sessions/<int:session_id>/submit/', SubmitListeningTestView.as_view(), name='listening-test-submit'),
-    path('listening/sessions/', ListeningTestSessionListView.as_view(), name='listening-session-list'),
-    path('listening/sessions/<int:pk>/', ListeningTestSessionDetailView.as_view(), name='listening-session-detail'),
-    path('admin/listening-sessions/', AdminListeningSessionListView.as_view(), name='admin-listening-session-list'),
-    path('admin/listening-sessions/<int:pk>/', AdminListeningSessionDetailView.as_view(), name='admin-listening-session-detail'),
-    path('admin/listening/create/', ListeningTestCreateView.as_view(), name='listening-test-create'),
-    path('admin/listening/<int:test_id>/questions/add/', ListeningQuestionAddView.as_view(), name='listening-question-add'),
-    path('admin/listening/<int:pk>/activate/', ActivateListeningTestView.as_view(), name='listening-test-activate'),
-    path('admin/listening/<int:pk>/', ListeningTestUpdateDeleteView.as_view(), name='listening-test-update-delete'),
-    path('listening/questions/<int:pk>/', ListeningQuestionUpdateDeleteView.as_view(), name='listening-question-update-delete'),
+    # Listening test session endpoints
+    path('listening-tests/<int:test_id>/start/', ListeningTestSessionView.as_view(), name='listening-session-start'),
+    path('listening-sessions/<int:session_id>/sync/', ListeningTestSessionView.as_view(), name='listening-session-sync'),
+    path('listening-sessions/<int:session_id>/submit/', ListeningTestSessionView.as_view(), name='listening-session-submit'),
+    path('listening-sessions/<int:session_id>/result/', ListeningTestResultView.as_view(), name='listening-session-result'),
 ]

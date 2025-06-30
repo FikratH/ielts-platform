@@ -8,7 +8,7 @@ const ListeningTestListPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get('/api/listening/tests/')
+    axios.get('/api/listening-tests/')
       .then(res => setTests(res.data))
       .catch(err => console.error(err));
     const role = localStorage.getItem('role');
