@@ -211,6 +211,8 @@ class ListeningQuestion(models.Model):
     order = models.PositiveIntegerField()
     extra_data = JSONField(default=dict, blank=True)  # For matching, dropdown, etc.
     correct_answers = JSONField(default=list, blank=True)  # List for multiple correct answers
+    header = models.TextField(blank=True, default='')
+    instruction = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

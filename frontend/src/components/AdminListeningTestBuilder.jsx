@@ -21,16 +21,13 @@ import { auth } from '../firebase-config';
 
 // IELTS Listening question types
 const QUESTION_TYPES = [
+  { value: 'gap_fill', label: 'Fill in the blanks' },
   { value: 'multiple_choice', label: 'Multiple Choice' },
   { value: 'matching', label: 'Matching' },
   { value: 'map_diagram', label: 'Map/Diagram' },
   { value: 'short_answer', label: 'Short Answer' },
   { value: 'table', label: 'Table Completion' },
   { value: 'form', label: 'Form Completion' },
-  { value: 'sentence_completion', label: 'Sentence Completion' },
-  { value: 'summary_completion', label: 'Summary Completion' },
-  { value: 'note_completion', label: 'Note Completion' },
-  { value: 'flow_chart', label: 'Flow Chart' },
   { value: 'true_false', label: 'True/False' },
   { value: 'multiple_response', label: 'Multiple Response' },
 ];
@@ -252,7 +249,6 @@ const AdminListeningTestBuilder = () => {
   // Render question editor
   const renderQuestionEditor = (question, partIdx, qIdx) => {
     const updateQ = (updates) => updateQuestion(partIdx, qIdx, updates);
-    
     const handleTypeChange = (e) => {
       const newType = e.target.value;
       // Сброс специфичных полей при смене типа
@@ -306,108 +302,41 @@ const AdminListeningTestBuilder = () => {
       updateQ(base);
     };
 
-    if (question.type === 'form') {
-      return (
-        <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
-          <DialogTitle>Edit Form Completion Question</DialogTitle>
-          <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Question Type</InputLabel>
-              <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
-                {QUESTION_TYPES.map(type => (
-                  <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={2}
-                  label="Instruction (optional)"
-                  value={question.text}
-                  onChange={e => updateQ({ text: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom>Form Fields:</Typography>
-                {Array.isArray(question.fields) && question.fields.length > 0 ? question.fields.map((field, idx) => (
-                  <Box display="flex" alignItems="center" gap={1} mb={2}>
-                    <Box sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 16 }}>{field.label || (idx + 1)}</Box>
-                    <TextField
-                      label="Label"
-                      value={field.label || (idx + 1).toString()}
-                      onChange={e => {
-                        const newFields = [...question.fields];
-                        newFields[idx].label = e.target.value;
-                        updateQ({ fields: newFields });
-                      }}
-                      size="small"
-                      sx={{ flex: 2 }}
-                    />
-                    <TextField
-                      label="Correct Answer"
-                      value={field.answer}
-                      onChange={e => {
-                        const newFields = [...question.fields];
-                        newFields[idx].answer = e.target.value;
-                        updateQ({ fields: newFields });
-                      }}
-                      size="small"
-                      sx={{ flex: 2 }}
-                    />
-                    <IconButton onClick={() => {
-                      const newFields = question.fields.filter((_, i) => i !== idx);
-                      updateQ({ fields: newFields });
-                    }} size="small"><DeleteIcon /></IconButton>
-                  </Box>
-                )) : <Typography color="text.secondary">No fields yet</Typography>}
-                <Button size="small" onClick={() => updateQ({ fields: [...(question.fields || []), { label: '', answer: '' }] })} startIcon={<AddIcon />}>Add Field</Button>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditingQuestion(null)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      );
-    }
+    // Универсальный блок для всех типов вопросов
+    const universalFields = <>
+      <TextField
+        fullWidth
+        label="Header (optional)"
+        value={question.header || ''}
+        onChange={e => updateQ({ header: e.target.value })}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        fullWidth
+        label="Instruction (optional)"
+        value={question.instruction || ''}
+        onChange={e => updateQ({ instruction: e.target.value })}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        fullWidth
+        multiline
+        rows={question.type === 'gap_fill' ? 4 : 2}
+        label={question.type === 'gap_fill' ? 'Text with gaps' : 'Question Text'}
+        value={question.text || ''}
+        onChange={e => updateQ({ text: e.target.value })}
+        sx={{ mb: 2 }}
+      />
+    </>;
 
+    // Далее — только специфичные для типа поля (варианты, таблицы и т.д.)
     if (question.type === 'multiple_choice') {
       const safeOptions = Array.isArray(question.options) ? question.options : [];
       return (
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
           <DialogTitle>Edit Multiple Choice Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -489,20 +418,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
           <DialogTitle>Edit Matching Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -630,20 +546,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
           <DialogTitle>Edit Map/Diagram Labelling Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -783,20 +686,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="lg" fullWidth>
           <DialogTitle>Edit Table Completion Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -919,70 +809,45 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
           <DialogTitle>Edit {(question.type ? question.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown')} Question</DialogTitle>
           <DialogContent>
+            {universalFields}
+            <Typography variant="subtitle2" gutterBottom>
+              Use <b>[[answer]]</b> to mark each gap in the text.
+            </Typography>
             <TextField
               fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
+              multiline
+              rows={4}
+              label="Text with gaps"
+              value={question.text || ''}
+              onChange={handleTextChange}
             />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Question Type</InputLabel>
-              <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
-                {QUESTION_TYPES.map(type => (
-                  <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
+            {gaps.length > 0 && (
               <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Use <b>[[answer]]</b> to mark each gap in the text.
-                </Typography>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  label="Text with gaps"
-                  value={question.text || ''}
-                  onChange={handleTextChange}
-                />
-              </Grid>
-              {gaps.length > 0 && (
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" gutterBottom>Correct Answers for Gaps:</Typography>
-                  {gaps.map((gap, idx) => (
-                    <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
-                      <Box sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 16 }}>{gap.label || (idx + 1)}</Box>
-                      <TextField
-                        label="Correct Answer"
-                        value={gap.answer}
-                        onChange={e => {
-                          const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-                          if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { answer: '' };
-                          newGaps[idx].answer = e.target.value;
-                          updateQ({ gaps: newGaps });
-                        }}
-                        size="small"
-                        sx={{ flex: 2 }}
-                      />
-                      <IconButton onClick={() => {
+                <Typography variant="subtitle2" gutterBottom>Correct Answers for Gaps:</Typography>
+                {gaps.map((gap, idx) => (
+                  <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                    <Box sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 16 }}>{gap.label || (idx + 1)}</Box>
+                    <TextField
+                      label="Correct Answer"
+                      value={gap.answer}
+                      onChange={e => {
                         const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-                        newGaps.splice(idx, 1);
+                        if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { answer: '' };
+                        newGaps[idx].answer = e.target.value;
                         updateQ({ gaps: newGaps });
-                      }} size="small"><DeleteIcon /></IconButton>
-                    </Box>
-                  ))}
-                </Grid>
-              )}
-            </Grid>
+                      }}
+                      size="small"
+                      sx={{ flex: 2 }}
+                    />
+                    <IconButton onClick={() => {
+                      const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
+                      newGaps.splice(idx, 1);
+                      updateQ({ gaps: newGaps });
+                    }} size="small"><DeleteIcon /></IconButton>
+                  </Box>
+                ))}
+              </Grid>
+            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setEditingQuestion(null)}>Close</Button>
@@ -996,20 +861,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="sm" fullWidth>
           <DialogTitle>Edit Short Answer Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -1051,20 +903,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="sm" fullWidth>
           <DialogTitle>Edit True/False/Not Given Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -1114,20 +953,7 @@ const AdminListeningTestBuilder = () => {
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
           <DialogTitle>Edit Multiple Response Question</DialogTitle>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            {universalFields}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Question Type</InputLabel>
               <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -1211,24 +1037,114 @@ const AdminListeningTestBuilder = () => {
       );
     }
 
+    if (question.type === 'gap_fill') {
+      // Парсим все [[номер]] из question.text (универсальное поле)
+      const gapRegex = /\[\[(\d+)\]\]/g;
+      const matches = [...(question.text?.matchAll(gapRegex) || [])];
+      let gaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
+      matches.forEach((m, idx) => {
+        const num = parseInt(m[1], 10);
+        if (!gaps[idx] || typeof gaps[idx] !== 'object') gaps[idx] = { number: num, answer: '' };
+        else gaps[idx].number = num;
+      });
+      gaps = gaps.slice(0, matches.length);
+      const numbers = gaps.map(g => g.number);
+      const hasDuplicates = new Set(numbers).size !== numbers.length;
+      // handleTextChange теперь просто updateQ({ text, gaps })
+      const handleTextChange = (e) => {
+        const newText = e.target.value;
+        const newMatches = [...(newText.matchAll(gapRegex) || [])];
+        let newGaps = gaps.slice(0, newMatches.length);
+        newMatches.forEach((m, idx) => {
+          const num = parseInt(m[1], 10);
+          if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { number: num, answer: '' };
+          else newGaps[idx].number = num;
+        });
+        updateQ({ text: newText, gaps: newGaps });
+      };
+      return (
+        <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
+          <DialogTitle>Edit Fill in the blanks Question</DialogTitle>
+          <DialogContent>
+            {/* Универсальный блок, но поле text теперь с кастомным onChange */}
+            <TextField
+              fullWidth
+              label="Header (optional)"
+              value={question.header || ''}
+              onChange={e => updateQ({ header: e.target.value })}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              fullWidth
+              label="Instruction (optional)"
+              value={question.instruction || ''}
+              onChange={e => updateQ({ instruction: e.target.value })}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Text with gaps (use [[7]], [[8]], ...)"
+              value={question.text || ''}
+              onChange={handleTextChange}
+              sx={{ mb: 2 }}
+            />
+            {hasDuplicates && (
+              <Alert severity="error" sx={{ mt: 2 }}>Gap numbers must be unique!</Alert>
+            )}
+            {gaps.length > 0 && (
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" gutterBottom>Gaps:</Typography>
+                  {gaps.map((gap, idx) => (
+                    <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                      <TextField
+                        label="Number"
+                        type="number"
+                        value={gap.number}
+                        onChange={e => {
+                          const newGaps = [...gaps];
+                          newGaps[idx].number = parseInt(e.target.value, 10) || '';
+                          updateQ({ gaps: newGaps });
+                        }}
+                        size="small"
+                        sx={{ width: 80 }}
+                      />
+                      <TextField
+                        label="Correct Answer"
+                        value={gap.answer}
+                        onChange={e => {
+                          const newGaps = [...gaps];
+                          newGaps[idx].answer = e.target.value;
+                          updateQ({ gaps: newGaps });
+                        }}
+                        size="small"
+                        sx={{ flex: 2 }}
+                      />
+                      <IconButton onClick={() => {
+                        const newGaps = [...gaps];
+                        newGaps.splice(idx, 1);
+                        updateQ({ gaps: newGaps });
+                      }} size="small"><DeleteIcon /></IconButton>
+                    </Box>
+                  ))}
+                </Grid>
+              </Grid>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditingQuestion(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      );
+    }
+
     return (
       <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
         <DialogTitle>Edit Question {qIdx + 1}</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            label="Header (optional)"
-            value={question.header || ''}
-            onChange={e => updateQ({ header: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Instruction (optional)"
-            value={question.instruction || ''}
-            onChange={e => updateQ({ instruction: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          {universalFields}
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Question Type</InputLabel>
             <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
@@ -1445,6 +1361,7 @@ const AdminListeningTestBuilder = () => {
         audio: part.audio || '',
         image: part.image || '',
         questions: part.questions.map((q, qIdx) => {
+          // Всегда включаем header и instruction для любого типа
           const base = {
             order: qIdx + 1,
             question_type: q.type || q.question_type,
@@ -1565,6 +1482,15 @@ const AdminListeningTestBuilder = () => {
               ...(q.extra_data || {}),
               options: base.options,
               answer: base.answer,
+            };
+          }
+          // Gap Fill (универсальный)
+          if (q.type === 'gap_fill') {
+            base.gaps = q.gaps || [];
+            base.correct_answers = q.gaps || [];
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              gaps: q.gaps,
             };
           }
           return base;

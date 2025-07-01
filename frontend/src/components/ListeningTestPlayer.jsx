@@ -289,10 +289,27 @@ const ListeningTestPlayer = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Добавить функцию форматирования времени
+  function formatTimeTaken(time) {
+    const seconds = Math.floor(Number(time));
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  }
+
   const renderQuestion = (question) => {
     const value = answers[question.id] || '';
     const isFlagged = flagged[question.id] || false;
     const type = (question.question_type || '').toLowerCase();
+    // Универсальный вывод header/instruction для всех типов
+    const headerBlock = <>
+      {question.header && (
+        <div className="font-bold text-lg text-blue-800 mb-1" style={{whiteSpace: 'pre-line'}}>{question.header}</div>
+      )}
+      {question.instruction && (
+        <div className="text-gray-600 mb-2" style={{whiteSpace: 'pre-line'}}>{question.instruction}</div>
+      )}
+    </>;
     // Типы, для которых не нужно показывать текст вопроса в заголовке
     const hideHeaderTextTypes = [
       "sentence_completion", "summary_completion", "note_completion", "flow_chart", "gap_fill",
@@ -339,6 +356,7 @@ const ListeningTestPlayer = () => {
         console.log('Table data missing or invalid:', table);
         return (
           <div key={question.id} className="mb-6 p-6 border border-red-200 rounded-2xl shadow bg-red-50/30">
+            {headerBlock}
             {questionHeader}
             <div className="text-red-600">
               <p>⚠️ Table data is missing or invalid for this question.</p>
@@ -353,6 +371,7 @@ const ListeningTestPlayer = () => {
       
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
@@ -388,6 +407,7 @@ const ListeningTestPlayer = () => {
       const fields = question.fields || (question.extra_data && question.extra_data.fields) || [];
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <div className="space-y-4">
             {fields.map((field, idx) => (
@@ -407,58 +427,77 @@ const ListeningTestPlayer = () => {
       );
     }
 
-    // Gap Fill / Sentence Completion / Summary / Note / Flow Chart (все алиасы)
-    if (["sentence_completion", "summary_completion", "note_completion", "flow_chart", "gap_fill", "gapfill", "sentencecompletion", "summarycompletion", "notecompletion", "flowchart"].includes(type)) {
+    // Gap Fill (универсальный IELTS)
+    if (type === 'gap_fill') {
+      const gapRegex = /\[\[(\d+)\]\]/g;
       let text = question.question_text;
-      const regex = /\[\[answer\]\]/g;
-      let gapIndex = 0;
-      const parts = [];
-      let lastIndex = 0;
       let match;
-      // Считаем количество [[answer]]
-      const gapCount = (text.match(regex) || []).length;
-      const gapsArr = Array.isArray(question.gaps) ? question.gaps : [];
-      // Если не совпадает — предупреждение
+      let lastIndex = 0;
+      let gapIdx = 0;
+      const parts = [];
+      const gaps = Array.isArray(question.gaps) ? question.gaps : [];
+      // Проверка на совпадение количества gaps и [[номер]]
+      const matches = [...(text.matchAll(gapRegex) || [])];
       let warning = null;
-      if (gapsArr.length !== gapCount) {
+      if (gaps.length !== matches.length) {
         warning = (
-          <div className="text-red-600 text-sm mb-2">⚠️ Количество [[answer]] в тексте ({gapCount}) не совпадает с количеством gaps ({gapsArr.length})</div>
+          <div className="text-red-600 text-sm mb-2">⚠️ Количество [[номер]] в тексте ({matches.length}) не совпадает с количеством gaps ({gaps.length})</div>
         );
       }
-      while ((match = regex.exec(text)) !== null) {
+      while ((match = gapRegex.exec(text)) !== null) {
         const before = text.slice(lastIndex, match.index);
-        if (before) parts.push(<span key={`t${gapIndex}`}>{before}</span>);
+        if (before) parts.push(<span key={`t${gapIdx}`}>{before}</span>);
+        const gapNumber = parseInt(match[1], 10);
+        const gapObj = gaps.find(g => g.number === gapNumber) || { number: gapNumber };
         parts.push(
-          <span style={{color: 'red', fontSize: '12px'}}>{String(answers[`${question.id}_gap_${gapIndex}`] || '')}</span>,
-          <input
-            key={`gap${gapIndex}`}
-            type="text"
-            value={String(answers[`${question.id}_gap_${gapIndex}`] || '')}
-            onChange={e => handleAnswerChange(`${question.id}_gap_${gapIndex}`, e.target.value)}
-            style={{
-              color: 'black',
-              background: 'white',
-              border: '2px solid #2563eb',
-              borderRadius: '6px',
-              fontSize: '18px',
-              padding: '6px 12px',
-              minWidth: '120px',
-              margin: '0 8px'
-            }}
-            autoComplete="off"
-          />
+          <span key={`gap${gapNumber}`} style={{ display: 'inline-flex', alignItems: 'center', margin: '0 8px' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: '#e0f2fe',
+              color: '#0284c7',
+              fontWeight: 700,
+              fontSize: 16,
+              marginRight: 6
+            }}>{gapNumber}</span>
+            <input
+              type="text"
+              value={answers[`${question.id}_gap_${gapNumber}`] || ''}
+              onChange={e => handleAnswerChange(`${question.id}_gap_${gapNumber}`, e.target.value)}
+              style={{
+                height: '28px',
+                minWidth: '40px',
+                padding: '0 6px',
+                border: '1.5px solid #b6c2cf',
+                borderRadius: '16px',
+                fontSize: '15px',
+                background: '#fff',
+                color: '#222',
+                boxSizing: 'border-box',
+                outline: 'none',
+                transition: 'border 0.2s',
+                marginBottom: '4px'
+              }}
+              autoComplete="off"
+            />
+          </span>
         );
-        lastIndex = regex.lastIndex;
-        gapIndex++;
+        lastIndex = gapRegex.lastIndex;
+        gapIdx++;
       }
       if (lastIndex < text.length) {
         parts.push(<span key="end">{text.slice(lastIndex)}</span>);
       }
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           {warning}
-          <div className="text-lg leading-relaxed">{parts}</div>
+          <div className="text-lg leading-relaxed" style={{whiteSpace: 'pre-line'}}>{parts}</div>
         </div>
       );
     }
@@ -467,6 +506,7 @@ const ListeningTestPlayer = () => {
     if (["short_answer"].includes(type)) {
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <input
             type="text"
@@ -483,6 +523,7 @@ const ListeningTestPlayer = () => {
     if (["true_false", "true_false_not_given"].includes(type)) {
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <div className="flex gap-6 mt-2">
             {['True', 'False', 'Not Given'].map(opt => (
@@ -509,6 +550,7 @@ const ListeningTestPlayer = () => {
       const selected = Array.isArray(value) ? value : [];
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <div className="space-y-3">
             {options.map((option, idx) => (
@@ -538,6 +580,7 @@ const ListeningTestPlayer = () => {
     if (["multiple_choice", "multiplechoice", "single_choice", "singlechoice"].includes(type) && Array.isArray(question.options)) {
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
           {questionHeader}
           <div className="space-y-3">
             {question.options.map((option, idx) => (
@@ -561,6 +604,7 @@ const ListeningTestPlayer = () => {
     // Default fallback (text input)
     return (
       <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow focus-within:ring-2 focus-within:ring-blue-300 bg-blue-50/30">
+        {headerBlock}
         {questionHeader}
         <input
           type="text"
@@ -606,7 +650,7 @@ const ListeningTestPlayer = () => {
                 <div className="text-sm text-gray-600">Correct Answers</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{formatTime(results.time_taken)}</div>
+                <div className="text-2xl font-bold text-purple-600">{formatTimeTaken(results.time_taken)}</div>
                 <div className="text-sm text-gray-600">Time Taken</div>
               </div>
             </div>

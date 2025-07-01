@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import ReadingTest, ReadingQuestion, AnswerOption, AnswerKey, Essay, WritingPrompt, ReadingPassage, ReadingTestSession, User, ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption, ListeningStudentAnswer, ListeningTestResult, ListeningTestClone
+from .models import ReadingTest, ReadingQuestion, AnswerOption, AnswerKey, Essay, WritingPrompt, ReadingPassage, ReadingTestSession, User, ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption, ListeningTestResult, ListeningTestClone, ListeningStudentAnswer
+import re
 
 class EssaySerializer(serializers.ModelSerializer):
     student_id = serializers.CharField(source='user.student_id', read_only=True)
@@ -353,10 +354,9 @@ class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
-
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer']
+        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
 
 
 class ListeningTestCreateSerializer(serializers.ModelSerializer):
@@ -393,10 +393,9 @@ class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
-
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer']
+        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
 
     def update(self, instance, validated_data):
         correct_answer = validated_data.pop('correct_answer', None)
@@ -428,14 +427,21 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
         for q in obj.test.questions.all():
             user_answer = obj.answers.get(str(q.id), '')
             if isinstance(user_answer, list):
-                if q.question_type in [
-                    'summary_completion', 'note_completion', 'sentence_completion', 'gap_fill', 'flow_chart'
-                ]:
+                if q.question_type == 'gap_fill':
                     for idx, gap_user_answer in enumerate(user_answer):
                         try:
-                            correct_answer = q.correct_answers[idx] if idx < len(q.correct_answers) else ''
-                            if gap_user_answer.strip().upper() == correct_answer.strip().upper():
-                                correct += 1
+                            correct_gap = q.correct_answers[idx] if idx < len(q.correct_answers) else None
+                            if correct_gap:
+                                if isinstance(correct_gap, dict):
+                                    correct_answer_val = correct_gap.get('answer', '')
+                                else:
+                                    correct_answer_val = correct_gap
+                                if isinstance(gap_user_answer, dict):
+                                    user_answer_val = gap_user_answer.get('answer', '')
+                                else:
+                                    user_answer_val = gap_user_answer
+                                if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
+                                    correct += 1
                         except (IndexError, TypeError, AttributeError):
                             continue
                     continue
@@ -445,7 +451,11 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
             try:
                 if q.correct_answers:
                     for correct_answer in q.correct_answers:
-                        if user_answer == correct_answer.strip().upper():
+                        if isinstance(correct_answer, dict):
+                            correct_answer_val = correct_answer.get('answer', '')
+                        else:
+                            correct_answer_val = correct_answer
+                        if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
                             correct += 1
                             break
             except (IndexError, TypeError):
@@ -494,7 +504,7 @@ class ListeningQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListeningQuestion
         fields = [
-            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'created_at', 'updated_at'
+            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'created_at', 'updated_at'
         ]
     
     def to_representation(self, instance):
@@ -649,14 +659,21 @@ class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
                 total_questions += 1
                 user_answer = instance.answers.get(str(question.id), '')
                 if isinstance(user_answer, list):
-                    if question.question_type in [
-                        'summary_completion', 'note_completion', 'sentence_completion', 'gap_fill', 'flow_chart'
-                    ]:
+                    if question.question_type == 'gap_fill':
                         for idx, gap_user_answer in enumerate(user_answer):
                             try:
-                                correct_answer = question.correct_answers[idx] if idx < len(question.correct_answers) else ''
-                                if gap_user_answer.strip().upper() == correct_answer.strip().upper():
-                                    correct_answers += 1
+                                correct_gap = question.correct_answers[idx] if idx < len(question.correct_answers) else None
+                                if correct_gap:
+                                    if isinstance(correct_gap, dict):
+                                        correct_answer_val = correct_gap.get('answer', '')
+                                    else:
+                                        correct_answer_val = correct_gap
+                                    if isinstance(gap_user_answer, dict):
+                                        user_answer_val = gap_user_answer.get('answer', '')
+                                    else:
+                                        user_answer_val = gap_user_answer
+                                    if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
+                                        correct_answers += 1
                             except (IndexError, TypeError, AttributeError):
                                 continue
                         continue
@@ -666,7 +683,11 @@ class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
                 try:
                     if question.correct_answers:
                         for correct_answer in question.correct_answers:
-                            if user_answer == correct_answer.strip().upper():
+                            if isinstance(correct_answer, dict):
+                                correct_answer_val = correct_answer.get('answer', '')
+                            else:
+                                correct_answer_val = correct_answer
+                            if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
                                 correct_answers += 1
                                 break
                 except (IndexError, TypeError):
@@ -718,14 +739,21 @@ class ListeningTestResultSerializer(serializers.ModelSerializer):
             for question in part.questions.all():
                 user_answer = obj.answers.get(str(question.id), '')
                 if isinstance(user_answer, list):
-                    if question.question_type in [
-                        'summary_completion', 'note_completion', 'sentence_completion', 'gap_fill', 'flow_chart'
-                    ]:
+                    if question.question_type == 'gap_fill':
                         for idx, gap_user_answer in enumerate(user_answer):
                             try:
-                                correct_answer = question.correct_answers[idx] if idx < len(question.correct_answers) else ''
-                                if gap_user_answer.strip().upper() == correct_answer.strip().upper():
-                                    correct += 1
+                                correct_gap = question.correct_answers[idx] if idx < len(question.correct_answers) else None
+                                if correct_gap:
+                                    if isinstance(correct_gap, dict):
+                                        correct_answer_val = correct_gap.get('answer', '')
+                                    else:
+                                        correct_answer_val = correct_gap
+                                    if isinstance(gap_user_answer, dict):
+                                        user_answer_val = gap_user_answer.get('answer', '')
+                                    else:
+                                        user_answer_val = gap_user_answer
+                                    if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
+                                        correct += 1
                             except (IndexError, TypeError, AttributeError):
                                 continue
                         continue
@@ -735,7 +763,11 @@ class ListeningTestResultSerializer(serializers.ModelSerializer):
                 try:
                     if question.correct_answers:
                         for correct_answer in question.correct_answers:
-                            if user_answer == correct_answer.strip().upper():
+                            if isinstance(correct_answer, dict):
+                                correct_answer_val = correct_answer.get('answer', '')
+                            else:
+                                correct_answer_val = correct_answer
+                            if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
                                 correct += 1
                                 break
                 except (IndexError, TypeError):
@@ -758,3 +790,10 @@ class ListeningTestCloneSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListeningTestClone
         fields = ['id', 'source_test', 'cloned_test', 'cloned_at']
+
+def normalize_answer(ans):
+    if not isinstance(ans, str):
+        return ''
+    ans = re.sub(r'[^A-Za-z0-9 \n]', '', ans)
+    ans = re.sub(r'\s+', ' ', ans.replace('\n', ' '))
+    return ans.strip().upper()
