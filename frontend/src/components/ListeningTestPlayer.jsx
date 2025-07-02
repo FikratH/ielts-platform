@@ -43,6 +43,23 @@ const ListeningTestPlayer = () => {
   const [results, setResults] = useState(null);
   const [showNavigationWarning, setShowNavigationWarning] = useState(false);
 
+  // Глобальное состояние громкости (0..1), с восстановлением из localStorage
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem('audioVolume');
+    return saved !== null ? parseFloat(saved) : 1;
+  });
+  useEffect(() => {
+    localStorage.setItem('audioVolume', volume);
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [currentPart]);
+
   console.log('ListeningTestPlayer MOUNTED', { testId, user, loading });
 
   if (loading) {
@@ -737,7 +754,7 @@ const ListeningTestPlayer = () => {
               <div className="space-y-4">
                 {currentPartData?.audio ? (
                   <>
-                    <div className="flex justify-center">
+                    <div className="flex flex-col items-center gap-3 w-full">
                       <button
                         onClick={() => audioRef.current?.play()}
                         disabled={!currentPartData?.audio || isPlaying || audioEnded}
@@ -745,17 +762,48 @@ const ListeningTestPlayer = () => {
                       >
                         {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
                       </button>
-                    </div>
-                    <div className="text-sm text-gray-600 flex flex-col items-center">
-                      <div>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></div>
-                      <div>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></div>
+                      {/* Глобальный контрол громкости */}
+                      <div className="flex flex-row items-center gap-2 justify-center w-full">
+                        <button
+                          onClick={() => setVolume(volume === 0 ? 1 : 0)}
+                          className="p-2 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-100 transition"
+                          title={volume === 0 ? 'Unmute' : 'Mute'}
+                          type="button"
+                        >
+                          {volume === 0 ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-blue-700">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l6 6m0-6l-6 6M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-blue-700">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.386-.564-2.636-1.464-3.536m0 7.072A4.978 4.978 0 0019.5 12z" />
+                            </svg>
+                          )}
+                        </button>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={volume}
+                          onChange={e => setVolume(parseFloat(e.target.value))}
+                          className="w-24 accent-blue-600"
+                          aria-label="Volume"
+                        />
+                        <span className="text-sm text-gray-500 font-mono w-8 text-right">{Math.round(volume * 100)}</span>
+                      </div>
+                      <div className="flex flex-row items-center gap-3 justify-center w-full text-xs text-gray-600">
+                        <span>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></span>
+                        <span>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></span>
+                      </div>
                       {audioEnded && (
                         <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
                       )}
+                      {audioPlayed && !audioEnded && (
+                        <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
+                      )}
                     </div>
-                    {audioPlayed && !audioEnded && (
-                      <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
-                    )}
                   </>
                 ) : (
                   <div className="text-gray-400 text-center">No audio for this part</div>
