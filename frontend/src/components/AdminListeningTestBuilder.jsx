@@ -71,6 +71,24 @@ function normalizeTestFromAPI(apiTest) {
       title: part.title || `Part ${part.part_number || idx + 1}`,
       questions: Array.isArray(part.questions) ? part.questions.map(q => {
         const normalizedType = q.type || q.question_type || '';
+        let gaps = Array.isArray(q.gaps) ? q.gaps : (q.extra_data && Array.isArray(q.extra_data.gaps) ? q.extra_data.gaps : []);
+        if (normalizedType === 'gap_fill') {
+          if ((!gaps || gaps.length === 0) && Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
+            const gapRegex = /\[\[(\d+)\]\]/g;
+            const matches = [...(q.text || q.question_text || '').matchAll(gapRegex)];
+            gaps = matches.map((m, idx) => ({ number: parseInt(m[1], 10), answer: q.correct_answers[idx] || '' }));
+          }
+        } else if ([
+          'sentence_completion',
+          'summary_completion',
+          'note_completion',
+          'flow_chart'
+        ].includes(normalizedType) && (!gaps || gaps.length === 0)) {
+          const ca = q.correct_answers || (q.extra_data && q.extra_data.correct_answers) || q.answers || [];
+          if (Array.isArray(ca) && ca.length > 0) {
+            gaps = ca.map(a => typeof a === 'object' && a !== null ? a : { answer: a });
+          }
+        }
         return {
           ...q,
           id: q.id && typeof q.id === 'string' ? q.id : `q-${q.order || Math.random()}`,
@@ -83,7 +101,7 @@ function normalizeTestFromAPI(apiTest) {
           extra_data: q.extra_data || {},
           table: q.table || (normalizedType === 'table' && q.extra_data && q.extra_data.table) || undefined,
           fields: q.fields || (q.extra_data && q.extra_data.fields) || undefined,
-          gaps: Array.isArray(q.gaps) ? q.gaps : (q.extra_data && Array.isArray(q.extra_data.gaps) ? q.extra_data.gaps : []),
+          gaps,
           left: q.left || (q.extra_data && q.extra_data.left) || undefined,
           right: q.right || (q.extra_data && q.extra_data.right) || undefined,
           answers: q.answers || (q.extra_data && q.extra_data.answers) || undefined,
@@ -306,27 +324,49 @@ const AdminListeningTestBuilder = () => {
     const universalFields = <>
       <TextField
         fullWidth
+        multiline
+        minRows={2}
         label="Header (optional)"
         value={question.header || ''}
         onChange={e => updateQ({ header: e.target.value })}
         sx={{ mb: 2 }}
-      />
-      <TextField
-        fullWidth
-        label="Instruction (optional)"
-        value={question.instruction || ''}
-        onChange={e => updateQ({ instruction: e.target.value })}
-        sx={{ mb: 2 }}
+        placeholder="Введите заголовок, можно с абзацами и переносами строк"
       />
       <TextField
         fullWidth
         multiline
-        rows={question.type === 'gap_fill' ? 4 : 2}
-        label={question.type === 'gap_fill' ? 'Text with gaps' : 'Question Text'}
-        value={question.text || ''}
-        onChange={e => updateQ({ text: e.target.value })}
+        minRows={2}
+        label="Instruction (optional)"
+        value={question.instruction || ''}
+        onChange={e => updateQ({ instruction: e.target.value })}
         sx={{ mb: 2 }}
+        placeholder="Введите инструкцию, можно с абзацами и переносами строк"
       />
+      {/* Новый блок для ввода URL картинки */}
+      <TextField
+        fullWidth
+        label="Image URL (optional)"
+        value={question.image || ''}
+        onChange={e => updateQ({ image: e.target.value })}
+        sx={{ mb: 2 }}
+        placeholder="https://..."
+      />
+      {question.image && (
+        <Box sx={{ mt: 1, position: 'relative', width: 120, height: 120 }}>
+          <img
+            src={question.image}
+            alt="Question"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', border: '1px solid #ccc', borderRadius: 4 }}
+          />
+          <IconButton
+            size="small"
+            onClick={() => updateQ({ image: '' })}
+            sx={{ position: 'absolute', top: 0, right: 0, bgcolor: 'rgba(255,255,255,0.7)' }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      )}
     </>;
 
     // Далее — только специфичные для типа поля (варианты, таблицы и т.д.)
@@ -384,7 +424,7 @@ const AdminListeningTestBuilder = () => {
                         sx={{ flex: 2 }}
                       />
                       {option.image && (
-                        <img src={option.image} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                        <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
                       )}
                       <Button
                         variant={question.answer === idx ? 'contained' : 'outlined'}
@@ -572,7 +612,7 @@ const AdminListeningTestBuilder = () => {
                 {question.image && (
                   <Box sx={{ mt: 2, position: 'relative', width: '100%', maxWidth: 500 }}>
                     <img
-                      src={question.image}
+                      src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
                       alt="Map/Diagram"
                       style={{ width: '100%', height: 'auto', border: '1px solid #ccc', borderRadius: 4 }}
                       onClick={handleImageClick}
@@ -779,73 +819,95 @@ const AdminListeningTestBuilder = () => {
       );
     }
 
-    if ([
-      'summary_completion',
-      'note_completion',
-      'flow_chart',
-      'sentence_completion'
-    ].includes(question.type)) {
-      // Автоматически определяем количество пропусков ([[answer]])
-      const gapRegex = /\[\[answer\]\]/g;
-      const gapCount = (question.text?.match(gapRegex) || []).length;
-      const safeGaps = Array.isArray(question.gaps) ? question.gaps : [];
-      const gaps = Array(gapCount).fill('').map((_, i) => {
-        const g = safeGaps[i];
-        return typeof g === 'object' && g !== null ? g : { answer: '' };
+    if (question.type === 'gap_fill') {
+      // Парсим все [[номер]] из question.text (универсальное поле)
+      const gapRegex = /\[\[(\d+)\]\]/g;
+      const matches = [...(question.text?.matchAll(gapRegex) || [])];
+      let gaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
+      matches.forEach((m, idx) => {
+        const num = parseInt(m[1], 10);
+        if (!gaps[idx] || typeof gaps[idx] !== 'object') gaps[idx] = { number: num, answer: '' };
+        else gaps[idx].number = num;
       });
+      gaps = gaps.slice(0, matches.length);
+      const numbers = gaps.map(g => g.number);
+      const hasDuplicates = new Set(numbers).size !== numbers.length;
       const handleTextChange = (e) => {
         const newText = e.target.value;
-        const newGapCount = (newText.match(gapRegex) || []).length;
-        let newGaps = gaps.slice(0, newGapCount);
-        while (newGaps.length < newGapCount) newGaps.push({ answer: '' });
+        const newMatches = [...(newText.matchAll(gapRegex) || [])];
+        let newGaps = gaps.slice(0, newMatches.length);
+        newMatches.forEach((m, idx) => {
+          const num = parseInt(m[1], 10);
+          if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { number: num, answer: '' };
+          else newGaps[idx].number = num;
+        });
         updateQ({ text: newText, gaps: newGaps });
-      };
-      const handleGapChange = (idx, value) => {
-        const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-        newGaps[idx] = value;
-        updateQ({ gaps: newGaps });
       };
       return (
         <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
-          <DialogTitle>Edit {(question.type ? question.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown')} Question</DialogTitle>
+          <DialogTitle>Edit Gap Fill Question</DialogTitle>
           <DialogContent>
             {universalFields}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Question Type</InputLabel>
+              <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
+                {QUESTION_TYPES.map(type => (
+                  <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Typography variant="subtitle2" gutterBottom>
-              Use <b>[[answer]]</b> to mark each gap in the text.
+              Use <b>[[7]], [[8]], ...</b> to mark each gap in the text.
             </Typography>
             <TextField
               fullWidth
               multiline
               rows={4}
-              label="Text with gaps"
+              label="Text with gaps (use [[7]], [[8]], ...)"
               value={question.text || ''}
               onChange={handleTextChange}
+              sx={{ mb: 2 }}
             />
+            {hasDuplicates && (
+              <Alert severity="error" sx={{ mt: 2 }}>Gap numbers must be unique!</Alert>
+            )}
             {gaps.length > 0 && (
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom>Correct Answers for Gaps:</Typography>
-                {gaps.map((gap, idx) => (
-                  <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
-                    <Box sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 16 }}>{gap.label || (idx + 1)}</Box>
-                    <TextField
-                      label="Correct Answer"
-                      value={gap.answer}
-                      onChange={e => {
-                        const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-                        if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { answer: '' };
-                        newGaps[idx].answer = e.target.value;
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" gutterBottom>Gaps:</Typography>
+                  {gaps.map((gap, idx) => (
+                    <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                      <TextField
+                        label="Number"
+                        type="number"
+                        value={gap.number}
+                        onChange={e => {
+                          const newGaps = [...gaps];
+                          newGaps[idx].number = parseInt(e.target.value, 10) || '';
+                          updateQ({ gaps: newGaps });
+                        }}
+                        size="small"
+                        sx={{ width: 80 }}
+                      />
+                      <TextField
+                        label="Correct Answer"
+                        value={gap.answer}
+                        onChange={e => {
+                          const newGaps = [...gaps];
+                          newGaps[idx].answer = e.target.value;
+                          updateQ({ gaps: newGaps });
+                        }}
+                        size="small"
+                        sx={{ flex: 2 }}
+                      />
+                      <IconButton onClick={() => {
+                        const newGaps = [...gaps];
+                        newGaps.splice(idx, 1);
                         updateQ({ gaps: newGaps });
-                      }}
-                      size="small"
-                      sx={{ flex: 2 }}
-                    />
-                    <IconButton onClick={() => {
-                      const newGaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-                      newGaps.splice(idx, 1);
-                      updateQ({ gaps: newGaps });
-                    }} size="small"><DeleteIcon /></IconButton>
-                  </Box>
-                ))}
+                      }} size="small"><DeleteIcon /></IconButton>
+                    </Box>
+                  ))}
+                </Grid>
               </Grid>
             )}
           </DialogContent>
@@ -964,16 +1026,6 @@ const AdminListeningTestBuilder = () => {
             </FormControl>
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={2}
-                  label="Instruction (optional)"
-                  value={question.text}
-                  onChange={e => updateQ({ text: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
                 {Array.isArray(question.options) && question.options.length > 0 ? question.options.map((option, idx) => (
                   <Box display="flex" alignItems="center" gap={1}>
@@ -1004,7 +1056,7 @@ const AdminListeningTestBuilder = () => {
                       sx={{ flex: 2 }}
                     />
                     {option.image && (
-                      <img src={option.image} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                      <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
                     )}
                     <Button
                       variant={answerArr.includes(option.text) ? 'contained' : 'outlined'}
@@ -1029,109 +1081,6 @@ const AdminListeningTestBuilder = () => {
               </Grid>
             </Grid>
             <Button size="small" onClick={() => updateQ({ options: [...(question.options || []), { text: '', image: '' }] })} startIcon={<AddIcon />}>Add Option</Button>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditingQuestion(null)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      );
-    }
-
-    if (question.type === 'gap_fill') {
-      // Парсим все [[номер]] из question.text (универсальное поле)
-      const gapRegex = /\[\[(\d+)\]\]/g;
-      const matches = [...(question.text?.matchAll(gapRegex) || [])];
-      let gaps = Array.isArray(question.gaps) ? [...question.gaps] : [];
-      matches.forEach((m, idx) => {
-        const num = parseInt(m[1], 10);
-        if (!gaps[idx] || typeof gaps[idx] !== 'object') gaps[idx] = { number: num, answer: '' };
-        else gaps[idx].number = num;
-      });
-      gaps = gaps.slice(0, matches.length);
-      const numbers = gaps.map(g => g.number);
-      const hasDuplicates = new Set(numbers).size !== numbers.length;
-      // handleTextChange теперь просто updateQ({ text, gaps })
-      const handleTextChange = (e) => {
-        const newText = e.target.value;
-        const newMatches = [...(newText.matchAll(gapRegex) || [])];
-        let newGaps = gaps.slice(0, newMatches.length);
-        newMatches.forEach((m, idx) => {
-          const num = parseInt(m[1], 10);
-          if (!newGaps[idx] || typeof newGaps[idx] !== 'object') newGaps[idx] = { number: num, answer: '' };
-          else newGaps[idx].number = num;
-        });
-        updateQ({ text: newText, gaps: newGaps });
-      };
-      return (
-        <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
-          <DialogTitle>Edit Fill in the blanks Question</DialogTitle>
-          <DialogContent>
-            {/* Универсальный блок, но поле text теперь с кастомным onChange */}
-            <TextField
-              fullWidth
-              label="Header (optional)"
-              value={question.header || ''}
-              onChange={e => updateQ({ header: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Instruction (optional)"
-              value={question.instruction || ''}
-              onChange={e => updateQ({ instruction: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              label="Text with gaps (use [[7]], [[8]], ...)"
-              value={question.text || ''}
-              onChange={handleTextChange}
-              sx={{ mb: 2 }}
-            />
-            {hasDuplicates && (
-              <Alert severity="error" sx={{ mt: 2 }}>Gap numbers must be unique!</Alert>
-            )}
-            {gaps.length > 0 && (
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" gutterBottom>Gaps:</Typography>
-                  {gaps.map((gap, idx) => (
-                    <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
-                      <TextField
-                        label="Number"
-                        type="number"
-                        value={gap.number}
-                        onChange={e => {
-                          const newGaps = [...gaps];
-                          newGaps[idx].number = parseInt(e.target.value, 10) || '';
-                          updateQ({ gaps: newGaps });
-                        }}
-                        size="small"
-                        sx={{ width: 80 }}
-                      />
-                      <TextField
-                        label="Correct Answer"
-                        value={gap.answer}
-                        onChange={e => {
-                          const newGaps = [...gaps];
-                          newGaps[idx].answer = e.target.value;
-                          updateQ({ gaps: newGaps });
-                        }}
-                        size="small"
-                        sx={{ flex: 2 }}
-                      />
-                      <IconButton onClick={() => {
-                        const newGaps = [...gaps];
-                        newGaps.splice(idx, 1);
-                        updateQ({ gaps: newGaps });
-                      }} size="small"><DeleteIcon /></IconButton>
-                    </Box>
-                  ))}
-                </Grid>
-              </Grid>
-            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setEditingQuestion(null)}>Close</Button>
@@ -1193,7 +1142,7 @@ const AdminListeningTestBuilder = () => {
                       sx={{ flex: 2 }}
                     />
                     {option.image && (
-                      <img src={option.image} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                      <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
                     )}
                     <Button
                       variant={question.answer === idx ? 'contained' : 'outlined'}
@@ -1258,7 +1207,7 @@ const AdminListeningTestBuilder = () => {
                 style={{ marginBottom: 8 }}
               />
               {question.image && (
-                <img src={question.image} alt="Question" style={{ maxWidth: 200, maxHeight: 120, marginBottom: 8 }} />
+                <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
               )}
             </Grid>
           </Grid>
@@ -1337,7 +1286,7 @@ const AdminListeningTestBuilder = () => {
               />
               {part.image && (
                 <Box sx={{ mt: 1 }}>
-                  <img src={part.image} alt="Section" style={{ maxWidth: '300px', maxHeight: '200px' }} />
+                  <img src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)} alt="Section" style={{ maxWidth: '300px', maxHeight: '200px' }} />
                 </Box>
               )}
             </Grid>
@@ -1360,141 +1309,156 @@ const AdminListeningTestBuilder = () => {
         title: part.title,
         audio: part.audio || '',
         image: part.image || '',
-        questions: part.questions.map((q, qIdx) => {
-          // Всегда включаем header и instruction для любого типа
-          const base = {
-            order: qIdx + 1,
-            question_type: q.type || q.question_type,
-            question_text: q.text || q.question_text,
-            image: q.image || '',
-            audio_start: q.audio_start || 0,
-            audio_end: q.audio_end || 30,
-            header: q.header || '',
-            instruction: q.instruction || '',
-          };
-          // Multiple Choice
-          if (q.type === 'multiple_choice') {
-            base.options = (q.options || []).map((opt, i) => ({
-              id: String.fromCharCode(65 + i),
-              label: String.fromCharCode(65 + i),
-              text: opt.text || opt,
-              image: opt.image || ''
-            }));
-            base.correct_answers = [base.options[q.answer]?.label || 'A'];
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              options: base.options,
-              answer: q.answer,
+        questions: (part.questions || [])
+          .filter(q => {
+            if (!q) return false;
+            // Для типов, где text обязателен
+            if ([
+              'multiple_choice',
+              'short_answer',
+              'true_false'
+            ].includes(q.type)) {
+              return q.text && q.text.trim() !== '';
+            }
+            // Для multiple_response и остальных типов — не обязательно
+            return true;
+          })
+          .map((q, qIdx) => {
+            // Всегда включаем header и instruction для любого типа
+            const base = {
+              order: qIdx + 1,
+              question_type: q.type || q.question_type,
+              question_text: q.text || q.question_text,
+              image: q.image || '',
+              audio_start: q.audio_start || 0,
+              audio_end: q.audio_end || 30,
+              header: q.header || '',
+              instruction: q.instruction || '',
             };
-          }
-          // Matching
-          else if (q.type === 'matching') {
-            base.items = q.left || [];
-            base.options = (q.right || []).map((opt, i) => ({
-              id: String.fromCharCode(65 + i),
-              label: String.fromCharCode(65 + i),
-              text: opt
-            }));
-            base.correct_pairs = (q.answers || []).map(idx => Number(idx));
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              left: q.left,
-              right: q.right,
-              answers: q.answers,
-            };
-          }
-          // Map/Diagram
-          else if (q.type === 'map_diagram') {
-            base.image = q.image || '';
-            base.items = (q.points || []).map((pt, i) => pt.label || `Label ${i+1}`);
-            base.options = (q.points || []).map((pt, i) => ({
-              id: String(i+1),
-              label: String(i+1),
-              text: pt.answer || ''
-            }));
-            base.correct_pairs = (q.points || []).map((_, i) => i);
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              points: q.points,
-            };
-          }
-          // Table Completion
-          else if (q.type === 'table') {
-            base.table = q.table || {};
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              table: q.table,
-            };
-          }
-          // Form Completion
-          else if (q.type === 'form') {
-            base.fields = (q.fields || []).map(f => ({
-              label: f.label,
-              correct_answers: [f.answer]
-            }));
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              fields: q.fields,
-            };
-          }
-          // Sentence/Summary/Note/Flow Chart Completion
-          else if ([
-            'sentence_completion',
-            'summary_completion',
-            'note_completion',
-            'flow_chart'
-          ].includes(q.type)) {
-            base.gaps = q.gaps || [];
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              gaps: q.gaps,
-            };
-          }
-          // Short Answer
-          else if (q.type === 'short_answer') {
-            base.correct_answers = [q.answer];
-            if (q.word_limit) base.extra_data = { word_limit: q.word_limit };
-            base.extra_data = {
-              ...(base.extra_data || {}),
-              answer: q.answer,
-            };
-          }
-          // True/False/Not Given
-          else if (q.type === 'true_false') {
-            base.correct_answers = [
-              q.answer === 'true' ? 'True' : q.answer === 'false' ? 'False' : 'Not Given'
-            ];
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              answer: q.answer,
-            };
-          }
-          // Multiple Response
-          else if (q.type === 'multiple_response') {
-            base.options = (q.options || []).map((opt, i) => ({
-              id: String.fromCharCode(65 + i),
-              label: String.fromCharCode(65 + i),
-              text: opt.text || opt,
-              image: opt.image || ''
-            }));
-            base.answer = Array.isArray(q.answer) ? q.answer : [];
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              options: base.options,
-              answer: base.answer,
-            };
-          }
-          // Gap Fill (универсальный)
-          if (q.type === 'gap_fill') {
-            base.gaps = q.gaps || [];
-            base.correct_answers = q.gaps || [];
-            base.extra_data = {
-              ...(q.extra_data || {}),
-              gaps: q.gaps,
-            };
-          }
-          return base;
-        })
+            // Multiple Choice
+            if (q.type === 'multiple_choice') {
+              base.options = (q.options || []).map((opt, i) => ({
+                id: String.fromCharCode(65 + i),
+                label: String.fromCharCode(65 + i),
+                text: opt.text || opt,
+                image: opt.image || ''
+              }));
+              base.correct_answers = [base.options[q.answer]?.label || 'A'];
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                options: base.options,
+                answer: q.answer,
+              };
+            }
+            // Matching
+            else if (q.type === 'matching') {
+              base.items = q.left || [];
+              base.options = (q.right || []).map((opt, i) => ({
+                id: String.fromCharCode(65 + i),
+                label: String.fromCharCode(65 + i),
+                text: opt
+              }));
+              base.correct_pairs = (q.answers || []).map(idx => Number(idx));
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                left: q.left,
+                right: q.right,
+                answers: q.answers,
+              };
+            }
+            // Map/Diagram
+            else if (q.type === 'map_diagram') {
+              base.image = q.image || '';
+              base.items = (q.points || []).map((pt, i) => pt.label || `Label ${i+1}`);
+              base.options = (q.points || []).map((pt, i) => ({
+                id: String(i+1),
+                label: String(i+1),
+                text: pt.answer || ''
+              }));
+              base.correct_pairs = (q.points || []).map((_, i) => i);
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                points: q.points,
+              };
+            }
+            // Table Completion
+            else if (q.type === 'table') {
+              base.table = q.table || {};
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                table: q.table,
+              };
+            }
+            // Form Completion
+            else if (q.type === 'form') {
+              base.fields = (q.fields || []).map(f => ({
+                label: f.label,
+                correct_answers: [f.answer]
+              }));
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                fields: q.fields,
+              };
+            }
+            // Sentence/Summary/Note/Flow Chart Completion
+            else if ([
+              'sentence_completion',
+              'summary_completion',
+              'note_completion',
+              'flow_chart'
+            ].includes(q.type)) {
+              base.gaps = q.gaps || [];
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                gaps: q.gaps,
+              };
+            }
+            // Short Answer
+            else if (q.type === 'short_answer') {
+              base.correct_answers = [q.answer];
+              if (q.word_limit) base.extra_data = { word_limit: q.word_limit };
+              base.extra_data = {
+                ...(base.extra_data || {}),
+                answer: q.answer,
+              };
+            }
+            // True/False/Not Given
+            else if (q.type === 'true_false') {
+              base.correct_answers = [
+                q.answer === 'true' ? 'True' : q.answer === 'false' ? 'False' : 'Not Given'
+              ];
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                answer: q.answer,
+              };
+            }
+            // Multiple Response
+            else if (q.type === 'multiple_response') {
+              base.options = (q.options || []).map((opt, i) => ({
+                id: String.fromCharCode(65 + i),
+                label: String.fromCharCode(65 + i),
+                text: opt.text || opt,
+                image: opt.image || ''
+              }));
+              base.answer = Array.isArray(q.answer) ? q.answer : [];
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                options: base.options,
+                answer: base.answer,
+              };
+            }
+            // Gap Fill (универсальный)
+            if (q.type === 'gap_fill') {
+              base.gaps = q.gaps || [];
+              // Дублируем gaps в correct_answers для обратной совместимости
+              base.correct_answers = (q.gaps || []).map(g => g.answer !== undefined ? g.answer : g);
+              base.extra_data = {
+                ...(q.extra_data || {}),
+                gaps: q.gaps,
+              };
+            }
+            return base;
+          })
       }))
     };
   };
@@ -1506,6 +1470,8 @@ const AdminListeningTestBuilder = () => {
       const method = isNewTest ? 'POST' : 'PUT';
       const url = isNewTest ? '/api/listening-tests/' : `/api/listening-tests/${testId}/`;
       const apiTest = transformTestForAPI(test);
+      // ЛОГИРУЕМ структуру вопросов перед отправкой
+      console.log("QUESTIONS STRUCTURE:", JSON.stringify(test.parts.map(p => p.questions), null, 2));
       console.log('SAVING TEST TO API:', apiTest);
       const response = await fetch(url, {
         method,
@@ -1559,7 +1525,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1590,7 +1556,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
                 </Box>
               )}
               <TextField
@@ -1610,7 +1576,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1697,7 +1663,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1731,7 +1697,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
                 </Box>
               )}
               <TextField
@@ -1770,7 +1736,7 @@ const AdminListeningTestBuilder = () => {
             <Typography variant="h6" gutterBottom>{currentPart.title}</Typography>
             {currentPart.image && (
               <Box sx={{ mb: 2 }}>
-                <img src={currentPart.image} alt="Section" style={{ maxWidth: '100%', maxHeight: '300px' }} />
+                <img src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '300px' }} />
               </Box>
             )}
             {currentPart.audio && (

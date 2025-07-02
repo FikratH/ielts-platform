@@ -28,7 +28,8 @@ from .views import (
     ListeningTestResultView,
     ListeningTestCloneViewSet,
     AdminCheckView,
-    SecureAudioUploadView
+    SecureAudioUploadView,
+    AdminImageUploadView
 )
 
 router = DefaultRouter()
@@ -69,6 +70,7 @@ urlpatterns = router.urls + [
     path('admin/reading-sessions/<int:pk>/', AdminReadingSessionDetailView.as_view(), name='admin-reading-session-detail'),
     path('admin/check/', AdminCheckView.as_view(), name='admin-check'),
     path('admin/audio/upload/', SecureAudioUploadView.as_view(), name='secure-audio-upload'),
+    path('admin/image/upload/', AdminImageUploadView.as_view(), name='admin-image-upload'),
     
     # Listening test session endpoints
     path('listening-tests/<int:test_id>/start/', ListeningTestSessionView.as_view(), name='listening-session-start'),

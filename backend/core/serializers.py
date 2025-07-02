@@ -118,7 +118,7 @@ class AnswerOptionCreateSerializer(serializers.ModelSerializer):
         fields = ['label', 'text']
 
 class ReadingQuestionCreateSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(allow_null=True, required=False)
+    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = AnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
 
@@ -217,7 +217,7 @@ class ReadingTestCreateSerializer(serializers.ModelSerializer):
         return instance
 
 class ReadingQuestionUpdateSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(allow_null=True, required=False)
+    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = AnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
 
@@ -351,9 +351,10 @@ class ListeningAnswerOptionCreateSerializer(serializers.ModelSerializer):
 
 
 class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(allow_null=True, required=False)
+    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
+    question_text = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = ListeningQuestion
         fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
@@ -370,29 +371,86 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        questions_data = validated_data.pop('questions')
+        parts_data = validated_data.pop('parts', [])
         test = ListeningTest.objects.create(**validated_data)
-        
-        for q_data in questions_data:
-            options_data = q_data.pop('options', [])
-            image = q_data.pop('image', None)
-            correct_answer = q_data.pop('correct_answer', None)
-            
-            # Store correct answer in the question's correct_answers field
-            if correct_answer:
-                q_data['correct_answers'] = [correct_answer]
-            
-            question = ListeningQuestion.objects.create(test=test, image=image, **q_data)
-            
-            for opt_data in options_data:
-                ListeningAnswerOption.objects.create(question=question, **opt_data)
+        for part_data in parts_data:
+            questions_data = part_data.pop('questions', [])
+            part = ListeningPart.objects.create(test=test, **part_data)
+            for question_data in questions_data:
+                options_data = question_data.pop('options', [])
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                print('QUESTION DATA:', question_data)
+                question = ListeningQuestion.objects.create(part=part, **question_data)
+                for idx, option_data in enumerate(options_data):
+                    label = chr(65 + idx)
+                    option_data = dict(option_data)
+                    option_data.pop('label', None)
+                    ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
         return test
 
+    def update(self, instance, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        existing_parts = {p.part_number: p for p in instance.parts.all()}
+        sent_part_numbers = set()
+        for part_data in parts_data:
+            part_number = part_data.get('part_number')
+            sent_part_numbers.add(part_number)
+            questions_data = part_data.pop('questions', [])
+            part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data, 'test': instance})
+            if not created:
+                for attr, value in part_data.items():
+                    setattr(part, attr, value)
+                part.save()
+            existing_questions = {q.order: q for q in part.questions.all()}
+            sent_question_orders = set()
+            for question_data in questions_data:
+                order = question_data.get('order')
+                sent_question_orders.add(order)
+                options_data = question_data.pop('options', [])
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                print('QUESTION DATA:', question_data)
+                question, created = part.questions.get_or_create(order=order, defaults={**question_data, 'part': part})
+                if not created:
+                    for attr, value in question_data.items():
+                        setattr(question, attr, value)
+                    question.save()
+                existing_options = {o.label: o for o in question.options.all()}
+                sent_option_labels = set()
+                for idx, option_data in enumerate(options_data):
+                    label = chr(65 + idx)
+                    sent_option_labels.add(label)
+                    option_data = dict(option_data)
+                    option_data.pop('label', None)
+                    option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
+                    if not created:
+                        for attr, value in option_data.items():
+                            setattr(option, attr, value)
+                        option.save()
+                for label, option in existing_options.items():
+                    if label not in sent_option_labels:
+                        option.delete()
+            for order, question in existing_questions.items():
+                if order not in sent_question_orders:
+                    question.delete()
+        for part_number, part in existing_parts.items():
+            if part_number not in sent_part_numbers:
+                part.delete()
+        return instance
 
 class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(allow_null=True, required=False)
+    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
+    question_text = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = ListeningQuestion
         fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
@@ -500,21 +558,25 @@ class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
         fields = ['id', 'label', 'text']
 
 class ListeningQuestionSerializer(serializers.ModelSerializer):
+    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = ListeningAnswerOptionSerializer(many=True, required=False)
     class Meta:
         model = ListeningQuestion
         fields = [
-            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'created_at', 'updated_at'
+            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'image', 'created_at', 'updated_at'
         ]
     
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Отладочная информация для табличных вопросов
-        if instance.question_type == 'table':
-            print(f"DEBUG: Serializing table question {instance.id}")
-            print(f"DEBUG: Extra data: {instance.extra_data}")
-            print(f"DEBUG: Serialized data: {data}")
-        return data
+    def get_image(self, obj):
+        request = self.context.get('request', None)
+        if obj.image:
+            if hasattr(obj.image, 'url'):
+                url = obj.image.url
+            else:
+                url = f"/media/{obj.image}"
+            if request is not None:
+                return request.build_absolute_uri(url)
+            return url
+        return None
 
 class ListeningPartSerializer(serializers.ModelSerializer):
     audio = serializers.CharField(allow_blank=True, required=False)
@@ -542,10 +604,13 @@ class ListeningTestSerializer(serializers.ModelSerializer):
             part = ListeningPart.objects.create(test=test, **part_data)
             for question_data in questions_data:
                 options_data = question_data.pop('options', [])
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                print('QUESTION DATA:', question_data)
                 question = ListeningQuestion.objects.create(part=part, **question_data)
                 for idx, option_data in enumerate(options_data):
                     label = chr(65 + idx)
-                    # Remove 'label' if present to avoid multiple values error
                     option_data = dict(option_data)
                     option_data.pop('label', None)
                     ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
@@ -558,7 +623,6 @@ class ListeningTestSerializer(serializers.ModelSerializer):
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
 
-        # Update or create parts
         existing_parts = {p.part_number: p for p in instance.parts.all()}
         sent_part_numbers = set()
         for part_data in parts_data:
@@ -570,35 +634,21 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                 for attr, value in part_data.items():
                     setattr(part, attr, value)
                 part.save()
-            # Update or create questions
             existing_questions = {q.order: q for q in part.questions.all()}
             sent_question_orders = set()
             for question_data in questions_data:
                 order = question_data.get('order')
                 sent_question_orders.add(order)
                 options_data = question_data.pop('options', [])
-                
-                # Отладочная информация для табличных вопросов
-                if question_data.get('question_type') == 'table':
-                    print(f"DEBUG: Processing table question with order {order}")
-                    print(f"DEBUG: Question data: {question_data}")
-                    print(f"DEBUG: Extra data: {question_data.get('extra_data', {})}")
-                
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                print('QUESTION DATA:', question_data)
                 question, created = part.questions.get_or_create(order=order, defaults={**question_data, 'part': part})
                 if not created:
                     for attr, value in question_data.items():
                         setattr(question, attr, value)
-                        # Дополнительная отладка для extra_data
-                        if attr == 'extra_data' and question_data.get('question_type') == 'table':
-                            print(f"DEBUG: Setting extra_data for table question: {value}")
                     question.save()
-                    
-                    # Проверяем, что данные сохранились
-                    if question_data.get('question_type') == 'table':
-                        question.refresh_from_db()
-                        print(f"DEBUG: Saved extra_data: {question.extra_data}")
-                
-                # Update or create options
                 existing_options = {o.label: o for o in question.options.all()}
                 sent_option_labels = set()
                 for idx, option_data in enumerate(options_data):
@@ -611,15 +661,12 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                         for attr, value in option_data.items():
                             setattr(option, attr, value)
                         option.save()
-                # Delete removed options
                 for label, option in existing_options.items():
                     if label not in sent_option_labels:
                         option.delete()
-            # Delete removed questions
             for order, question in existing_questions.items():
                 if order not in sent_question_orders:
                     question.delete()
-        # Delete removed parts
         for part_number, part in existing_parts.items():
             if part_number not in sent_part_numbers:
                 part.delete()

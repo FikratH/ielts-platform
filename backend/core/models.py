@@ -207,12 +207,13 @@ class ListeningPart(models.Model):
 class ListeningQuestion(models.Model):
     part = models.ForeignKey(ListeningPart, related_name='questions', on_delete=models.CASCADE)
     question_type = models.CharField(max_length=32)
-    question_text = models.TextField()
+    question_text = models.TextField(blank=True, null=True)
     order = models.PositiveIntegerField()
     extra_data = JSONField(default=dict, blank=True)  # For matching, dropdown, etc.
     correct_answers = JSONField(default=list, blank=True)  # List for multiple correct answers
     header = models.TextField(blank=True, default='')
     instruction = models.TextField(blank=True, default='')
+    image = models.CharField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

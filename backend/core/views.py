@@ -854,10 +854,10 @@ class ListeningTestListView(ListAPIView):
                 try:
                     user = User.objects.get(uid=uid)
                     if user.role == 'admin':
-                        return ListeningTest.objects.all()
+                        return ListeningTest.objects.all().order_by('-created_at')
                 except User.DoesNotExist:
                     pass
-        return ListeningTest.objects.filter(is_active=True)
+        return ListeningTest.objects.filter(is_active=True).order_by('-created_at')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -1013,10 +1013,6 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]  # TODO: restrict to admin for write operations
 
     def get_queryset(self):
-        # Students can only see active tests
-        if self.action in ['list', 'retrieve']:
-            return ListeningTest.objects.filter(is_active=True).order_by('-created_at')
-        # Admins can see all tests
         return ListeningTest.objects.all().order_by('-created_at')
 
     @action(detail=True, methods=['post'])
@@ -1290,6 +1286,50 @@ class SecureAudioUploadView(APIView):
                 'size': audio_file.size
             }, status=status.HTTP_201_CREATED)
             
+        except Exception as e:
+            return Response({'error': f'Failed to upload file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# --- Admin Image Upload ---
+class AdminImageUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        # Check admin permissions
+        try:
+            user = User.objects.get(uid=request.user.uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({'error': 'No image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check file size (max 10MB)
+        if image_file.size > 10 * 1024 * 1024:
+            return Response({'error': 'File too large. Maximum size is 10MB'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        if image_file.content_type not in allowed_types:
+            return Response({'error': 'Invalid file type. Allowed: JPEG, PNG, WEBP, GIF'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            import uuid
+            import hashlib
+            file_hash = hashlib.md5(image_file.read()).hexdigest()
+            image_file.seek(0)
+            file_extension = os.path.splitext(image_file.name)[1]
+            secure_filename = f"listening_images/{file_hash}{file_extension}"
+            path = default_storage.save(secure_filename, ContentFile(image_file.read()))
+            return Response({
+                'success': True,
+                'file_url': default_storage.url(path),
+                'file_path': path,
+                'size': image_file.size
+            }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': f'Failed to upload file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

@@ -302,14 +302,36 @@ const ListeningTestPlayer = () => {
     const isFlagged = flagged[question.id] || false;
     const type = (question.question_type || '').toLowerCase();
     // Универсальный вывод header/instruction для всех типов
-    const headerBlock = <>
-      {question.header && (
-        <div className="font-bold text-lg text-blue-800 mb-1" style={{whiteSpace: 'pre-line'}}>{question.header}</div>
-      )}
-      {question.instruction && (
-        <div className="text-gray-600 mb-2" style={{whiteSpace: 'pre-line'}}>{question.instruction}</div>
-      )}
-    </>;
+    const headerBlock = (
+      <div className="mb-3">
+        {question.header && (
+          <div
+            className="font-bold text-xl text-blue-900 mb-1"
+            style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}
+          >
+            {question.header}
+          </div>
+        )}
+        {question.instruction && (
+          <div
+            className="text-gray-800 mb-2"
+            style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}
+          >
+            {question.instruction}
+          </div>
+        )}
+        {/* Универсальный блок для изображения */}
+        {question.image && (
+          <div className="mb-3 flex justify-center">
+            <img
+              src={question.image}
+              alt="Question"
+              style={{ maxWidth: '350px', maxHeight: '220px', borderRadius: '8px', border: '1px solid #e0e7ef', background: '#fff' }}
+            />
+          </div>
+        )}
+      </div>
+    );
     // Типы, для которых не нужно показывать текст вопроса в заголовке
     const hideHeaderTextTypes = [
       "sentence_completion", "summary_completion", "note_completion", "flow_chart", "gap_fill",
@@ -692,10 +714,10 @@ const ListeningTestPlayer = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-2 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="w-full px-2 py-8">
+        <div className="grid grid-cols-4 gap-8 justify-center items-start">
           {/* Audio Player */}
-          <div className="lg:col-span-1">
+          <div className="col-span-1">
             <div className="bg-white rounded-2xl shadow-xl p-8 sticky top-24 border border-blue-100">
               <h2 className="text-lg font-bold text-blue-700 mb-4">Audio Player</h2>
               {currentPartData?.audio && (
@@ -713,24 +735,30 @@ const ListeningTestPlayer = () => {
                 />
               )}
               <div className="space-y-4">
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => audioRef.current?.play()}
-                    disabled={!currentPartData?.audio || isPlaying || audioEnded}
-                    className="bg-blue-100 text-blue-700 font-semibold px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-lg"
-                  >
-                    {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
-                  </button>
-                </div>
-                <div className="text-sm text-gray-600 flex flex-col items-center">
-                  <div>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></div>
-                  <div>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></div>
-                  {audioEnded && (
-                    <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
-                  )}
-                </div>
-                {audioPlayed && !audioEnded && (
-                  <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
+                {currentPartData?.audio ? (
+                  <>
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => audioRef.current?.play()}
+                        disabled={!currentPartData?.audio || isPlaying || audioEnded}
+                        className="bg-blue-100 text-blue-700 font-semibold px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-lg"
+                      >
+                        {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
+                      </button>
+                    </div>
+                    <div className="text-sm text-gray-600 flex flex-col items-center">
+                      <div>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></div>
+                      <div>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></div>
+                      {audioEnded && (
+                        <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
+                      )}
+                    </div>
+                    {audioPlayed && !audioEnded && (
+                      <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-gray-400 text-center">No audio for this part</div>
                 )}
               </div>
               {/* Part Navigation */}
@@ -754,10 +782,9 @@ const ListeningTestPlayer = () => {
               </div>
             </div>
           </div>
-
           {/* Questions */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100">
+          <div className="col-span-3 flex justify-center">
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100 w-full">
               {currentPartData && (
                 <>
                   <div className="mb-6">
