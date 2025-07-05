@@ -230,12 +230,11 @@ const ListeningTestPlayer = () => {
     }
   };
 
-  const handleAnswerChange = (questionId, value) => {
+  const handleAnswerChange = (subKey, value) => {
     setAnswers(prev => ({
       ...prev,
-      [questionId]: value
+      [subKey]: value
     }));
-    // setTimeout(syncAnswers, 1000); // Отключено для предотвращения сброса answers
   };
 
   const toggleFlag = (questionId) => {
@@ -422,8 +421,8 @@ const ListeningTestPlayer = () => {
                         {cell.isAnswer ? (
                           <input
                             type="text"
-                            value={answers[`${question.id}_${r}_${c}`] || ''}
-                            onChange={e => handleAnswerChange(`${question.id}_${r}_${c}`, e.target.value)}
+                            value={answers[`${question.id}__r${r}c${c}`] || ''}
+                            onChange={e => handleAnswerChange(`${question.id}__r${r}c${c}`, e.target.value)}
                             className="w-full p-2 border rounded"
                             placeholder="Your answer"
                           />
@@ -454,8 +453,8 @@ const ListeningTestPlayer = () => {
                 <span className="font-bold bg-blue-100 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center">{field.label || idx + 1}</span>
                 <input
                   type="text"
-                  value={answers[`${question.id}_${idx}`] || ''}
-                  onChange={e => handleAnswerChange(`${question.id}_${idx}`, e.target.value)}
+                  value={answers[`${question.id}__${idx}`] || ''}
+                  onChange={e => handleAnswerChange(`${question.id}__${idx}`, e.target.value)}
                   className="flex-1 p-3 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-400 text-lg bg-white shadow-sm"
                   placeholder="Your answer..."
                 />
@@ -505,8 +504,8 @@ const ListeningTestPlayer = () => {
             }}>{gapNumber}</span>
             <input
               type="text"
-              value={answers[`${question.id}_gap_${gapNumber}`] || ''}
-              onChange={e => handleAnswerChange(`${question.id}_gap_${gapNumber}`, e.target.value)}
+              value={answers[`${question.id}__gap${gapNumber}`] || ''}
+              onChange={e => handleAnswerChange(`${question.id}__gap${gapNumber}`, e.target.value)}
               style={{
                 height: '28px',
                 minWidth: '40px',
@@ -586,30 +585,28 @@ const ListeningTestPlayer = () => {
     // Multiple Response (multi-select, все алиасы)
     if (["multiple_response", "multipleresponse", "multi_select", "multiselect"].includes(type) && (Array.isArray(question.options) || (question.extra_data && Array.isArray(question.extra_data.options)))) {
       const options = question.options || (question.extra_data && question.extra_data.options) || [];
-      const selected = Array.isArray(value) ? value : [];
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
           {headerBlock}
           {questionHeader}
           <div className="space-y-3">
-            {options.map((option, idx) => (
-              <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
-                <input
-                  type="checkbox"
-                  name={`question-${question.id}`}
-                  value={option.label}
-                  checked={selected.includes(option.label)}
-                  onChange={e => {
-                    let newSelected = selected.includes(option.label)
-                      ? selected.filter(v => v !== option.label)
-                      : [...selected, option.label];
-                    handleAnswerChange(question.id, newSelected);
-                  }}
-                  className="accent-blue-600 w-5 h-5"
-                />
-                <span className="font-medium">{option.label}. {option.text}</span>
-              </label>
-            ))}
+            {options.map((option, idx) => {
+              const subKey = `${question.id}__${option.label}`;
+              const checked = !!answers[subKey];
+              return (
+                <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
+                  <input
+                    type="checkbox"
+                    name={`question-${question.id}`}
+                    value={option.label}
+                    checked={checked}
+                    onChange={e => handleAnswerChange(subKey, e.target.checked)}
+                    className="accent-blue-600 w-5 h-5"
+                  />
+                  <span className="font-medium">{option.label}. {option.text}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       );
@@ -622,19 +619,22 @@ const ListeningTestPlayer = () => {
           {headerBlock}
           {questionHeader}
           <div className="space-y-3">
-            {question.options.map((option, idx) => (
-              <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
-                <input
-                  type="radio"
-                  name={`question-${question.id}`}
-                  value={option.label}
-                  checked={value === option.label}
-                  onChange={e => handleAnswerChange(question.id, e.target.value)}
-                  className="accent-blue-600 w-5 h-5"
-                />
-                <span className="font-medium">{option.label}. {option.text}</span>
-              </label>
-            ))}
+            {question.options.map((option, idx) => {
+              const subKey = `${question.id}__${option.label}`;
+              return (
+                <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
+                  <input
+                    type="radio"
+                    name={`question-${question.id}`}
+                    value={option.label}
+                    checked={!!answers[subKey]}
+                    onChange={e => handleAnswerChange(subKey, e.target.checked ? option.label : '')}
+                    className="accent-blue-600 w-5 h-5"
+                  />
+                  <span className="font-medium">{option.label}. {option.text}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       );

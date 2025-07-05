@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import ReadingTest, ReadingQuestion, AnswerOption, AnswerKey, Essay, WritingPrompt, ReadingPassage, ReadingTestSession, User, ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption, ListeningTestResult, ListeningTestClone, ListeningStudentAnswer
 import re
+import json
 
 class EssaySerializer(serializers.ModelSerializer):
     student_id = serializers.CharField(source='user.student_id', read_only=True)
@@ -251,7 +252,7 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
     def get_correct_answers(self, obj):
         correct = 0
         for q in obj.test.questions.all():
-            user_answer = obj.answers.get(str(q.id), '').strip().upper()
+            user_answer = obj.answers.get(f"{q.id}__", '').strip().upper()
             try:
                 correct_answer = AnswerKey.objects.get(question=q).correct_answer.strip().upper()
                 if user_answer == correct_answer:
@@ -266,7 +267,7 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
     def get_question_feedback(self, obj):
         feedback = []
         for question in obj.test.questions.all().order_by('order'):
-            user_answer_text = obj.answers.get(str(question.id), 'No Answer')
+            user_answer_text = obj.answers.get(f"{question.id}__", 'No Answer')
             correct_answer_text = 'N/A'
             is_correct = False
             
@@ -482,51 +483,28 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
 
     def get_correct_answers(self, obj):
         correct = 0
-        for q in obj.test.questions.all():
-            user_answer = obj.answers.get(str(q.id), '')
-            if isinstance(user_answer, list):
-                if q.question_type == 'gap_fill':
-                    for idx, gap_user_answer in enumerate(user_answer):
-                        try:
-                            correct_gap = q.correct_answers[idx] if idx < len(q.correct_answers) else None
-                            if correct_gap:
-                                if isinstance(correct_gap, dict):
-                                    correct_answer_val = correct_gap.get('answer', '')
-                                else:
-                                    correct_answer_val = correct_gap
-                                if isinstance(gap_user_answer, dict):
-                                    user_answer_val = gap_user_answer.get('answer', '')
-                                else:
-                                    user_answer_val = gap_user_answer
-                                if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
-                                    correct += 1
-                        except (IndexError, TypeError, AttributeError):
-                            continue
-                    continue
-                else:
-                    user_answer = user_answer[0] if user_answer else ''
-            user_answer = user_answer.strip().upper()
-            try:
-                if q.correct_answers:
-                    for correct_answer in q.correct_answers:
-                        if isinstance(correct_answer, dict):
-                            correct_answer_val = correct_answer.get('answer', '')
-                        else:
-                            correct_answer_val = correct_answer
-                        if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
-                            correct += 1
-                            break
-            except (IndexError, TypeError):
-                continue
+        for part in obj.test.parts.all():
+            for question in part.questions.all():
+                correct_answers = question.correct_answers or []
+                options = list(question.options.all()) if hasattr(question, 'options') else None
+                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                correct += qc
         return correct
 
     def get_total_questions(self, obj):
-        return obj.test.questions.count()
+        total = 0
+        for part in obj.test.parts.all():
+            for question in part.questions.all():
+                correct_answers = question.correct_answers or []
+                options = list(question.options.all()) if hasattr(question, 'options') else None
+                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                total += qt
+        return total
 
     def get_question_feedback(self, obj):
         feedback = []
         for question in obj.test.questions.all().order_by('order'):
-            user_answer_text = obj.answers.get(str(question.id), 'No Answer')
+            user_answer_text = obj.answers.get(f"{question.id}__", 'No Answer')
             correct_answer_text = 'N/A'
             is_correct = False
             
@@ -697,53 +675,20 @@ class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
         instance.status = 'submitted'
         
         # Auto-grade the test
-        correct_answers = 0
-        total_questions = 0
+        correct_subanswers = 0
+        total_subanswers = 0
         
-        # Get all questions from all parts of the test
         for part in instance.test.parts.all():
             for question in part.questions.all():
-                total_questions += 1
-                user_answer = instance.answers.get(str(question.id), '')
-                if isinstance(user_answer, list):
-                    if question.question_type == 'gap_fill':
-                        for idx, gap_user_answer in enumerate(user_answer):
-                            try:
-                                correct_gap = question.correct_answers[idx] if idx < len(question.correct_answers) else None
-                                if correct_gap:
-                                    if isinstance(correct_gap, dict):
-                                        correct_answer_val = correct_gap.get('answer', '')
-                                    else:
-                                        correct_answer_val = correct_gap
-                                    if isinstance(gap_user_answer, dict):
-                                        user_answer_val = gap_user_answer.get('answer', '')
-                                    else:
-                                        user_answer_val = gap_user_answer
-                                    if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
-                                        correct_answers += 1
-                            except (IndexError, TypeError, AttributeError):
-                                continue
-                        continue
-                    else:
-                        user_answer = user_answer[0] if user_answer else ''
-                user_answer = user_answer.strip().upper()
-                try:
-                    if question.correct_answers:
-                        for correct_answer in question.correct_answers:
-                            if isinstance(correct_answer, dict):
-                                correct_answer_val = correct_answer.get('answer', '')
-                            else:
-                                correct_answer_val = correct_answer
-                            if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
-                                correct_answers += 1
-                                break
-                except (IndexError, TypeError):
-                    continue
+                correct_answers = question.correct_answers or []
+                options = list(question.options.all()) if hasattr(question, 'options') else None
+                qc, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=instance.answers, question_id=str(question.id), options=options)
+                correct_subanswers += qc
+                total_subanswers += qt
         
         # Calculate IELTS band score (0-9)
-        if total_questions > 0:
-            percentage = (correct_answers / total_questions) * 100
-            # IELTS Listening band score conversion (approximate)
+        if total_subanswers > 0:
+            percentage = (correct_subanswers / total_subanswers) * 100
             if percentage >= 90: band_score = 9.0
             elif percentage >= 85: band_score = 8.5
             elif percentage >= 80: band_score = 8.0
@@ -784,47 +729,20 @@ class ListeningTestResultSerializer(serializers.ModelSerializer):
         correct = 0
         for part in obj.test.parts.all():
             for question in part.questions.all():
-                user_answer = obj.answers.get(str(question.id), '')
-                if isinstance(user_answer, list):
-                    if question.question_type == 'gap_fill':
-                        for idx, gap_user_answer in enumerate(user_answer):
-                            try:
-                                correct_gap = question.correct_answers[idx] if idx < len(question.correct_answers) else None
-                                if correct_gap:
-                                    if isinstance(correct_gap, dict):
-                                        correct_answer_val = correct_gap.get('answer', '')
-                                    else:
-                                        correct_answer_val = correct_gap
-                                    if isinstance(gap_user_answer, dict):
-                                        user_answer_val = gap_user_answer.get('answer', '')
-                                    else:
-                                        user_answer_val = gap_user_answer
-                                    if normalize_answer(user_answer_val) == normalize_answer(correct_answer_val):
-                                        correct += 1
-                            except (IndexError, TypeError, AttributeError):
-                                continue
-                        continue
-                    else:
-                        user_answer = user_answer[0] if user_answer else ''
-                user_answer = user_answer.strip().upper()
-                try:
-                    if question.correct_answers:
-                        for correct_answer in question.correct_answers:
-                            if isinstance(correct_answer, dict):
-                                correct_answer_val = correct_answer.get('answer', '')
-                            else:
-                                correct_answer_val = correct_answer
-                            if normalize_answer(user_answer) == normalize_answer(correct_answer_val):
-                                correct += 1
-                                break
-                except (IndexError, TypeError):
-                    continue
+                correct_answers = question.correct_answers or []
+                options = list(question.options.all()) if hasattr(question, 'options') else None
+                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                correct += qc
         return correct
     
     def get_total_questions_count(self, obj):
         total = 0
         for part in obj.test.parts.all():
-            total += part.questions.count()
+            for question in part.questions.all():
+                correct_answers = question.correct_answers or []
+                options = list(question.options.all()) if hasattr(question, 'options') else None
+                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                total += qt
         return total
     
     def get_time_taken(self, obj):
@@ -844,3 +762,101 @@ def normalize_answer(ans):
     ans = re.sub(r'[^A-Za-z0-9 \n]', '', ans)
     ans = re.sub(r'\s+', ' ', ans.replace('\n', ' '))
     return ans.strip().upper()
+
+# --- Универсальная схема ключей для answers ---
+# Везде, где ищутся user_answer/all_user_answers, теперь ищем по ключу f"{question_id}__{subId}" для саб-ответов.
+# Для table: subId = r{row}c{col}
+# Для gap_fill: subId = gap{N}
+# Для multiple_response: subId = {label}
+# Для matching: subId = left{N}
+# Для form: subId = {idx}
+# Все сравнения и подсчёты теперь по этим ключам.
+
+def count_correct_subanswers(user_answer, correct_answers, question_type, extra_data=None, all_user_answers=None, question_id=None, options=None):
+    print(f"[DEBUG] Checking question_type={question_type}")
+    print(f"[DEBUG] all_user_answers={all_user_answers}")
+    num_correct = 0
+    num_total = 0
+    # GAP FILL
+    if question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
+        gaps = []
+        if extra_data and 'gaps' in extra_data:
+            gaps = extra_data['gaps']
+        elif isinstance(correct_answers, list) and all(isinstance(x, dict) and 'number' in x for x in correct_answers):
+            gaps = correct_answers
+        else:
+            gaps = [{'number': i+1, 'answer': ca} for i, ca in enumerate(correct_answers)]
+        num_total = len(gaps)
+        for gap in gaps:
+            gap_num = gap.get('number')
+            correct_val = gap.get('answer', '')
+            key = f"{question_id}__gap{gap_num}"
+            user_val = all_user_answers.get(key, '') if all_user_answers else ''
+            print(f"[DEBUG] gap: key={key}, user_val='{user_val}' vs correct_val='{correct_val}'")
+            if normalize_answer(user_val) == normalize_answer(correct_val):
+                num_correct += 1
+        return num_correct, num_total
+    # TABLE
+    if question_type in ['table', 'table_completion', 'tablecompletion', 'form', 'form_completion']:
+        cells = []
+        if extra_data and 'table' in extra_data and 'cells' in extra_data['table']:
+            cells = extra_data['table']['cells']
+        num_total = 0
+        for row_idx, row in enumerate(cells):
+            for col_idx, cell in enumerate(row):
+                if cell.get('isAnswer'):
+                    num_total += 1
+                    correct_val = cell.get('answer', '')
+                    key = f"{question_id}__r{row_idx}c{col_idx}"
+                    user_val = all_user_answers.get(key, '') if all_user_answers else ''
+                    print(f"[DEBUG] table: key={key}, user_val='{user_val}' vs correct_val='{correct_val}'")
+                    if normalize_answer(user_val) == normalize_answer(correct_val):
+                        num_correct += 1
+        return num_correct, num_total
+    # MULTIPLE RESPONSE
+    if question_type in ['multiple_response', 'checkbox', 'multi_select']:
+        correct_labels = set()
+        if options and all(hasattr(o, 'label') for o in options):
+            for o in options:
+                label = getattr(o, 'label', None)
+                text = getattr(o, 'text', None)
+                is_correct = getattr(o, 'isCorrect', False)
+                if is_correct or (isinstance(correct_answers, list) and (text in correct_answers or label in correct_answers)):
+                    correct_labels.add(normalize_answer(label))
+        elif isinstance(correct_answers, list):
+            for label in correct_answers:
+                correct_labels.add(normalize_answer(label))
+        # --- Новый режим: 1 балл за полный правильный набор ---
+        user_selected = set()
+        for label in correct_labels:
+            key = f"{question_id}__{label}"
+            user_val = all_user_answers.get(key, False)
+            if user_val is True or user_val == "true" or user_val == label:
+                user_selected.add(normalize_answer(label))
+        # Проверяем, что выбран ровно правильный набор (и ничего лишнего)
+        extra_selected = set()
+        for k, v in (all_user_answers or {}).items():
+            if k.startswith(f"{question_id}__") and v:
+                sub = k.split("__", 1)[1]
+                if sub not in correct_labels:
+                    extra_selected.add(sub)
+        print(f"[DEBUG] multiple_response: user_selected={user_selected}, correct_labels={correct_labels}, extra_selected={extra_selected}")
+        num_total = 1
+        num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
+        return num_correct, num_total
+    # MULTIPLE CHOICE / SINGLE CHOICE
+    if question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer']:
+        correct_label = ''
+        if isinstance(correct_answers, list) and correct_answers:
+            correct_label = correct_answers[0]
+        elif isinstance(correct_answers, str):
+            correct_label = correct_answers
+        key = f"{question_id}__{correct_label}"
+        user_val = all_user_answers.get(key, '') if all_user_answers else ''
+        print(f"[DEBUG] single_choice: key={key}, user_val='{user_val}' vs correct_label='{correct_label}'")
+        if user_val is True or user_val == 'true' or user_val == correct_label:
+            return 1, 1
+        return 0, 1
+    # MATCHING (если потребуется)
+    # ... аналогично ...
+    return 0, 0

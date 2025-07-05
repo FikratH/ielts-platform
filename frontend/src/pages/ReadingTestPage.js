@@ -32,7 +32,7 @@ const ReadingTestPage = () => {
   }, [id]);
 
   const handleChange = (questionId, value) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
+    setAnswers(prev => ({ ...prev, [`${questionId}__${value}`]: value }));
   };
 
   const handleSubmit = () => {
@@ -84,7 +84,7 @@ const ReadingTestPage = () => {
                   type="radio"
                   name={`question-${q.id}`}
                   value={opt.label}
-                  checked={answers[q.id] === opt.label}
+                  checked={answers[`${q.id}__${opt.label}`] === opt.label}
                   onChange={() => handleChange(q.id, opt.label)}
                   className="mr-3"
                   disabled={submitting}
@@ -95,7 +95,7 @@ const ReadingTestPage = () => {
           ) : (
             <input
               type="text"
-              value={answers[q.id] || ""}
+              value={answers[`${q.id}__0`] || ""}
               onChange={(e) => handleChange(q.id, e.target.value)}
               placeholder="Your answer"
               className="mt-1 w-full p-2 border rounded"

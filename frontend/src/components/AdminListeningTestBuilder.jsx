@@ -1027,57 +1027,77 @@ const AdminListeningTestBuilder = () => {
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
-                {Array.isArray(question.options) && question.options.length > 0 ? question.options.map((option, idx) => (
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <TextField
-                      label="Label"
-                      value={option.label || String.fromCharCode(65 + idx)}
-                      onChange={e => {
-                        const newOptions = [...question.options];
-                        newOptions[idx].label = e.target.value;
+                {Array.isArray(question.options) && question.options.length > 0 ? question.options.map((option, idx) => {
+                  const isSelected = answerArr.includes(option.label || String.fromCharCode(65 + idx));
+                  return (
+                    <Box display="flex" alignItems="center" gap={1} key={idx}>
+                      <TextField
+                        label="Label"
+                        value={option.label || String.fromCharCode(65 + idx)}
+                        onChange={e => {
+                          const newOptions = [...question.options];
+                          newOptions[idx].label = e.target.value;
+                          updateQ({ options: newOptions });
+                        }}
+                        size="small"
+                        sx={{ width: 60 }}
+                      />
+                      <TextField
+                        label={`Option ${idx + 1}`}
+                        value={option.text}
+                        onChange={e => {
+                          const newOptions = [...question.options];
+                          if (e.target.value) {
+                            newOptions[idx].text = e.target.value;
+                          } else {
+                            newOptions.splice(idx, 1);
+                          }
+                          updateQ({ options: newOptions });
+                        }}
+                        size="small"
+                        sx={{ flex: 2 }}
+                      />
+                      {option.image && (
+                        <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                      )}
+                      <Button
+                        variant={isSelected ? 'contained' : 'outlined'}
+                        color="success"
+                        size="small"
+                        onClick={() => {
+                          // --- Новый блок: обновляем answer, correct_answers и isCorrect ---
+                          const label = option.label || String.fromCharCode(65 + idx);
+                          let newAnswer;
+                          if (isSelected) {
+                            newAnswer = answerArr.filter(a => a !== label);
+                          } else {
+                            newAnswer = [...answerArr, label];
+                          }
+                          // Обновляем isCorrect в options
+                          const newOptions = question.options.map((opt, i) =>
+                            i === idx ? { ...opt, isCorrect: !isSelected } : opt
+                          );
+                          // Обновляем correct_answers
+                          updateQ({
+                            answer: newAnswer,
+                            correct_answers: newAnswer,
+                            options: newOptions.map(opt => ({
+                              ...opt,
+                              isCorrect: newAnswer.includes(opt.label || String.fromCharCode(65 + question.options.indexOf(opt)))
+                            }))
+                          });
+                        }}
+                        sx={{ minWidth: 90 }}
+                      >
+                        {isSelected ? 'Selected' : 'Select'}
+                      </Button>
+                      <IconButton onClick={() => {
+                        const newOptions = question.options.filter((_, i) => i !== idx);
                         updateQ({ options: newOptions });
-                      }}
-                      size="small"
-                      sx={{ width: 60 }}
-                    />
-                    <TextField
-                      label={`Option ${idx + 1}`}
-                      value={option.text}
-                      onChange={e => {
-                        const newOptions = [...question.options];
-                        if (e.target.value) {
-                          newOptions[idx].text = e.target.value;
-                        } else {
-                          newOptions.splice(idx, 1);
-                        }
-                        updateQ({ options: newOptions });
-                      }}
-                      size="small"
-                      sx={{ flex: 2 }}
-                    />
-                    {option.image && (
-                      <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
-                    )}
-                    <Button
-                      variant={answerArr.includes(option.text) ? 'contained' : 'outlined'}
-                      color="success"
-                      size="small"
-                      onClick={() => {
-                        const newAnswer = answerArr.includes(option.text)
-                          ? answerArr.filter(a => a !== option.text)
-                          : [...answerArr, option.text];
-                        updateQ({ answer: newAnswer });
-                      }}
-                      sx={{ minWidth: 90 }}
-                    >
-                      {answerArr.includes(option.text) ? 'Selected' : 'Select'}
-                    </Button>
-                    <IconButton onClick={() => {
-                      const newOptions = question.options.filter((_, i) => i !== idx);
-                      updateQ({ options: newOptions });
-                    }} size="small"><DeleteIcon /></IconButton>
-                  </Box>
-                )) : <Typography color="text.secondary">No options yet</Typography>}
+                      }} size="small"><DeleteIcon /></IconButton>
+                    </Box>
+                  );
+                }) : <Typography color="text.secondary">No options yet</Typography>}
               </Grid>
             </Grid>
             <Button size="small" onClick={() => updateQ({ options: [...(question.options || []), { text: '', image: '' }] })} startIcon={<AddIcon />}>Add Option</Button>
@@ -1436,10 +1456,12 @@ const AdminListeningTestBuilder = () => {
             else if (q.type === 'multiple_response') {
               base.options = (q.options || []).map((opt, i) => ({
                 id: String.fromCharCode(65 + i),
-                label: String.fromCharCode(65 + i),
+                label: opt.label || String.fromCharCode(65 + i),
                 text: opt.text || opt,
-                image: opt.image || ''
+                image: opt.image || '',
+                isCorrect: Array.isArray(q.correct_answers) && (q.correct_answers.includes(opt.label || String.fromCharCode(65 + i)))
               }));
+              base.correct_answers = Array.isArray(q.correct_answers) ? q.correct_answers : [];
               base.answer = Array.isArray(q.answer) ? q.answer : [];
               base.extra_data = {
                 ...(q.extra_data || {}),
@@ -1537,8 +1559,8 @@ const AdminListeningTestBuilder = () => {
                         type="radio"
                         name={question.id}
                         value={option.text}
-                        checked={previewAnswers[question.id] === option.text}
-                        onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                        checked={previewAnswers[`${question.id}__${idx}`] === option.text}
+                        onChange={(e) => handleAnswerChange(`${question.id}__${idx}`, e.target.value)}
                       />
                     }
                     label={option.text}
@@ -1562,8 +1584,8 @@ const AdminListeningTestBuilder = () => {
               <TextField
                 fullWidth
                 label="Your answer"
-                value={previewAnswers[question.id] || ''}
-                onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                value={previewAnswers[`${question.id}__${qIdx}`] || ''}
+                onChange={(e) => handleAnswerChange(`${question.id}__${qIdx}`, e.target.value)}
               />
             </Box>
           );
@@ -1586,8 +1608,8 @@ const AdminListeningTestBuilder = () => {
                       type="radio"
                       name={question.id}
                       value="true"
-                      checked={previewAnswers[question.id] === 'true'}
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                      checked={previewAnswers[`${question.id}__true`] === 'true'}
+                      onChange={(e) => handleAnswerChange(`${question.id}__true`, e.target.value)}
                     />
                   }
                   label="True"
@@ -1598,8 +1620,8 @@ const AdminListeningTestBuilder = () => {
                       type="radio"
                       name={question.id}
                       value="false"
-                      checked={previewAnswers[question.id] === 'false'}
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                      checked={previewAnswers[`${question.id}__false`] === 'false'}
+                      onChange={(e) => handleAnswerChange(`${question.id}__false`, e.target.value)}
                     />
                   }
                   label="False"
@@ -1678,7 +1700,7 @@ const AdminListeningTestBuilder = () => {
                         checked={answerArr.includes(option.text)}
                         onChange={(e) => {
                           const newAnswer = answerArr.includes(option.text) ? answerArr.filter(a => a !== option.text) : [...answerArr, option.text];
-                          handleAnswerChange(question.id, newAnswer);
+                          handleAnswerChange(`${question.id}__${option.text}`, newAnswer);
                         }}
                       />
                     }
@@ -1703,8 +1725,8 @@ const AdminListeningTestBuilder = () => {
               <TextField
                 fullWidth
                 label="Your answer"
-                value={previewAnswers[question.id] || ''}
-                onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                value={previewAnswers[`${question.id}__${qIdx}`] || ''}
+                onChange={(e) => handleAnswerChange(`${question.id}__${qIdx}`, e.target.value)}
               />
             </Box>
           );
