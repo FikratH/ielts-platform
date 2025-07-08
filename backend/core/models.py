@@ -214,6 +214,7 @@ class ListeningQuestion(models.Model):
     header = models.TextField(blank=True, default='')
     instruction = models.TextField(blank=True, default='')
     image = models.CharField(max_length=500, blank=True, null=True)
+    points = models.PositiveIntegerField(default=1)  # Количество баллов за вопрос (особенно для multiple_response)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

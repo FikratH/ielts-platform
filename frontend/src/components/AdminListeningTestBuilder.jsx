@@ -1024,6 +1024,15 @@ const AdminListeningTestBuilder = () => {
                 ))}
               </Select>
             </FormControl>
+            <TextField
+              fullWidth
+              type="number"
+              label="Баллы (сколько правильных вариантов засчитывать)"
+              value={question.points || 1}
+              onChange={e => updateQ({ points: Number(e.target.value) })}
+              sx={{ mb: 2 }}
+              inputProps={{ min: 1, max: (question.options || []).length }}
+            />
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
@@ -1463,6 +1472,7 @@ const AdminListeningTestBuilder = () => {
               }));
               base.correct_answers = Array.isArray(q.correct_answers) ? q.correct_answers : [];
               base.answer = Array.isArray(q.answer) ? q.answer : [];
+              base.points = q.points || 1;
               base.extra_data = {
                 ...(q.extra_data || {}),
                 options: base.options,
@@ -1781,6 +1791,41 @@ const AdminListeningTestBuilder = () => {
     );
   };
 
+  // Добавить функции для перемещения вопросов
+  const moveQuestionUp = (partIdx, qIdx) => {
+    if (qIdx === 0) return;
+    const parts = [...test.parts];
+    const questions = [...parts[partIdx].questions];
+    [questions[qIdx - 1], questions[qIdx]] = [questions[qIdx], questions[qIdx - 1]];
+    // Пересчитать order
+    questions.forEach((q, i) => { q.order = i + 1; });
+    parts[partIdx].questions = questions;
+    setTest({ ...test, parts });
+  };
+
+  const moveQuestionDown = (partIdx, qIdx) => {
+    const parts = [...test.parts];
+    const questions = [...parts[partIdx].questions];
+    if (qIdx === questions.length - 1) return;
+    [questions[qIdx + 1], questions[qIdx]] = [questions[qIdx], questions[qIdx + 1]];
+    // Пересчитать order
+    questions.forEach((q, i) => { q.order = i + 1; });
+    parts[partIdx].questions = questions;
+    setTest({ ...test, parts });
+  };
+
+  const moveQuestionToSection = (fromPartIdx, qIdx, toPartIdx) => {
+    if (fromPartIdx === toPartIdx) return;
+    const parts = [...test.parts];
+    const [question] = parts[fromPartIdx].questions.splice(qIdx, 1);
+    // Добавить в конец новой секции
+    parts[toPartIdx].questions.push({ ...question });
+    // Пересчитать order в обеих секциях
+    parts[fromPartIdx].questions.forEach((q, i) => { q.order = i + 1; });
+    parts[toPartIdx].questions.forEach((q, i) => { q.order = i + 1; });
+    setTest({ ...test, parts });
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -1843,82 +1888,34 @@ const AdminListeningTestBuilder = () => {
       </Button>
 
       {test.parts.map((part, partIdx) => (
-        <Card key={part.id} sx={{ mb: 2 }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-              <Box display="flex" alignItems="center">
-                <Typography variant="h6">{part.title}</Typography>
-                {part.audio && <AudioFileIcon sx={{ ml: 1, color: 'primary.main' }} />}
-                {part.image && <ImageIcon sx={{ ml: 1, color: 'primary.main' }} />}
+        <Box key={part.id} sx={{ mb: 4 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>{part.title || `Part ${partIdx + 1}`}</Typography>
+          {part.questions.map((question, qIdx) => (
+            <Paper key={question.id} sx={{ p: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle1">Q{qIdx + 1}</Typography>
+                <Typography variant="body2" color="text.secondary">{question.text?.slice(0, 80) || 'Без текста'}</Typography>
               </Box>
-              <Box>
-                <IconButton onClick={() => setEditingPart(part)} size="small">
-                  <EditIcon />
-                </IconButton>
-                <IconButton onClick={() => removeSection(partIdx)} size="small">
-                  <DeleteIcon />
-                </IconButton>
-              </Box>
-            </Box>
-
-            <Box sx={{ mt: 1, mb: 2 }}>
-              {part.audio ? (
-                <>
-                  <audio controls style={{ width: '100%' }}>
-                    <source src={part.audio} />
-                  </audio>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    size="small"
-                    sx={{ mt: 1 }}
-                  >
-                    Заменить аудио
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      hidden
-                      onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'audio', partIdx)}
-                    />
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="contained"
-                  component="label"
-                  size="small"
-                  sx={{ mt: 1 }}
+              <Button onClick={() => moveQuestionUp(partIdx, qIdx)} disabled={qIdx === 0} size="small">↑</Button>
+              <Button onClick={() => moveQuestionDown(partIdx, qIdx)} disabled={qIdx === part.questions.length - 1} size="small">↓</Button>
+              <FormControl size="small" style={{ minWidth: 120, marginLeft: 8 }}>
+                <InputLabel>Секция</InputLabel>
+                <Select
+                  value={partIdx}
+                  label="Секция"
+                  onChange={e => moveQuestionToSection(partIdx, qIdx, e.target.value)}
                 >
-                  Добавить аудио
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    hidden
-                    onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'audio', partIdx)}
-                  />
-                </Button>
-              )}
-            </Box>
-
-            <Button size="small" onClick={() => addQuestion(partIdx)} startIcon={<AddIcon />} sx={{ mb: 2 }}>
-              Add Question
-            </Button>
-
-            {part.questions.map((q, qIdx) => (
-              <Paper key={q.id} sx={{ my: 1, p: 2 }}>
-                <Box display="flex" alignItems="center" justifyContent="space-between">
-                  <Box display="flex" alignItems="center">
-                    <Chip label={`Q${qIdx + 1}`} size="small" sx={{ mr: 1 }} />
-                  </Box>
-                  <Box>
-                    <IconButton onClick={() => setEditingQuestion({ partIdx, qIdx })} size="small"><EditIcon /></IconButton>
-                    <IconButton onClick={() => removeQuestion(partIdx, qIdx)} size="small"><DeleteIcon /></IconButton>
-                  </Box>
-                </Box>
-              </Paper>
-            ))}
-          </CardContent>
-        </Card>
+                  {test.parts.map((p, idx) => (
+                    <MenuItem key={p.id} value={idx}>{p.title || `Секция ${idx + 1}`}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <IconButton onClick={() => setEditingQuestion({ partIdx, qIdx })}><EditIcon /></IconButton>
+              <IconButton onClick={() => removeQuestion(partIdx, qIdx)}><DeleteIcon /></IconButton>
+            </Paper>
+          ))}
+          <Button onClick={() => addQuestion(partIdx)} startIcon={<AddIcon />}>Add Question</Button>
+        </Box>
       ))}
 
       {editingQuestion && renderQuestionEditor(

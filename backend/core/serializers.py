@@ -356,9 +356,10 @@ class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
     question_text = serializers.CharField(required=False, allow_blank=True)
+    points = serializers.IntegerField(required=False, default=1)
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
+        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
 
 
 class ListeningTestCreateSerializer(serializers.ModelSerializer):
@@ -452,9 +453,10 @@ class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
     options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
     question_text = serializers.CharField(required=False, allow_blank=True)
+    points = serializers.IntegerField(required=False, default=1)
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction']
+        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
 
     def update(self, instance, validated_data):
         correct_answer = validated_data.pop('correct_answer', None)
@@ -487,7 +489,7 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
             for question in part.questions.all():
                 correct_answers = question.correct_answers or []
                 options = list(question.options.all()) if hasattr(question, 'options') else None
-                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
                 correct += qc
         return correct
 
@@ -497,7 +499,7 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
             for question in part.questions.all():
                 correct_answers = question.correct_answers or []
                 options = list(question.options.all()) if hasattr(question, 'options') else None
-                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
                 total += qt
         return total
 
@@ -538,10 +540,11 @@ class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
 class ListeningQuestionSerializer(serializers.ModelSerializer):
     image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     options = ListeningAnswerOptionSerializer(many=True, required=False)
+    points = serializers.IntegerField(required=False, default=1)
     class Meta:
         model = ListeningQuestion
         fields = [
-            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'image', 'created_at', 'updated_at'
+            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'image', 'created_at', 'updated_at', 'points'
         ]
     
     def get_image(self, obj):
@@ -680,9 +683,11 @@ class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
         
         for part in instance.test.parts.all():
             for question in part.questions.all():
+                print(f"[DEBUG] CHECKING QUESTION: id={question.id}, type={question.question_type}, text={question.question_text}")
                 correct_answers = question.correct_answers or []
                 options = list(question.options.all()) if hasattr(question, 'options') else None
-                qc, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=instance.answers, question_id=str(question.id), options=options)
+                points = getattr(question, 'points', 1)
+                qc, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=instance.answers, question_id=str(question.id), options=options, points=points)
                 correct_subanswers += qc
                 total_subanswers += qt
         
@@ -731,7 +736,7 @@ class ListeningTestResultSerializer(serializers.ModelSerializer):
             for question in part.questions.all():
                 correct_answers = question.correct_answers or []
                 options = list(question.options.all()) if hasattr(question, 'options') else None
-                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
                 correct += qc
         return correct
     
@@ -741,7 +746,7 @@ class ListeningTestResultSerializer(serializers.ModelSerializer):
             for question in part.questions.all():
                 correct_answers = question.correct_answers or []
                 options = list(question.options.all()) if hasattr(question, 'options') else None
-                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options)
+                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
                 total += qt
         return total
     
@@ -772,7 +777,7 @@ def normalize_answer(ans):
 # Для form: subId = {idx}
 # Все сравнения и подсчёты теперь по этим ключам.
 
-def count_correct_subanswers(user_answer, correct_answers, question_type, extra_data=None, all_user_answers=None, question_id=None, options=None):
+def count_correct_subanswers(user_answer, correct_answers, question_type, extra_data=None, all_user_answers=None, question_id=None, options=None, points=1):
     print(f"[DEBUG] Checking question_type={question_type}")
     print(f"[DEBUG] all_user_answers={all_user_answers}")
     num_correct = 0
@@ -826,23 +831,25 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
         elif isinstance(correct_answers, list):
             for label in correct_answers:
                 correct_labels.add(normalize_answer(label))
-        # --- Новый режим: 1 балл за полный правильный набор ---
         user_selected = set()
         for label in correct_labels:
             key = f"{question_id}__{label}"
             user_val = all_user_answers.get(key, False)
             if user_val is True or user_val == "true" or user_val == label:
                 user_selected.add(normalize_answer(label))
-        # Проверяем, что выбран ровно правильный набор (и ничего лишнего)
         extra_selected = set()
         for k, v in (all_user_answers or {}).items():
             if k.startswith(f"{question_id}__") and v:
                 sub = k.split("__", 1)[1]
                 if sub not in correct_labels:
                     extra_selected.add(sub)
-        print(f"[DEBUG] multiple_response: user_selected={user_selected}, correct_labels={correct_labels}, extra_selected={extra_selected}")
-        num_total = 1
-        num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
+        print(f"[DEBUG] multiple_response: user_selected={user_selected}, correct_labels={correct_labels}, extra_selected={extra_selected}, points={points}")
+        if points == 1:
+            num_total = 1
+            num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
+        else:
+            num_total = len(correct_labels)
+            num_correct = len(user_selected & correct_labels)
         return num_correct, num_total
     # MULTIPLE CHOICE / SINGLE CHOICE
     if question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer']:

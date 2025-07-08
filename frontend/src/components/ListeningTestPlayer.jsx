@@ -320,22 +320,22 @@ const ListeningTestPlayer = () => {
     // Универсальный вывод header/instruction для всех типов
     const headerBlock = (
       <div className="mb-3">
-        {question.header && (
+      {question.header && (
           <div
             className="font-bold text-xl text-blue-900 mb-1"
             style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}
           >
             {question.header}
           </div>
-        )}
-        {question.instruction && (
+      )}
+      {question.instruction && (
           <div
             className="text-gray-800 mb-2"
             style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}
           >
             {question.instruction}
           </div>
-        )}
+      )}
         {/* Универсальный блок для изображения */}
         {question.image && (
           <div className="mb-3 flex justify-center">
@@ -594,17 +594,17 @@ const ListeningTestPlayer = () => {
               const subKey = `${question.id}__${option.label}`;
               const checked = !!answers[subKey];
               return (
-                <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
-                  <input
-                    type="checkbox"
-                    name={`question-${question.id}`}
-                    value={option.label}
+              <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
+                <input
+                  type="checkbox"
+                  name={`question-${question.id}`}
+                  value={option.label}
                     checked={checked}
                     onChange={e => handleAnswerChange(subKey, e.target.checked)}
-                    className="accent-blue-600 w-5 h-5"
-                  />
-                  <span className="font-medium">{option.label}. {option.text}</span>
-                </label>
+                  className="accent-blue-600 w-5 h-5"
+                />
+                <span className="font-medium">{option.label}. {option.text}</span>
+              </label>
               );
             })}
           </div>
@@ -622,17 +622,17 @@ const ListeningTestPlayer = () => {
             {question.options.map((option, idx) => {
               const subKey = `${question.id}__${option.label}`;
               return (
-                <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
-                  <input
-                    type="radio"
-                    name={`question-${question.id}`}
-                    value={option.label}
+              <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
+                <input
+                  type="radio"
+                  name={`question-${question.id}`}
+                  value={option.label}
                     checked={!!answers[subKey]}
                     onChange={e => handleAnswerChange(subKey, e.target.checked ? option.label : '')}
-                    className="accent-blue-600 w-5 h-5"
-                  />
-                  <span className="font-medium">{option.label}. {option.text}</span>
-                </label>
+                  className="accent-blue-600 w-5 h-5"
+                />
+                <span className="font-medium">{option.label}. {option.text}</span>
+              </label>
               );
             })}
           </div>
@@ -755,13 +755,13 @@ const ListeningTestPlayer = () => {
                 {currentPartData?.audio ? (
                   <>
                     <div className="flex flex-col items-center gap-3 w-full">
-                      <button
-                        onClick={() => audioRef.current?.play()}
-                        disabled={!currentPartData?.audio || isPlaying || audioEnded}
-                        className="bg-blue-100 text-blue-700 font-semibold px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-lg"
-                      >
-                        {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
-                      </button>
+                  <button
+                    onClick={() => audioRef.current?.play()}
+                    disabled={!currentPartData?.audio || isPlaying || audioEnded}
+                    className="bg-blue-100 text-blue-700 font-semibold px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-lg"
+                  >
+                    {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
+                  </button>
                       {/* Глобальный контрол громкости */}
                       <div className="flex flex-row items-center gap-2 justify-center w-full">
                         <button
@@ -796,12 +796,12 @@ const ListeningTestPlayer = () => {
                       <div className="flex flex-row items-center gap-3 justify-center w-full text-xs text-gray-600">
                         <span>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></span>
                         <span>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></span>
-                      </div>
-                      {audioEnded && (
-                        <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
-                      )}
-                      {audioPlayed && !audioEnded && (
-                        <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
+                </div>
+                  {audioEnded && (
+                    <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
+                  )}
+                {audioPlayed && !audioEnded && (
+                  <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
                       )}
                     </div>
                   </>
