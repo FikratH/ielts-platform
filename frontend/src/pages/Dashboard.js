@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { QuestionReview } from '../components/QuestionForm';
 
 export default function Dashboard() {
   const [essays, setEssays] = useState([]);
@@ -258,7 +259,7 @@ export default function Dashboard() {
 
       {selectedItem && selectedItem.type === 'Listening' && (
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold">Результаты: {selectedItem.item.test_title}</h3>
               <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Закрыть</button>
@@ -279,29 +280,32 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
-                <div className="space-y-4">
-                  {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
-                    itemDetails.question_feedback.map((feedback, index) => (
-                      <div key={feedback.question_id} className={`p-4 border rounded-lg ${feedback.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                        <div className="flex justify-between items-start">
-                           <p className="font-semibold text-gray-800 pr-4">Вопрос {index + 1}: {feedback.question_text}</p>
-                           {feedback.is_correct ? (
-                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Правильно</span>
-                           ) : (
-                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Неправильно</span>
-                           )}
+                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор (как на тесте)</h3>
+                {itemDetails.test_render_structure && Array.isArray(itemDetails.test_render_structure) ? (
+                  <div className="space-y-8">
+                    {itemDetails.test_render_structure.map((part, partIdx) => (
+                      <div key={partIdx} className="border rounded-lg p-4 bg-gray-50">
+                        <h4 className="text-lg font-semibold mb-3 text-gray-800">
+                          Часть {part.part_number}
+                          {part.instructions && (
+                            <span className="text-sm font-normal text-gray-600 ml-2">— {part.instructions}</span>
+                          )}
+                        </h4>
+                        <div className="space-y-6">
+                          {part.questions.map((q, qIdx) => (
+                            <div key={q.id || qIdx} className="mb-6">
+                              {q.header && <div className="font-semibold text-gray-700 mb-1">{q.header}</div>}
+                              {q.instruction && <div className="text-xs text-gray-500 mb-1 italic">{q.instruction}</div>}
+                              <QuestionReview question={q} />
+                            </div>
+                          ))}
                         </div>
-                         <div className="mt-2 text-sm">
-                             <p className="text-gray-600">Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
-                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Правильный ответ: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
-                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Детальный разбор недоступен.</p>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">Детальный разбор недоступен.</p>
+                )}
               </>
             ) : <p>Не удалось загрузить детали.</p>}
           </div>

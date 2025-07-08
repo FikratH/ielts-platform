@@ -180,3 +180,95 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
 };
 
 export default QuestionForm; 
+
+export function QuestionReview({ question }) {
+  // GAP FILL
+  if (['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart'].includes(question.type)) {
+    let text = question.text;
+    // Подставляем input-ы вместо [[N]]
+    if (question.gaps && Array.isArray(question.gaps)) {
+      question.gaps.forEach(gap => {
+        const value = gap.student_answer || '';
+        const correct = gap.correct_answer;
+        const isCorrect = gap.is_correct;
+        const isAnswered = gap.is_answered;
+        const input = `<span style="display:inline-block;min-width:80px;padding:2px 6px;border-radius:6px;border:1px solid ${isCorrect ? '#22c55e' : isAnswered ? '#ef4444' : '#aaa'};background:${isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f3f4f6'};color:${isCorrect ? '#166534' : isAnswered ? '#991b1b' : '#6b7280'};font-weight:bold;">${value || '—'}</span>` + (!isCorrect ? `<span style="font-size:12px;color:#2563eb;display:block;">Правильный: ${correct}</span>` : '');
+        text = text.replace(`[[${gap.number}]]`, input);
+      });
+    }
+    return <div className="mb-4"><div dangerouslySetInnerHTML={{ __html: text }} /></div>;
+  }
+
+  // TABLE
+  if ([
+    'table', 'table_completion', 'tablecompletion', 'form', 'form_completion'
+  ].includes(question.type) && question.table) {
+    return (
+      <div className="overflow-x-auto mb-4">
+        <table className="border rounded w-auto min-w-[300px]">
+          <tbody>
+            {question.table.cells.map((row, rowIdx) => (
+              <tr key={rowIdx}>
+                {row.map((cell, colIdx) => cell.isAnswer ? (
+                  <td key={colIdx} className={`p-2 border text-center align-middle`} style={{background: cell.is_correct ? '#dcfce7' : cell.is_answered ? '#fee2e2' : '#f3f4f6', borderColor: cell.is_correct ? '#22c55e' : cell.is_answered ? '#ef4444' : '#aaa'}}>
+                    <div className="font-bold" style={{color: cell.is_correct ? '#166534' : cell.is_answered ? '#991b1b' : '#6b7280'}}>{cell.student_answer || '—'}</div>
+                    {!cell.is_correct && <div className="text-xs text-blue-700">Правильный: {cell.correct_answer}</div>}
+                  </td>
+                ) : (
+                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle">{cell.text}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // MULTIPLE RESPONSE
+  if ([
+    'multiple_response', 'checkbox', 'multi_select'
+  ].includes(question.type) && question.options) {
+    return (
+      <div className="mb-4">
+        {question.options.map(opt => {
+          let bg = '#f3f4f6', color = '#6b7280', note = '';
+          if (opt.student_selected && opt.should_be_selected) {
+            bg = '#dcfce7'; color = '#166534'; note = 'Правильно';
+          } else if (opt.student_selected && !opt.should_be_selected) {
+            bg = '#fee2e2'; color = '#991b1b'; note = 'Не нужно было выбирать';
+          } else if (!opt.student_selected && opt.should_be_selected) {
+            bg = '#fee2e2'; color = '#991b1b'; note = 'Нужно было выбрать';
+          }
+          return (
+            <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: bg, borderRadius: 6, padding: '2px 8px'}}>
+              <input type="checkbox" checked={opt.student_selected} disabled className="accent-blue-600" />
+              <span className="font-medium" style={{color}}>{opt.label}. {opt.text}</span>
+              {note && <span className="text-xs ml-2" style={{color}}>{note}</span>}
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // MULTIPLE CHOICE
+  if ([
+    'multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer'
+  ].includes(question.type) && question.options) {
+    return (
+      <div className="mb-4">
+        {question.options.map(opt => (
+          <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: opt.is_correct ? '#dcfce7' : opt.student_selected ? '#fee2e2' : '#f3f4f6', borderRadius: 6, padding: '2px 8px'}}>
+            <input type="radio" checked={opt.student_selected} disabled className="accent-blue-600" />
+            <span className="font-medium" style={{color: opt.is_correct ? '#166534' : opt.student_selected ? '#991b1b' : '#6b7280'}}>{opt.label}. {opt.text}</span>
+            {!opt.is_correct && opt.should_be_selected && <span className="text-xs text-blue-700 ml-2">Правильный ответ</span>}
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  // Просто текст, если ничего не подошло
+  return <div className="mb-4 text-gray-700">{question.text}</div>;
+} 
