@@ -183,7 +183,9 @@ export default QuestionForm;
 
 export function QuestionReview({ question }) {
   // GAP FILL
-  if (['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart'].includes(question.type)) {
+  if ([
+    'gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart'
+  ].includes(question.type)) {
     let text = question.text;
     // Подставляем input-ы вместо [[N]]
     if (question.gaps && Array.isArray(question.gaps)) {
@@ -192,11 +194,14 @@ export function QuestionReview({ question }) {
         const correct = gap.correct_answer;
         const isCorrect = gap.is_correct;
         const isAnswered = gap.is_answered;
-        const input = `<span style="display:inline-block;min-width:80px;padding:2px 6px;border-radius:6px;border:1px solid ${isCorrect ? '#22c55e' : isAnswered ? '#ef4444' : '#aaa'};background:${isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f3f4f6'};color:${isCorrect ? '#166534' : isAnswered ? '#991b1b' : '#6b7280'};font-weight:bold;">${value || '—'}</span>` + (!isCorrect ? `<span style="font-size:12px;color:#2563eb;display:block;">Правильный: ${correct}</span>` : '');
+        const input = `<span style=\"display:inline-block;min-width:80px;padding:2px 6px;border-radius:6px;border:1px solid ${isCorrect ? '#22c55e' : isAnswered ? '#ef4444' : '#aaa'};background:${isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f3f4f6'};color:${isCorrect ? '#166534' : isAnswered ? '#991b1b' : '#6b7280'};font-weight:bold;\">${value || '—'}</span>` + (!isCorrect ? `<span style=\"font-size:12px;color:#2563eb;display:block;\">Правильный: ${correct}</span>` : '');
+        // Заменяем переносы строк на <br> для сохранения форматирования
         text = text.replace(`[[${gap.number}]]`, input);
       });
     }
-    return <div className="mb-4"><div dangerouslySetInnerHTML={{ __html: text }} /></div>;
+    // Заменяем \n на <br> для сохранения форматирования
+    const html = text.replace(/\n/g, '<br>');
+    return <div className="mb-4"><div style={{whiteSpace: 'pre-line'}} dangerouslySetInnerHTML={{ __html: html }} /></div>;
   }
 
   // TABLE
@@ -215,7 +220,7 @@ export function QuestionReview({ question }) {
                     {!cell.is_correct && <div className="text-xs text-blue-700">Правильный: {cell.correct_answer}</div>}
                   </td>
                 ) : (
-                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle">{cell.text}</td>
+                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">{cell.text}</td>
                 ))}
               </tr>
             ))}
@@ -270,5 +275,5 @@ export function QuestionReview({ question }) {
   }
 
   // Просто текст, если ничего не подошло
-  return <div className="mb-4 text-gray-700">{question.text}</div>;
+  return <div className="mb-4 text-gray-700 whitespace-pre-line">{question.text}</div>;
 } 
