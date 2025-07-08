@@ -38,6 +38,14 @@ export default function Dashboard() {
       }
     };
     fetchAll();
+    // --- ДОБАВЛЕНО: слушатель события обновления истории Listening ---
+    const handleListeningHistoryUpdated = () => {
+      fetchAll();
+    };
+    window.addEventListener('listeningHistoryUpdated', handleListeningHistoryUpdated);
+    return () => {
+      window.removeEventListener('listeningHistoryUpdated', handleListeningHistoryUpdated);
+    };
   }, []);
 
   const handleOpenDetails = async (item) => {
@@ -97,18 +105,20 @@ export default function Dashboard() {
     })),
     ...listeningSessions.map(l => ({
       type: 'Listening',
-      date: l.completed_at?.slice(0, 10),
-      task: l.test_title,
-      score: l.band_score || '-',
+      date: l.started_at ? l.started_at.slice(0, 10) : '-',
+      task: l.test_title || '-',
+      score: l.score ?? '-',
+      correct: l.correct_answers_count ?? '-',
+      total: l.total_questions_count ?? '-',
       item: l,
-    }))
+    })),
   ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const getStats = () => {
     const scores = [
       ...essays.map(e => e.overall_band).filter(Boolean),
       ...readingSessions.map(r => r.band_score).filter(Boolean),
-      ...listeningSessions.map(l => l.band_score).filter(Boolean)
+      ...listeningSessions.map(l => l.score).filter(Boolean)
     ];
     const avg = scores.length ? (scores.reduce((a, b) => a + b) / scores.length).toFixed(1) : '-';
     const max = scores.length ? Math.max(...scores).toFixed(1) : '-';
@@ -141,6 +151,7 @@ export default function Dashboard() {
             <th className="px-4 py-2 text-left">Секция</th>
             <th className="px-4 py-2 text-left">Задание</th>
             <th className="px-4 py-2 text-left">Балл</th>
+            <th className="px-4 py-2 text-left">Band Score</th>
             <th className="px-4 py-2 text-left"></th>
           </tr>
         </thead>
@@ -151,6 +162,9 @@ export default function Dashboard() {
               <td className="px-4 py-2">{h.type}</td>
               <td className="px-4 py-2">{h.task}</td>
               <td className="px-4 py-2 font-semibold">{h.score}</td>
+              <td className="px-4 py-2 font-semibold">
+                {h.type === 'Listening' ? (h.item.band_score ?? '-') : h.type === 'Reading' ? (h.item.band_score ?? '-') : '-'}
+              </td>
               <td className="px-4 py-2">
                 <button
                   onClick={() => handleOpenDetails(h)}
@@ -257,7 +271,7 @@ export default function Dashboard() {
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                     <div className="p-4 bg-blue-100 rounded-lg">
                         <p className="text-sm text-blue-800">Правильные ответы</p>
-                        <p className="text-2xl font-bold text-blue-900">{itemDetails.raw_score} / {itemDetails.total_questions}</p>
+                        <p className="text-2xl font-bold text-blue-900">{itemDetails.correct_answers_count} / {itemDetails.total_questions_count}</p>
                     </div>
                     <div className="p-4 bg-purple-100 rounded-lg">
                         <p className="text-sm text-purple-800">Band Score</p>

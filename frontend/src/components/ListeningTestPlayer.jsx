@@ -293,6 +293,8 @@ const ListeningTestPlayer = () => {
         setResults(resultData);
         setIsSubmitted(true);
         setShowResults(true);
+        // --- ДОБАВЛЕНО: Сообщить Dashboard, что история Listening обновилась ---
+        window.dispatchEvent(new Event('listeningHistoryUpdated'));
       }
     } catch (err) {
       setError('Failed to submit test');

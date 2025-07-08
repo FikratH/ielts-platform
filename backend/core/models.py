@@ -237,6 +237,8 @@ class ListeningTestSession(models.Model):
     flagged = JSONField(default=dict, blank=True)  # Store flagged questions
     time_left = models.IntegerField(default=1800)  # Time remaining in seconds
     score = models.FloatField(null=True, blank=True)  # Auto-graded score
+    correct_answers_count = models.IntegerField(default=0)
+    total_questions_count = models.IntegerField(default=0)
     # TODO: Enforce one sitting, no pause, etc.
 
 class ListeningStudentAnswer(models.Model):

@@ -873,10 +873,10 @@ const AdminListeningTestBuilder = () => {
             )}
             {gaps.length > 0 && (
               <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12}>
+              <Grid item xs={12}>
                   <Typography variant="subtitle2" gutterBottom>Gaps:</Typography>
-                  {gaps.map((gap, idx) => (
-                    <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                {gaps.map((gap, idx) => (
+                  <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
                       <TextField
                         label="Number"
                         type="number"
@@ -889,24 +889,24 @@ const AdminListeningTestBuilder = () => {
                         size="small"
                         sx={{ width: 80 }}
                       />
-                      <TextField
-                        label="Correct Answer"
-                        value={gap.answer}
-                        onChange={e => {
+                    <TextField
+                      label="Correct Answer"
+                      value={gap.answer}
+                      onChange={e => {
                           const newGaps = [...gaps];
-                          newGaps[idx].answer = e.target.value;
-                          updateQ({ gaps: newGaps });
-                        }}
-                        size="small"
-                        sx={{ flex: 2 }}
-                      />
-                      <IconButton onClick={() => {
-                        const newGaps = [...gaps];
-                        newGaps.splice(idx, 1);
+                        newGaps[idx].answer = e.target.value;
                         updateQ({ gaps: newGaps });
-                      }} size="small"><DeleteIcon /></IconButton>
-                    </Box>
-                  ))}
+                      }}
+                      size="small"
+                      sx={{ flex: 2 }}
+                    />
+                    <IconButton onClick={() => {
+                        const newGaps = [...gaps];
+                      newGaps.splice(idx, 1);
+                      updateQ({ gaps: newGaps });
+                    }} size="small"><DeleteIcon /></IconButton>
+                  </Box>
+                ))}
                 </Grid>
               </Grid>
             )}
@@ -1024,15 +1024,15 @@ const AdminListeningTestBuilder = () => {
                 ))}
               </Select>
             </FormControl>
-            <TextField
-              fullWidth
+                <TextField
+                  fullWidth
               type="number"
               label="Баллы (сколько правильных вариантов засчитывать)"
               value={question.points || 1}
               onChange={e => updateQ({ points: Number(e.target.value) })}
               sx={{ mb: 2 }}
               inputProps={{ min: 1, max: (question.options || []).length }}
-            />
+                />
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
@@ -1040,40 +1040,40 @@ const AdminListeningTestBuilder = () => {
                   const isSelected = answerArr.includes(option.label || String.fromCharCode(65 + idx));
                   return (
                     <Box display="flex" alignItems="center" gap={1} key={idx}>
-                      <TextField
-                        label="Label"
-                        value={option.label || String.fromCharCode(65 + idx)}
-                        onChange={e => {
-                          const newOptions = [...question.options];
-                          newOptions[idx].label = e.target.value;
-                          updateQ({ options: newOptions });
-                        }}
-                        size="small"
-                        sx={{ width: 60 }}
-                      />
-                      <TextField
-                        label={`Option ${idx + 1}`}
-                        value={option.text}
-                        onChange={e => {
-                          const newOptions = [...question.options];
-                          if (e.target.value) {
-                            newOptions[idx].text = e.target.value;
-                          } else {
-                            newOptions.splice(idx, 1);
-                          }
-                          updateQ({ options: newOptions });
-                        }}
-                        size="small"
-                        sx={{ flex: 2 }}
-                      />
-                      {option.image && (
+                    <TextField
+                      label="Label"
+                      value={option.label || String.fromCharCode(65 + idx)}
+                      onChange={e => {
+                        const newOptions = [...question.options];
+                        newOptions[idx].label = e.target.value;
+                        updateQ({ options: newOptions });
+                      }}
+                      size="small"
+                      sx={{ width: 60 }}
+                    />
+                    <TextField
+                      label={`Option ${idx + 1}`}
+                      value={option.text}
+                      onChange={e => {
+                        const newOptions = [...question.options];
+                        if (e.target.value) {
+                          newOptions[idx].text = e.target.value;
+                        } else {
+                          newOptions.splice(idx, 1);
+                        }
+                        updateQ({ options: newOptions });
+                      }}
+                      size="small"
+                      sx={{ flex: 2 }}
+                    />
+                    {option.image && (
                         <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
-                      )}
-                      <Button
+                    )}
+                    <Button
                         variant={isSelected ? 'contained' : 'outlined'}
-                        color="success"
-                        size="small"
-                        onClick={() => {
+                      color="success"
+                      size="small"
+                      onClick={() => {
                           // --- Новый блок: обновляем answer, correct_answers и isCorrect ---
                           const label = option.label || String.fromCharCode(65 + idx);
                           let newAnswer;
@@ -1095,16 +1095,16 @@ const AdminListeningTestBuilder = () => {
                               isCorrect: newAnswer.includes(opt.label || String.fromCharCode(65 + question.options.indexOf(opt)))
                             }))
                           });
-                        }}
-                        sx={{ minWidth: 90 }}
-                      >
+                      }}
+                      sx={{ minWidth: 90 }}
+                    >
                         {isSelected ? 'Selected' : 'Select'}
-                      </Button>
-                      <IconButton onClick={() => {
-                        const newOptions = question.options.filter((_, i) => i !== idx);
-                        updateQ({ options: newOptions });
-                      }} size="small"><DeleteIcon /></IconButton>
-                    </Box>
+                    </Button>
+                    <IconButton onClick={() => {
+                      const newOptions = question.options.filter((_, i) => i !== idx);
+                      updateQ({ options: newOptions });
+                    }} size="small"><DeleteIcon /></IconButton>
+                  </Box>
                   );
                 }) : <Typography color="text.secondary">No options yet</Typography>}
               </Grid>
@@ -1353,144 +1353,144 @@ const AdminListeningTestBuilder = () => {
             return true;
           })
           .map((q, qIdx) => {
-            // Всегда включаем header и instruction для любого типа
-            const base = {
-              order: qIdx + 1,
-              question_type: q.type || q.question_type,
-              question_text: q.text || q.question_text,
-              image: q.image || '',
-              audio_start: q.audio_start || 0,
-              audio_end: q.audio_end || 30,
-              header: q.header || '',
-              instruction: q.instruction || '',
+          // Всегда включаем header и instruction для любого типа
+          const base = {
+            order: qIdx + 1,
+            question_type: q.type || q.question_type,
+            question_text: q.text || q.question_text,
+            image: q.image || '',
+            audio_start: q.audio_start || 0,
+            audio_end: q.audio_end || 30,
+            header: q.header || '',
+            instruction: q.instruction || '',
+          };
+          // Multiple Choice
+          if (q.type === 'multiple_choice') {
+            base.options = (q.options || []).map((opt, i) => ({
+              id: String.fromCharCode(65 + i),
+              label: String.fromCharCode(65 + i),
+              text: opt.text || opt,
+              image: opt.image || ''
+            }));
+            base.correct_answers = [base.options[q.answer]?.label || 'A'];
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              options: base.options,
+              answer: q.answer,
             };
-            // Multiple Choice
-            if (q.type === 'multiple_choice') {
-              base.options = (q.options || []).map((opt, i) => ({
-                id: String.fromCharCode(65 + i),
-                label: String.fromCharCode(65 + i),
-                text: opt.text || opt,
-                image: opt.image || ''
-              }));
-              base.correct_answers = [base.options[q.answer]?.label || 'A'];
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                options: base.options,
-                answer: q.answer,
-              };
-            }
-            // Matching
-            else if (q.type === 'matching') {
-              base.items = q.left || [];
-              base.options = (q.right || []).map((opt, i) => ({
-                id: String.fromCharCode(65 + i),
-                label: String.fromCharCode(65 + i),
-                text: opt
-              }));
-              base.correct_pairs = (q.answers || []).map(idx => Number(idx));
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                left: q.left,
-                right: q.right,
-                answers: q.answers,
-              };
-            }
-            // Map/Diagram
-            else if (q.type === 'map_diagram') {
-              base.image = q.image || '';
-              base.items = (q.points || []).map((pt, i) => pt.label || `Label ${i+1}`);
-              base.options = (q.points || []).map((pt, i) => ({
-                id: String(i+1),
-                label: String(i+1),
-                text: pt.answer || ''
-              }));
-              base.correct_pairs = (q.points || []).map((_, i) => i);
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                points: q.points,
-              };
-            }
-            // Table Completion
-            else if (q.type === 'table') {
-              base.table = q.table || {};
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                table: q.table,
-              };
-            }
-            // Form Completion
-            else if (q.type === 'form') {
-              base.fields = (q.fields || []).map(f => ({
-                label: f.label,
-                correct_answers: [f.answer]
-              }));
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                fields: q.fields,
-              };
-            }
-            // Sentence/Summary/Note/Flow Chart Completion
-            else if ([
-              'sentence_completion',
-              'summary_completion',
-              'note_completion',
-              'flow_chart'
-            ].includes(q.type)) {
-              base.gaps = q.gaps || [];
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                gaps: q.gaps,
-              };
-            }
-            // Short Answer
-            else if (q.type === 'short_answer') {
-              base.correct_answers = [q.answer];
-              if (q.word_limit) base.extra_data = { word_limit: q.word_limit };
-              base.extra_data = {
-                ...(base.extra_data || {}),
-                answer: q.answer,
-              };
-            }
-            // True/False/Not Given
-            else if (q.type === 'true_false') {
-              base.correct_answers = [
-                q.answer === 'true' ? 'True' : q.answer === 'false' ? 'False' : 'Not Given'
-              ];
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                answer: q.answer,
-              };
-            }
-            // Multiple Response
-            else if (q.type === 'multiple_response') {
-              base.options = (q.options || []).map((opt, i) => ({
-                id: String.fromCharCode(65 + i),
+          }
+          // Matching
+          else if (q.type === 'matching') {
+            base.items = q.left || [];
+            base.options = (q.right || []).map((opt, i) => ({
+              id: String.fromCharCode(65 + i),
+              label: String.fromCharCode(65 + i),
+              text: opt
+            }));
+            base.correct_pairs = (q.answers || []).map(idx => Number(idx));
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              left: q.left,
+              right: q.right,
+              answers: q.answers,
+            };
+          }
+          // Map/Diagram
+          else if (q.type === 'map_diagram') {
+            base.image = q.image || '';
+            base.items = (q.points || []).map((pt, i) => pt.label || `Label ${i+1}`);
+            base.options = (q.points || []).map((pt, i) => ({
+              id: String(i+1),
+              label: String(i+1),
+              text: pt.answer || ''
+            }));
+            base.correct_pairs = (q.points || []).map((_, i) => i);
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              points: q.points,
+            };
+          }
+          // Table Completion
+          else if (q.type === 'table') {
+            base.table = q.table || {};
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              table: q.table,
+            };
+          }
+          // Form Completion
+          else if (q.type === 'form') {
+            base.fields = (q.fields || []).map(f => ({
+              label: f.label,
+              correct_answers: [f.answer]
+            }));
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              fields: q.fields,
+            };
+          }
+          // Sentence/Summary/Note/Flow Chart Completion
+          else if ([
+            'sentence_completion',
+            'summary_completion',
+            'note_completion',
+            'flow_chart'
+          ].includes(q.type)) {
+            base.gaps = q.gaps || [];
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              gaps: q.gaps,
+            };
+          }
+          // Short Answer
+          else if (q.type === 'short_answer') {
+            base.correct_answers = [q.answer];
+            if (q.word_limit) base.extra_data = { word_limit: q.word_limit };
+            base.extra_data = {
+              ...(base.extra_data || {}),
+              answer: q.answer,
+            };
+          }
+          // True/False/Not Given
+          else if (q.type === 'true_false') {
+            base.correct_answers = [
+              q.answer === 'true' ? 'True' : q.answer === 'false' ? 'False' : 'Not Given'
+            ];
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              answer: q.answer,
+            };
+          }
+          // Multiple Response
+          else if (q.type === 'multiple_response') {
+            base.options = (q.options || []).map((opt, i) => ({
+              id: String.fromCharCode(65 + i),
                 label: opt.label || String.fromCharCode(65 + i),
-                text: opt.text || opt,
+              text: opt.text || opt,
                 image: opt.image || '',
                 isCorrect: Array.isArray(q.correct_answers) && (q.correct_answers.includes(opt.label || String.fromCharCode(65 + i)))
-              }));
+            }));
               base.correct_answers = Array.isArray(q.correct_answers) ? q.correct_answers : [];
-              base.answer = Array.isArray(q.answer) ? q.answer : [];
+            base.answer = Array.isArray(q.answer) ? q.answer : [];
               base.points = q.points || 1;
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                options: base.options,
-                answer: base.answer,
-              };
-            }
-            // Gap Fill (универсальный)
-            if (q.type === 'gap_fill') {
-              base.gaps = q.gaps || [];
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              options: base.options,
+              answer: base.answer,
+            };
+          }
+          // Gap Fill (универсальный)
+          if (q.type === 'gap_fill') {
+            base.gaps = q.gaps || [];
               // Дублируем gaps в correct_answers для обратной совместимости
               base.correct_answers = (q.gaps || []).map(g => g.answer !== undefined ? g.answer : g);
-              base.extra_data = {
-                ...(q.extra_data || {}),
-                gaps: q.gaps,
-              };
-            }
-            return base;
-          })
+            base.extra_data = {
+              ...(q.extra_data || {}),
+              gaps: q.gaps,
+            };
+          }
+          return base;
+        })
       }))
     };
   };
@@ -1912,8 +1912,8 @@ const AdminListeningTestBuilder = () => {
               </FormControl>
               <IconButton onClick={() => setEditingQuestion({ partIdx, qIdx })}><EditIcon /></IconButton>
               <IconButton onClick={() => removeQuestion(partIdx, qIdx)}><DeleteIcon /></IconButton>
-            </Paper>
-          ))}
+              </Paper>
+            ))}
           <Button onClick={() => addQuestion(partIdx)} startIcon={<AddIcon />}>Add Question</Button>
         </Box>
       ))}

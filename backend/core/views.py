@@ -10,7 +10,8 @@ from .models import ReadingTest, ReadingQuestion, AnswerKey, ReadingTestSession,
 from .serializers import (
     ReadingTestListSerializer, ReadingTestDetailSerializer, EssaySerializer, WritingPromptSerializer,
     ReadingTestSessionSerializer, ReadingPassageSerializer, ReadingTestCreateSerializer, ReadingQuestionSerializer, ReadingQuestionUpdateSerializer, ReadingTestSessionResultSerializer,
-    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer
+    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer,
+    ListeningTestSessionHistorySerializer
 )
 from .models import WritingTestSession
 from rest_framework import serializers
@@ -342,7 +343,7 @@ class SubmitReadingTestView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ReadingTestSessionListView(ListAPIView):
-    serializer_class = ReadingTestSessionSerializer
+    serializer_class = ReadingTestSessionSerializer  # Исправлено: правильный сериализатор
     permission_classes = [AllowAny]
 
     def get_queryset(self):
@@ -956,13 +957,29 @@ class SubmitListeningTestView(APIView):
         session.raw_score = raw_score
         session.band_score = band_score
         session.save()
+        print(f"[DEBUG] SUBMIT: raw_score={raw_score}, total_questions={session.total_questions_count}, band_score={band_score}")
+        print(f"[DEBUG] SUBMIT: answers={session.answers}")
+        session.score = raw_score
+        session.correct_answers_count = raw_score
+        session.total_questions_count = session.total_questions_count
+        session.save()
+        print(f"[DEBUG] SESSION SAVED: id={session.id}, score={session.score}, correct_answers_count={session.correct_answers_count}, total_questions_count={session.total_questions_count}, submitted={session.submitted}")
+        from .models import ListeningTestResult
+        ListeningTestResult.objects.update_or_create(
+            session=session,
+            defaults={
+                'raw_score': raw_score,
+                'band_score': band_score,
+                'breakdown': session.breakdown
+            }
+        )
         from .serializers import ListeningTestSessionResultSerializer
-        serializer = ListeningTestSessionResultSerializer(session, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        result_serializer = ListeningTestSessionResultSerializer(session)
+        return Response(result_serializer.data, status=status.HTTP_200_OK)
 
 
 class ListeningTestSessionListView(ListAPIView):
-    serializer_class = ListeningTestSessionSerializer
+    serializer_class = ListeningTestSessionHistorySerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
@@ -978,7 +995,7 @@ class ListeningTestSessionListView(ListAPIView):
             user = User.objects.get(uid=uid)
             return ListeningTestSession.objects.filter(
                 user=user,
-                completed=True
+                submitted=True
             ).select_related('test')
         except User.DoesNotExist:
             return ListeningTestSession.objects.none()
@@ -1128,14 +1145,79 @@ class ListeningTestSessionView(APIView):
         elif session_id is not None:
             # Submit session
             session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
-            
             if session.submitted:
                 return Response({'detail': 'Session already submitted'}, status=status.HTTP_400_BAD_REQUEST)
-            
             serializer = ListeningTestSessionSubmitSerializer(session, data=request.data)
             serializer.is_valid(raise_exception=True)
             session = serializer.save(submitted=True)
-            result_serializer = ListeningTestResultSerializer(session)
+
+            # --- Автопроверка и создание ListeningTestResult ---
+            from .serializers import count_correct_subanswers
+            raw_score = 0
+            total_questions = 0
+            breakdown = []
+            for part in session.test.parts.all():
+                for question in part.questions.all():
+                    correct_answers = question.correct_answers or []
+                    options = list(question.options.all()) if hasattr(question, 'options') else None
+                    qc, qt = count_correct_subanswers(
+                        '', correct_answers, question.question_type, getattr(question, 'extra_data', None),
+                        all_user_answers=session.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1)
+                    )
+                    raw_score += qc
+                    total_questions += qt
+                    q_text = question.question_text or ''
+                    if isinstance(correct_answers, list) and len(correct_answers) == 1:
+                        c_answer = correct_answers[0]
+                    else:
+                        c_answer = correct_answers
+                    user_answer = session.answers.get(f"{question.id}", '')
+                    breakdown.append({
+                        'question_id': question.id,
+                        'question_text': q_text,
+                        'user_answer': user_answer,
+                        'correct_answer': c_answer,
+                        'is_correct': qc == qt if qt > 0 else False,
+                        'question_type': question.question_type,
+                    })
+            # IELTS band conversion (примерная шкала)
+            def convert_to_band(raw_score):
+                if raw_score >= 39: return 9.0
+                if raw_score >= 37: return 8.5
+                if raw_score >= 35: return 8.0
+                if raw_score >= 33: return 7.5
+                if raw_score >= 30: return 7.0
+                if raw_score >= 27: return 6.5
+                if raw_score >= 23: return 6.0
+                if raw_score >= 19: return 5.5
+                if raw_score >= 15: return 5.0
+                if raw_score >= 12: return 4.5
+                if raw_score <= 11: return 4.0
+                return 0.0
+            band_score = convert_to_band(raw_score)
+            # Сохраняем баллы в сессию
+            session.score = raw_score
+            session.correct_answers_count = raw_score
+            session.total_questions_count = total_questions
+            session.save()
+            print(f"[DEBUG] SUBMIT: raw_score={raw_score}, total_questions={total_questions}, band_score={band_score}")
+            print(f"[DEBUG] SUBMIT: answers={session.answers}")
+            session.score = raw_score
+            session.correct_answers_count = raw_score
+            session.total_questions_count = total_questions
+            session.save()
+            print(f"[DEBUG] SESSION SAVED: id={session.id}, score={session.score}, correct_answers_count={session.correct_answers_count}, total_questions_count={session.total_questions_count}, submitted={session.submitted}")
+            from .models import ListeningTestResult
+            ListeningTestResult.objects.update_or_create(
+                session=session,
+                defaults={
+                    'raw_score': raw_score,
+                    'band_score': band_score,
+                    'breakdown': breakdown
+                }
+            )
+            from .serializers import ListeningTestSessionResultSerializer
+            result_serializer = ListeningTestSessionResultSerializer(session)
             return Response(result_serializer.data, status=status.HTTP_200_OK)
         return Response({'detail': 'Invalid request'}, status=status.HTTP_400_BAD_REQUEST)
 

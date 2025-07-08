@@ -239,6 +239,7 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
     correct_answers = serializers.SerializerMethodField()
     total_questions = serializers.SerializerMethodField()
     question_feedback = serializers.SerializerMethodField()
+    time_taken = serializers.SerializerMethodField()
 
     class Meta:
         model = ReadingTestSession
@@ -291,6 +292,9 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
                 'question_type': question.question_type,
             })
         return feedback
+
+    def get_time_taken(self, obj):
+        return getattr(obj, 'time_taken', 0) or 0
 
 
 
@@ -470,291 +474,55 @@ class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
 class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='test.title', read_only=True)
     student_id = serializers.CharField(source='user.student_id', read_only=True)
-    correct_answers = serializers.SerializerMethodField()
-    total_questions = serializers.SerializerMethodField()
+    time_taken = serializers.SerializerMethodField()
+    band_score = serializers.SerializerMethodField()
+    raw_score = serializers.SerializerMethodField()
     question_feedback = serializers.SerializerMethodField()
+    total_questions = serializers.SerializerMethodField()
+    submitted = serializers.BooleanField(read_only=True)
+    score = serializers.IntegerField(read_only=True)
+    correct_answers_count = serializers.IntegerField(read_only=True)
+    total_questions_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = ListeningTestSession
         fields = [
             'id', 'test', 'test_title', 'student_id', 'started_at', 'completed_at',
-            'time_taken', 'band_score', 'raw_score', 'completed', 'answers',
-            'correct_answers', 'total_questions', 'question_feedback'
+            'time_taken', 'band_score', 'score', 'raw_score', 'submitted', 'answers',
+            'total_questions', 'total_questions_count', 'correct_answers_count', 'question_feedback'
         ]
-        read_only_fields = ['user', 'started_at', 'completed_at', 'band_score', 'raw_score', 'completed']
+        read_only_fields = ['user', 'started_at', 'completed_at', 'band_score', 'raw_score', 'submitted', 'question_feedback']
 
-    def get_correct_answers(self, obj):
-        correct = 0
-        for part in obj.test.parts.all():
-            for question in part.questions.all():
-                correct_answers = question.correct_answers or []
-                options = list(question.options.all()) if hasattr(question, 'options') else None
-                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
-                correct += qc
-        return correct
+    def get_time_taken(self, obj):
+        return getattr(obj, 'time_taken', 0) or 0
 
-    def get_total_questions(self, obj):
-        total = 0
-        for part in obj.test.parts.all():
-            for question in part.questions.all():
-                correct_answers = question.correct_answers or []
-                options = list(question.options.all()) if hasattr(question, 'options') else None
-                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
-                total += qt
-        return total
-
-    def get_question_feedback(self, obj):
-        feedback = []
-        for question in obj.test.questions.all().order_by('order'):
-            user_answer_text = obj.answers.get(f"{question.id}__", 'No Answer')
-            correct_answer_text = 'N/A'
-            is_correct = False
-            
-            try:
-                correct_answer_key = question.correct_answers[0] if question.correct_answers else 'N/A'
-                correct_answer_text = correct_answer_key.strip().upper()
-                
-                if user_answer_text.strip().lower() == correct_answer_text.strip().lower():
-                    is_correct = True
-
-            except (IndexError, TypeError):
-                pass
-
-            feedback.append({
-                'question_id': question.id,
-                'question_text': question.question_text,
-                'user_answer': user_answer_text,
-                'correct_answer': correct_answer_text,
-                'is_correct': is_correct,
-                'question_type': question.question_type,
-            })
-        return feedback
-
-# --- NEW LISTENING STRUCTURE SERIALIZERS ---
-
-class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListeningAnswerOption
-        fields = ['id', 'label', 'text']
-
-class ListeningQuestionSerializer(serializers.ModelSerializer):
-    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
-    options = ListeningAnswerOptionSerializer(many=True, required=False)
-    points = serializers.IntegerField(required=False, default=1)
-    class Meta:
-        model = ListeningQuestion
-        fields = [
-            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers', 'options', 'header', 'instruction', 'image', 'created_at', 'updated_at', 'points'
-        ]
-    
-    def get_image(self, obj):
-        request = self.context.get('request', None)
-        if obj.image:
-            if hasattr(obj.image, 'url'):
-                url = obj.image.url
-            else:
-                url = f"/media/{obj.image}"
-            if request is not None:
-                return request.build_absolute_uri(url)
-            return url
+    def get_band_score(self, obj):
+        if getattr(obj, 'band_score', None) is not None:
+            return obj.band_score
+        result = getattr(obj, 'listeningtestresult', None)
+        if result and getattr(result, 'band_score', None) is not None:
+            return result.band_score
         return None
 
-class ListeningPartSerializer(serializers.ModelSerializer):
-    audio = serializers.CharField(allow_blank=True, required=False)
-    questions = ListeningQuestionSerializer(many=True, required=False)
-    class Meta:
-        model = ListeningPart
-        fields = [
-            'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions', 'created_at', 'updated_at'
-        ]
+    def get_raw_score(self, obj):
+        if getattr(obj, 'raw_score', None) is not None:
+            return obj.raw_score
+        result = getattr(obj, 'listeningtestresult', None)
+        if result and getattr(result, 'raw_score', None) is not None:
+            return result.raw_score
+        return None
 
-class ListeningTestSerializer(serializers.ModelSerializer):
-    parts = ListeningPartSerializer(many=True, required=False)
-
-    class Meta:
-        model = ListeningTest
-        fields = [
-            'id', 'title', 'description', 'is_active', 'parts', 'created_at', 'updated_at'
-        ]
-
-    def create(self, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        test = ListeningTest.objects.create(**validated_data)
-        for part_data in parts_data:
-            questions_data = part_data.pop('questions', [])
-            part = ListeningPart.objects.create(test=test, **part_data)
-            for question_data in questions_data:
-                options_data = question_data.pop('options', [])
-                image = question_data.get('image', None)
-                if not image:
-                    question_data['image'] = None
-                print('QUESTION DATA:', question_data)
-                question = ListeningQuestion.objects.create(part=part, **question_data)
-                for idx, option_data in enumerate(options_data):
-                    label = chr(65 + idx)
-                    option_data = dict(option_data)
-                    option_data.pop('label', None)
-                    ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
-        return test
-
-    def update(self, instance, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        instance.title = validated_data.get('title', instance.title)
-        instance.description = validated_data.get('description', instance.description)
-        instance.is_active = validated_data.get('is_active', instance.is_active)
-        instance.save()
-
-        existing_parts = {p.part_number: p for p in instance.parts.all()}
-        sent_part_numbers = set()
-        for part_data in parts_data:
-            part_number = part_data.get('part_number')
-            sent_part_numbers.add(part_number)
-            questions_data = part_data.pop('questions', [])
-            part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data, 'test': instance})
-            if not created:
-                for attr, value in part_data.items():
-                    setattr(part, attr, value)
-                part.save()
-            existing_questions = {q.order: q for q in part.questions.all()}
-            sent_question_orders = set()
-            for question_data in questions_data:
-                order = question_data.get('order')
-                sent_question_orders.add(order)
-                options_data = question_data.pop('options', [])
-                image = question_data.get('image', None)
-                if not image:
-                    question_data['image'] = None
-                print('QUESTION DATA:', question_data)
-                question, created = part.questions.get_or_create(order=order, defaults={**question_data, 'part': part})
-                if not created:
-                    for attr, value in question_data.items():
-                        setattr(question, attr, value)
-                    question.save()
-                existing_options = {o.label: o for o in question.options.all()}
-                sent_option_labels = set()
-                for idx, option_data in enumerate(options_data):
-                    label = chr(65 + idx)
-                    sent_option_labels.add(label)
-                    option_data = dict(option_data)
-                    option_data.pop('label', None)
-                    option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
-                    if not created:
-                        for attr, value in option_data.items():
-                            setattr(option, attr, value)
-                        option.save()
-                for label, option in existing_options.items():
-                    if label not in sent_option_labels:
-                        option.delete()
-            for order, question in existing_questions.items():
-                if order not in sent_question_orders:
-                    question.delete()
-        for part_number, part in existing_parts.items():
-            if part_number not in sent_part_numbers:
-                part.delete()
-        return instance
-
-class ListeningStudentAnswerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListeningStudentAnswer
-        fields = ['id', 'question', 'answer', 'flagged', 'submitted_at']
-
-class ListeningTestSessionSyncSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListeningTestSession
-        fields = ['id', 'answers', 'flagged', 'time_left', 'status']
-        read_only_fields = ['id', 'status']
-
-class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListeningTestSession
-        fields = ['id', 'answers', 'flagged', 'time_left']
-        read_only_fields = ['id']
-
-    def update(self, instance, validated_data):
-        # Save answers and mark as submitted
-        instance.answers = validated_data.get('answers', instance.answers)
-        instance.time_left = validated_data.get('time_left', instance.time_left)
-        instance.submitted = True
-        instance.status = 'submitted'
-        
-        # Auto-grade the test
-        correct_subanswers = 0
-        total_subanswers = 0
-        
-        for part in instance.test.parts.all():
-            for question in part.questions.all():
-                print(f"[DEBUG] CHECKING QUESTION: id={question.id}, type={question.question_type}, text={question.question_text}")
-                correct_answers = question.correct_answers or []
-                options = list(question.options.all()) if hasattr(question, 'options') else None
-                points = getattr(question, 'points', 1)
-                qc, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=instance.answers, question_id=str(question.id), options=options, points=points)
-                correct_subanswers += qc
-                total_subanswers += qt
-        
-        # Calculate IELTS band score (0-9)
-        if total_subanswers > 0:
-            percentage = (correct_subanswers / total_subanswers) * 100
-            if percentage >= 90: band_score = 9.0
-            elif percentage >= 85: band_score = 8.5
-            elif percentage >= 80: band_score = 8.0
-            elif percentage >= 75: band_score = 7.5
-            elif percentage >= 70: band_score = 7.0
-            elif percentage >= 65: band_score = 6.5
-            elif percentage >= 60: band_score = 6.0
-            elif percentage >= 55: band_score = 5.5
-            elif percentage >= 50: band_score = 5.0
-            elif percentage >= 45: band_score = 4.5
-            elif percentage >= 40: band_score = 4.0
-            elif percentage >= 35: band_score = 3.5
-            elif percentage >= 30: band_score = 3.0
-            else: band_score = 0.0
-        else:
-            band_score = 0.0
-        
-        instance.score = band_score
-        instance.save()
-        return instance
-
-class ListeningTestResultSerializer(serializers.ModelSerializer):
-    score = serializers.SerializerMethodField()
-    correct_answers_count = serializers.SerializerMethodField()
-    total_questions_count = serializers.SerializerMethodField()
-    time_taken = serializers.SerializerMethodField()
-    test_title = serializers.CharField(source='test.title', read_only=True)
-    
-    class Meta:
-        model = ListeningTestSession
-        fields = ['id', 'test', 'test_title', 'user', 'submitted', 'score', 'answers', 'status', 
-                 'correct_answers_count', 'total_questions_count', 'time_taken', 'started_at']
-
-    def get_score(self, obj):
-        return obj.score if hasattr(obj, 'score') and obj.score is not None else 0.0
-    
-    def get_correct_answers_count(self, obj):
-        correct = 0
-        for part in obj.test.parts.all():
-            for question in part.questions.all():
-                correct_answers = question.correct_answers or []
-                options = list(question.options.all()) if hasattr(question, 'options') else None
-                qc, _ = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
-                correct += qc
-        return correct
-    
-    def get_total_questions_count(self, obj):
-        total = 0
-        for part in obj.test.parts.all():
-            for question in part.questions.all():
-                correct_answers = question.correct_answers or []
-                options = list(question.options.all()) if hasattr(question, 'options') else None
-                _, qt = count_correct_subanswers('', correct_answers, question.question_type, getattr(question, 'extra_data', None), all_user_answers=obj.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1))
-                total += qt
-        return total
-    
-    def get_time_taken(self, obj):
-        if obj.started_at and obj.submitted:
-            from django.utils import timezone
-            return (timezone.now() - obj.started_at).total_seconds()
+    def get_total_questions(self, obj):
+        if getattr(obj, 'total_questions_count', None) is not None:
+            return obj.total_questions_count
+        result = getattr(obj, 'listeningtestresult', None)
+        if result and result.breakdown:
+            return len(result.breakdown)
         return 0
+
+    def get_question_feedback(self, obj):
+        result = getattr(obj, 'listeningtestresult', None)
+        return result.breakdown if result and result.breakdown else {}
 
 class ListeningTestCloneSerializer(serializers.ModelSerializer):
     class Meta:
@@ -867,3 +635,82 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
     # MATCHING (если потребуется)
     # ... аналогично ...
     return 0, 0
+
+class ListeningTestSessionHistorySerializer(serializers.ModelSerializer):
+    test_title = serializers.CharField(source='test.title', read_only=True)
+    correct_answers_count = serializers.SerializerMethodField()
+    total_questions_count = serializers.SerializerMethodField()
+    time_taken = serializers.SerializerMethodField()
+    band_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ListeningTestSession
+        fields = [
+            'id', 'test_title', 'score', 'band_score', 'correct_answers_count', 'total_questions_count',
+            'submitted', 'started_at', 'time_taken'
+        ]
+
+    def get_correct_answers_count(self, obj):
+        return getattr(obj, 'correct_answers_count', 0) or 0
+
+    def get_total_questions_count(self, obj):
+        return getattr(obj, 'total_questions_count', 0) or 0
+
+    def get_time_taken(self, obj):
+        return getattr(obj, 'time_taken', 0) or 0
+
+    def get_band_score(self, obj):
+        if getattr(obj, 'band_score', None) is not None:
+            return obj.band_score
+        result = getattr(obj, 'listeningtestresult', None)
+        if result and getattr(result, 'band_score', None) is not None:
+            return result.band_score
+        return None
+
+# --- Вложенные сериализаторы для ListeningTest ---
+class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ListeningAnswerOption
+        fields = ['id', 'label', 'text']
+
+class ListeningQuestionSerializer(serializers.ModelSerializer):
+    options = ListeningAnswerOptionSerializer(many=True, read_only=True)
+    class Meta:
+        model = ListeningQuestion
+        fields = [
+            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers',
+            'header', 'instruction', 'image', 'points', 'options'
+        ]
+
+class ListeningPartSerializer(serializers.ModelSerializer):
+    questions = ListeningQuestionSerializer(many=True, read_only=True)
+    class Meta:
+        model = ListeningPart
+        fields = [
+            'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
+        ]
+
+# --- Основной сериализатор ListeningTest ---
+class ListeningTestSerializer(serializers.ModelSerializer):
+    parts = ListeningPartSerializer(many=True, required=False)
+    class Meta:
+        model = ListeningTest
+        fields = [
+            'id', 'title', 'description', 'is_active', 'parts', 'created_at', 'updated_at'
+        ]
+
+class ListeningTestResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ListeningTestResult
+        fields = ['id', 'session', 'raw_score', 'band_score', 'breakdown', 'calculated_at']
+
+class ListeningTestSessionSyncSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ListeningTestSession
+        fields = '__all__'
+
+class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ListeningTestSession
+        fields = ['answers', 'flagged', 'time_left', 'submitted']
+        read_only_fields = ['submitted']
