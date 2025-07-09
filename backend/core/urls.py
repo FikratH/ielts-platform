@@ -31,7 +31,8 @@ from .views import (
     SecureAudioUploadView,
     AdminImageUploadView,
     ListeningTestSessionListView,
-    ListeningTestSessionDetailView
+    ListeningTestSessionDetailView,
+    ListeningTestExportCSVView
 )
 
 router = DefaultRouter()
@@ -81,4 +82,8 @@ urlpatterns = router.urls + [
     path('listening-sessions/<int:session_id>/result/', ListeningTestResultView.as_view(), name='listening-session-result'),
     path('listening/sessions/', ListeningTestSessionListView.as_view(), name='listening-session-list'),
     path('listening/sessions/<int:pk>/', ListeningTestSessionDetailView.as_view(), name='listening-session-detail'),
+]
+
+urlpatterns += [
+    path('admin/listening-test/<int:test_id>/export-csv/', ListeningTestExportCSVView.as_view(), name='listening-test-export-csv'),
 ]

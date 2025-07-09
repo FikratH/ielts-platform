@@ -7,6 +7,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
+import { getAuth } from 'firebase/auth';
 
 const AdminListeningManagePage = () => {
   const [tests, setTests] = useState([]);
@@ -70,6 +72,42 @@ const AdminListeningManagePage = () => {
       }
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to delete test', severity: 'error' });
+    }
+  };
+
+  // --- ДОБАВЛЕНО: экспорт CSV ---
+  const handleExportCSV = async (testId, testTitle) => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        setSnackbar({ open: true, message: 'Not authenticated', severity: 'error' });
+        return;
+      }
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/admin/listening-test/${testId}/export-csv/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        setSnackbar({ open: true, message: 'Failed to export CSV', severity: 'error' });
+        return;
+      }
+      const blob = await response.blob();
+      const filename = `listening_test_${testId}_results.csv`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setSnackbar({ open: true, message: 'CSV exported successfully', severity: 'success' });
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to export CSV', severity: 'error' });
     }
   };
 
@@ -150,6 +188,14 @@ const AdminListeningManagePage = () => {
                         <EditIcon />
                       </IconButton>
                     </Link>
+                    <IconButton 
+                      size="small" 
+                      color="primary"
+                      onClick={() => handleExportCSV(test.id, test.title)}
+                      title="Export CSV"
+                    >
+                      <DownloadIcon />
+                    </IconButton>
                     <IconButton 
                       size="small" 
                       color="error"

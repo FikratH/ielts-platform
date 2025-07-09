@@ -47,6 +47,9 @@ from .serializers import ListeningTestSessionSyncSerializer, ListeningTestSessio
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+import csv
+from django.http import HttpResponse
+from django.contrib.auth import get_user_model
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -1416,3 +1419,62 @@ class AdminImageUploadView(APIView):
             return Response({'error': f'Failed to upload file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # --- TODO: Secure audio upload/serve, admin submission review, etc. ---
+
+class ListeningTestExportCSVView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, test_id):
+        user = request.user
+        if not hasattr(user, 'role') or user.role != 'admin':
+            return Response({'detail': 'Only admin can export CSV'}, status=403)
+        try:
+            test = ListeningTest.objects.get(id=test_id)
+        except ListeningTest.DoesNotExist:
+            return Response({'detail': 'Test not found'}, status=404)
+        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user').order_by('user__uid', 'started_at')
+        # Формируем CSV
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="listening_test_{test_id}_results.csv"'
+        writer = csv.writer(response)
+        # Заголовки
+        writer.writerow([
+            'test_id', 'test_title', 'student_uid', 'attempt_id', 'attempt_datetime',
+            'correct_count', 'incorrect_count', 'correct_questions', 'incorrect_questions'
+        ])
+        from .serializers import create_detailed_breakdown
+        for session in sessions:
+            user = session.user
+            attempt_id = session.id
+            attempt_datetime = session.started_at.strftime('%Y-%m-%d %H:%M:%S') if session.started_at else ''
+            breakdown = create_detailed_breakdown(session)
+            correct_count = 0
+            incorrect_count = 0
+            correct_questions = []
+            incorrect_questions = []
+            question_number = 1
+            for part in breakdown:
+                for q in part['questions']:
+                    # Вопрос считается правильным, если все sub_answers правильные
+                    sub_answers = q.get('sub_answers', [])
+                    if not sub_answers:
+                        continue
+                    all_correct = all(sa.get('is_correct') for sa in sub_answers)
+                    if all_correct:
+                        correct_count += 1
+                        correct_questions.append(str(question_number))
+                    else:
+                        incorrect_count += 1
+                        incorrect_questions.append(str(question_number))
+                    question_number += 1
+            writer.writerow([
+                test.id,
+                test.title,
+                user.uid,
+                attempt_id,
+                attempt_datetime,
+                correct_count,
+                incorrect_count,
+                ';'.join(correct_questions),
+                ';'.join(incorrect_questions)
+            ])
+        return response
