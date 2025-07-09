@@ -22,6 +22,7 @@ import ListeningResultPage from './pages/ListeningResultPage';
 import AdminListeningManagePage from './pages/AdminListeningManagePage';
 import AdminListeningTestBuilderPage from './pages/AdminListeningTestBuilderPage';
 import StudentSubmissionView from './components/StudentSubmissionView';
+import AdminStudentsPage from './pages/AdminStudentsPage';
 
 
 const MainLayout = ({ role, setRole, children }) => {
@@ -89,6 +90,7 @@ function App() {
           <Route path="/admin/listening" element={<AdminListeningManagePage />} />
           <Route path="/admin/listening/builder/new" element={<AdminListeningTestBuilderPage />} />
           <Route path="/admin/listening/builder/:testId" element={<AdminListeningTestBuilderPage />} />
+          <Route path="/admin/students" element={<AdminStudentsPage />} />
           
       </Routes>
       </MainLayout>

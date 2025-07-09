@@ -1020,3 +1020,12 @@ class ListeningTestSessionSubmitSerializer(serializers.ModelSerializer):
         model = ListeningTestSession
         fields = ['answers', 'flagged', 'time_left', 'submitted']
         read_only_fields = ['submitted']
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            'id', 'uid', 'role', 'student_id', 'first_name', 'last_name', 'email', 'group', 'teacher',
+            'is_active', 'is_staff', 'is_superuser'
+        ]
+        read_only_fields = ['id', 'uid', 'is_active', 'is_staff', 'is_superuser']

@@ -32,7 +32,10 @@ from .views import (
     AdminImageUploadView,
     ListeningTestSessionListView,
     ListeningTestSessionDetailView,
-    ListeningTestExportCSVView
+    ListeningTestExportCSVView,
+    AdminCreateStudentView,
+    AdminStudentListView,
+    AdminStudentDetailView
 )
 
 router = DefaultRouter()
@@ -74,6 +77,9 @@ urlpatterns = router.urls + [
     path('admin/check/', AdminCheckView.as_view(), name='admin-check'),
     path('admin/audio/upload/', SecureAudioUploadView.as_view(), name='secure-audio-upload'),
     path('admin/image/upload/', AdminImageUploadView.as_view(), name='admin-image-upload'),
+    path('admin/create-student/', AdminCreateStudentView.as_view(), name='admin-create-student'),
+    path('admin/students/', AdminStudentListView.as_view(), name='admin-student-list'),
+    path('admin/students/<int:id>/', AdminStudentDetailView.as_view(), name='admin-student-detail'),
     
     # Listening test session endpoints
     path('listening-tests/<int:test_id>/start/', ListeningTestSessionView.as_view(), name='listening-session-start'),

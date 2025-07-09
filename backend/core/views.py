@@ -50,6 +50,9 @@ from django.core.files.base import ContentFile
 import csv
 from django.http import HttpResponse
 from django.contrib.auth import get_user_model
+from .serializers import UserSerializer
+import firebase_admin
+from firebase_admin import auth as firebase_auth
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -1478,3 +1481,55 @@ class ListeningTestExportCSVView(APIView):
                 ';'.join(incorrect_questions)
             ])
         return response
+
+class AdminCreateStudentView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        data = request.data
+        # Валидация входных данных
+        serializer = UserSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        password = data.get('password')
+        if not password or len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=400)
+        # Проверка уникальности email и student_id
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'Email already exists.'}, status=400)
+        if 'student_id' in serializer.validated_data and User.objects.filter(student_id=serializer.validated_data['student_id']).exists():
+            return Response({'error': 'Student ID already exists.'}, status=400)
+        # Создание пользователя в Firebase
+        try:
+            firebase_user = firebase_auth.create_user(
+                email=email,
+                password=password,
+                display_name=f"{serializer.validated_data.get('first_name', '')} {serializer.validated_data.get('last_name', '')}",
+            )
+        except firebase_admin._auth_utils.EmailAlreadyExistsError:
+            return Response({'error': 'Email already exists in Firebase.'}, status=400)
+        except Exception as e:
+            return Response({'error': f'Firebase error: {str(e)}'}, status=400)
+        # Создание пользователя в Django
+        user = User.objects.create(
+            uid=firebase_user.uid,
+            role='student',
+            student_id=serializer.validated_data.get('student_id'),
+            first_name=serializer.validated_data.get('first_name'),
+            last_name=serializer.validated_data.get('last_name'),
+            email=email,
+            group=serializer.validated_data.get('group'),
+            teacher=serializer.validated_data.get('teacher'),
+        )
+        return Response(UserSerializer(user).data, status=201)
+
+class AdminStudentListView(ListAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role='student').order_by('-id')
+
+class AdminStudentDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role='student')
+    lookup_field = 'id'
