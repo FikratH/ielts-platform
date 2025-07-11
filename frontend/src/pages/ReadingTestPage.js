@@ -74,7 +74,7 @@ const ReadingTestPage = () => {
         <div key={q.id} className="mb-6 pb-4 border-b">
           <p className="font-medium mb-2">Q{q.order}. {q.question_text}</p>
           {q.image && (
-            <img src={q.image} alt={`Question ${q.order}`} className="my-2 max-w-sm rounded border" />
+            <img src={q.image} alt={`Question ${q.order}`} className="my-2 big-question-image rounded border" />
           )}
           
           {q.question_type === 'MULTIPLE_CHOICE' || (q.options && q.options.length > 0) ? (

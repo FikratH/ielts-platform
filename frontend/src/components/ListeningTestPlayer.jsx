@@ -724,7 +724,7 @@ const ListeningTestPlayer = () => {
       <div className="bg-white shadow-md border-b sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col md:flex-row md:justify-between md:items-center">
           <div>
-            <h1 className="text-2xl font-extrabold text-blue-700 tracking-tight">{test.title}</h1>
+            <h1 className="text-2xl font-bold text-blue-700 tracking-tight">{test.title}</h1>
             <p className="text-sm text-gray-500">Part {currentPart + 1} of {test.parts?.length || 0}</p>
           </div>
           <div className="flex items-center gap-2 mt-2 md:mt-0">

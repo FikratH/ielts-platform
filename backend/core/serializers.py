@@ -267,7 +267,7 @@ class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
 
     def get_question_feedback(self, obj):
         feedback = []
-        for question in obj.test.questions.all().order_by('order'):
+        for question in obj.test.questions.all():
             user_answer_text = obj.answers.get(f"{question.id}__", 'No Answer')
             correct_answer_text = 'N/A'
             is_correct = False
@@ -363,7 +363,7 @@ class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
     points = serializers.IntegerField(required=False, default=1)
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
+        fields = ['question_type', 'question_text', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
 
 
 class ListeningTestCreateSerializer(serializers.ModelSerializer):
@@ -392,8 +392,17 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                 for idx, option_data in enumerate(options_data):
                     label = chr(65 + idx)
                     option_data = dict(option_data)
+                    # Удаляем все лишние поля перед созданием
                     option_data.pop('label', None)
-                    ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
+                    option_data.pop('image', None)
+                    option_data.pop('id', None)
+                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
+                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    try:
+                        ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
+                    except Exception as e:
+                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
+                        continue
         return test
 
     def update(self, instance, validated_data):
@@ -435,12 +444,21 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                     label = chr(65 + idx)
                     sent_option_labels.add(label)
                     option_data = dict(option_data)
+                    # Удаляем все лишние поля перед созданием
                     option_data.pop('label', None)
-                    option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
-                    if not created:
-                        for attr, value in option_data.items():
-                            setattr(option, attr, value)
-                        option.save()
+                    option_data.pop('image', None)
+                    option_data.pop('id', None)
+                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
+                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    try:
+                        option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
+                        if not created:
+                            for attr, value in option_data.items():
+                                setattr(option, attr, value)
+                            option.save()
+                    except Exception as e:
+                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
+                        continue
                 for label, option in existing_options.items():
                     if label not in sent_option_labels:
                         option.delete()
@@ -460,7 +478,7 @@ class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
     points = serializers.IntegerField(required=False, default=1)
     class Meta:
         model = ListeningQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
+        fields = ['question_type', 'question_text', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
 
     def update(self, instance, validated_data):
         correct_answer = validated_data.pop('correct_answer', None)
@@ -491,7 +509,6 @@ def create_detailed_breakdown(session):
                         'question_id': question.id,
                         'question_text': question.question_text or '',
                         'question_type': question.question_type,
-                        'order': question.order,
                         'header': question.header or '',
                         'instruction': question.instruction or '',
                         'sub_answers': []
@@ -614,7 +631,6 @@ def create_detailed_breakdown(session):
                         'question_id': question.id,
                         'question_text': f"Ошибка обработки вопроса: {str(e)}",
                         'question_type': question.question_type,
-                        'order': question.order,
                         'sub_answers': []
                     })
             
@@ -643,7 +659,6 @@ def get_test_render_structure(self, obj):
             q_data = {
                 'id': q.id,
                 'type': q.question_type,
-                'order': q.order,
                 'header': q.header,
                 'instruction': q.instruction,
                 'image': q.image,
@@ -980,30 +995,200 @@ class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
         fields = ['id', 'label', 'text']
 
 class ListeningQuestionSerializer(serializers.ModelSerializer):
-    options = ListeningAnswerOptionSerializer(many=True, read_only=True)
+    options = ListeningAnswerOptionSerializer(many=True, required=False, allow_null=True)
+    question_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    question_text = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    extra_data = serializers.JSONField(required=False, allow_null=True)
+    correct_answers = serializers.ListField(required=False, allow_null=True)
+    header = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    instruction = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    points = serializers.IntegerField(required=False, allow_null=True)
     class Meta:
         model = ListeningQuestion
         fields = [
-            'id', 'question_type', 'question_text', 'order', 'extra_data', 'correct_answers',
+            'id', 'question_type', 'question_text', 'extra_data', 'correct_answers',
             'header', 'instruction', 'image', 'points', 'options'
         ]
 
 class ListeningPartSerializer(serializers.ModelSerializer):
-    questions = ListeningQuestionSerializer(many=True, read_only=True)
+    questions = serializers.SerializerMethodField()
+    audio = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     class Meta:
         model = ListeningPart
         fields = [
             'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
         ]
 
-# --- Основной сериализатор ListeningTest ---
-class ListeningTestSerializer(serializers.ModelSerializer):
-    parts = ListeningPartSerializer(many=True, required=False)
+    def get_questions(self, obj):
+        # Возвращаем все вопросы без сортировки по questions_order
+        return ListeningQuestionSerializer(obj.questions.all().order_by('id'), many=True).data
+
+# --- Вложенные сериализаторы для записи ListeningTest ---
+class ListeningQuestionWriteSerializer(serializers.ModelSerializer):
+    options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
+    class Meta:
+        model = ListeningQuestion
+        fields = [
+            'id', 'question_type', 'question_text', 'extra_data', 'correct_answers',
+            'header', 'instruction', 'image', 'points', 'options'
+        ]
+
+class ListeningPartWriteSerializer(serializers.ModelSerializer):
+    questions = ListeningQuestionWriteSerializer(many=True, required=False)
+    class Meta:
+        model = ListeningPart
+        fields = [
+            'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
+        ]
+
+# --- Сериализатор для чтения ListeningTest (GET) ---
+class ListeningTestReadSerializer(serializers.ModelSerializer):
+    parts = ListeningPartSerializer(many=True, read_only=True)
     class Meta:
         model = ListeningTest
         fields = [
             'id', 'title', 'description', 'is_active', 'parts', 'created_at', 'updated_at'
         ]
+
+# --- Основной сериализатор ListeningTest (POST/PUT) ---
+class ListeningTestSerializer(serializers.ModelSerializer):
+    parts = ListeningPartWriteSerializer(many=True, required=False)
+    class Meta:
+        model = ListeningTest
+        fields = [
+            'id', 'title', 'description', 'is_active', 'parts', 'created_at', 'updated_at'
+        ]
+
+    def _filter_and_validate_options(self, options_data):
+        filtered = []
+        for opt in options_data:
+            text = opt.get('text')
+            if not text or (isinstance(text, str) and not text.strip()):
+                continue  # пропускаем пустые
+            if isinstance(text, list):
+                raise serializers.ValidationError({'options': 'Option text must be a string, not a list.'})
+            filtered.append(opt)
+        return filtered
+
+    def _filter_and_validate_questions(self, questions_data):
+        filtered = []
+        for q in questions_data:
+            if isinstance(q.get('question_text'), list):
+                raise serializers.ValidationError({'questions': 'Question text must be a string, not a list.'})
+            if 'options' in q:
+                q['options'] = self._filter_and_validate_options(q.get('options', []))
+            filtered.append(q)
+        return filtered
+
+    def create(self, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        test = ListeningTest.objects.create(**validated_data)
+        for part_data in parts_data:
+            questions_data = part_data.pop('questions', []) if 'questions' in part_data else []
+            questions_data = self._filter_and_validate_questions(questions_data)
+            part = ListeningPart.objects.create(test=test, **part_data)
+            for question_data in questions_data:
+                options_data = question_data.pop('options', []) if 'options' in question_data else []
+                options_data = self._filter_and_validate_options(options_data)
+                question_data.pop('order', None)
+                question_data.pop('title', None)
+                try:
+                    print("CREATING QUESTION:", question_data)
+                    question = ListeningQuestion.objects.create(part=part, **question_data)
+                except Exception as e:
+                    print("ERROR CREATING QUESTION:", e, question_data)
+                    continue
+                for idx, option_data in enumerate(options_data):
+                    label = chr(65 + idx)
+                    option_data = dict(option_data)
+                    # Удаляем все лишние поля перед созданием
+                    option_data.pop('label', None)
+                    option_data.pop('image', None)
+                    option_data.pop('id', None)
+                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
+                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    try:
+                        ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
+                    except Exception as e:
+                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
+                        continue
+        return test
+
+    def update(self, instance, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        existing_parts = {p.part_number: p for p in instance.parts.all()}
+        sent_part_numbers = set()
+        for part_data in parts_data:
+            part_number = part_data.get('part_number')
+            sent_part_numbers.add(part_number)
+            questions_data = part_data.pop('questions', []) if 'questions' in part_data else []
+            questions_data = self._filter_and_validate_questions(questions_data)
+            part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data, 'test': instance})
+            if not created:
+                for attr, value in part_data.items():
+                    setattr(part, attr, value)
+                part.save()
+            existing_questions = {str(q.id): q for q in part.questions.all()}
+            sent_question_ids = set()
+            for question_data in questions_data:
+                q_id = str(question_data.get('id')) if question_data.get('id') else None
+                options_data = question_data.pop('options', []) if 'options' in question_data else []
+                options_data = self._filter_and_validate_options(options_data)
+                question_data.pop('order', None)
+                question_data.pop('title', None)
+                try:
+                    if q_id and q_id in existing_questions:
+                        question = existing_questions[q_id]
+                        for attr, value in question_data.items():
+                            setattr(question, attr, value)
+                        question.save()
+                    else:
+                        print("CREATING QUESTION:", question_data)
+                        question = ListeningQuestion.objects.create(part=part, **question_data)
+                except Exception as e:
+                    print("ERROR CREATING QUESTION:", e, question_data)
+                    continue
+                sent_question_ids.add(str(question.id))
+                # --- Обработка опций ---
+                existing_options = {o.label: o for o in question.options.all()}
+                sent_option_labels = set()
+                for opt_idx, option_data in enumerate(options_data):
+                    label = chr(65 + opt_idx)
+                    sent_option_labels.add(label)
+                    option_data = dict(option_data)
+                    # Удаляем все лишние поля перед созданием
+                    option_data.pop('label', None)
+                    option_data.pop('image', None)
+                    option_data.pop('id', None)
+                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
+                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    try:
+                        option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
+                        if not created:
+                            for attr, value in option_data.items():
+                                setattr(option, attr, value)
+                            option.save()
+                    except Exception as e:
+                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
+                        continue
+                for label, option in existing_options.items():
+                    if label not in sent_option_labels:
+                        option.delete()
+            # --- Удаляем вопросы, которых нет в новом списке ---
+            if questions_data:
+                for qid, question in existing_questions.items():
+                    if qid not in sent_question_ids:
+                        question.delete()
+        for part_number, part in existing_parts.items():
+            if part_number not in sent_part_numbers:
+                part.delete()
+        return instance
 
 class ListeningTestResultSerializer(serializers.ModelSerializer):
     class Meta:

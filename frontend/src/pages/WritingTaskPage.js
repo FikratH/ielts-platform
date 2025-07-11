@@ -40,8 +40,8 @@ const WritingTaskPage = () => {
           setPromptImage("");
         }
       } catch (err) {
-        console.error("Ошибка загрузки задания:", err);
-        setPromptText("Нет активного задания.");
+        console.error("Task loading error:", err);
+        setPromptText("No active task.");
         setPromptImage("");
       }
     };
@@ -51,7 +51,7 @@ const WritingTaskPage = () => {
 
   const handleSubmit = async () => {
     if (!text.trim()) {
-      alert("Введите текст эссе");
+      alert("Please enter your essay text");
       return;
     }
 
@@ -84,7 +84,7 @@ const WritingTaskPage = () => {
       }
     } catch (err) {
       console.error(err);
-      alert("Ошибка при сохранении эссе");
+      alert("Error saving essay");
     } finally {
       setLoading(false);
     }
@@ -127,8 +127,8 @@ const WritingTaskPage = () => {
         navigate(`/writing/result/${sessionId}`);
       }
     } catch (err) {
-      console.error("Ошибка при автосабмите по таймеру:", err);
-      alert("Ошибка при автоматическом завершении. Пожалуйста, попробуйте еще раз.");
+      console.error("Autosubmit timer error:", err);
+      alert("Error during automatic submission. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -149,8 +149,8 @@ const WritingTaskPage = () => {
       </div>
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>Время:</strong> {taskType === "task1" ? "20 минут" : "40 минут"}<br/>
-          <strong>Минимум слов:</strong> {taskType === "task1" ? "150" : "250"}
+          <strong>Time:</strong> {taskType === "task1" ? "20 minutes" : "40 minutes"}<br/>
+          <strong>Minimum words:</strong> {taskType === "task1" ? "150" : "250"}
         </p>
       </div>
     </div>
@@ -163,19 +163,19 @@ const WritingTaskPage = () => {
         value={text}
         onChange={e => setText(e.target.value)}
         className="w-full border rounded p-3 h-96 mb-4 resize-none"
-        placeholder="Напишите ваше эссе здесь..."
+        placeholder="Write your essay here..."
       />
       <div className="text-right mb-4 text-sm text-gray-600">
-        Слов: {text.trim().split(/\s+/).filter(Boolean).length}
+        Words: {text.trim().split(/\s+/).filter(Boolean).length}
       </div>
     </div>
   );
 
-  let submitLabel = "Завершить и посмотреть результат";
+  let submitLabel = "Finish and view result";
   if (taskType === "task1") {
-    submitLabel = "Перейти к Task 2";
+    submitLabel = "Go to Task 2";
   } else {
-    submitLabel = "Завершить и посмотреть результат";
+    submitLabel = "Finish and view result";
   }
 
   if (loading) {

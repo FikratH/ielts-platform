@@ -58,7 +58,7 @@ export default function AdminStudentsPage() {
         });
       } else {
         // POST для создания
-        await axios.post('/api/admin/create-student/', form, {
+        await axios.post('/api/admin/create-student/', { ...form, role: 'student' }, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }

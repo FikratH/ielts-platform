@@ -23,7 +23,7 @@ const WritingResultPage = () => {
         setEssays(res.data);
       } catch (err) {
         console.error(err);
-        setError("Ошибка при загрузке результатов");
+        setError("Error loading results");
       } finally {
         setLoading(false);
       }
@@ -32,9 +32,9 @@ const WritingResultPage = () => {
     fetchResults();
   }, [sessionId]);
 
-  if (loading) return <div className="p-6 text-center">Загрузка результатов...</div>;
+  if (loading) return <div className="p-6 text-center">Loading results...</div>;
   if (error) return <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg">{error}</div>;
-  if (essays.length === 0) return <div className="p-6 text-center">Нет данных для отображения.</div>;
+  if (essays.length === 0) return <div className="p-6 text-center">No data to display.</div>;
 
 
   const averageBand = essays.reduce((sum, essay) => sum + parseFloat(essay.overall_band), 0) / essays.length;
@@ -63,21 +63,21 @@ const WritingResultPage = () => {
   return (
     <div className="p-6 max-w-4xl mx-auto bg-gray-50 min-h-screen">
       <div className="bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-3xl font-bold mb-4 text-gray-800">Результаты IELTS Writing</h2>
-        <p className="text-lg text-gray-600">Тест: <span className="font-semibold">{sessionData.test_title}</span></p>
+        <h2 className="text-3xl font-bold mb-4 text-gray-800">IELTS Writing Results</h2>
+        <p className="text-lg text-gray-600">Test: <span className="font-semibold">{sessionData.test_title}</span></p>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
           <div className="p-4 bg-blue-100 rounded-lg">
-            <p className="text-sm text-blue-800">Завершено заданий</p>
+            <p className="text-sm text-blue-800">Tasks completed</p>
             <p className="text-2xl font-bold text-blue-900">{sessionData.raw_score} / {sessionData.total_questions}</p>
           </div>
           <div className="p-4 bg-purple-100 rounded-lg">
-            <p className="text-sm text-purple-800">Средний Band Score</p>
+            <p className="text-sm text-purple-800">Average Band Score</p>
             <p className="text-2xl font-bold text-purple-900">{sessionData.band_score}</p>
           </div>
         </div>
 
-        <h3 className="mt-8 text-2xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
+        <h3 className="mt-8 text-2xl font-bold border-b pb-2 mb-4 text-gray-700">Detailed breakdown</h3>
         <div className="space-y-6">
           {essays.map((essay, index) => (
             <div key={essay.id} className="border p-6 rounded-lg bg-gray-50">
@@ -86,12 +86,12 @@ const WritingResultPage = () => {
               </h4>
               
               <div className="mb-4">
-                <p className="font-medium text-gray-700 mb-2">Задание:</p>
+                <p className="font-medium text-gray-700 mb-2">Task:</p>
                 <p className="text-gray-600 italic">{essay.question_text}</p>
               </div>
 
               <div className="mb-4">
-                <p className="font-medium text-gray-700 mb-2">Ваш ответ:</p>
+                <p className="font-medium text-gray-700 mb-2">Your answer:</p>
                 <div className="bg-white p-3 rounded border text-gray-800 whitespace-pre-line max-h-40 overflow-y-auto">
                   {essay.submitted_text}
                 </div>
@@ -122,7 +122,7 @@ const WritingResultPage = () => {
               </div>
 
               <div className="mt-4">
-                <p className="font-medium text-gray-700 mb-2">Обратная связь:</p>
+                <p className="font-medium text-gray-700 mb-2">Feedback:</p>
                 <div className="bg-white p-3 rounded border text-sm text-gray-800 whitespace-pre-wrap">
                   {essay.feedback}
                 </div>
@@ -135,7 +135,7 @@ const WritingResultPage = () => {
           className="mt-8 w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors duration-300"
           onClick={() => navigate('/writing')}
         >
-          К списку тестов Writing
+          To Writing tests list
         </button>
       </div>
     </div>

@@ -143,10 +143,10 @@ class ReadingTestSession(models.Model):
     test = models.ForeignKey(ReadingTest, on_delete=models.CASCADE)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    time_taken = models.IntegerField(null=True, blank=True)  
+    time_taken = models.IntegerField(null=True, blank=True)
     band_score = models.FloatField(null=True, blank=True)
     raw_score = models.IntegerField(null=True, blank=True)
-    answers = models.JSONField(default=dict)  
+    answers = models.JSONField(default=dict)
     completed = models.BooleanField(default=False)
 
     class Meta:
@@ -162,8 +162,8 @@ class ReadingTestSession(models.Model):
         """
         correct_answers_count = 0
         questions = self.test.questions.all().select_related('answerkey')
-        
-        
+
+
         correct_answers_map = {
             str(q.id): q.answerkey.correct_answer.strip().lower()
             for q in questions if hasattr(q, 'answerkey')
@@ -173,7 +173,7 @@ class ReadingTestSession(models.Model):
             correct_answer = correct_answers_map.get(question_id)
             if correct_answer and user_answer.strip().lower() == correct_answer:
                 correct_answers_count += 1
-        
+
         return correct_answers_count
 
     def convert_to_band(self, raw_score):
@@ -203,7 +203,7 @@ class ListeningTest(models.Model):
 class ListeningPart(models.Model):
     test = models.ForeignKey(ListeningTest, related_name='parts', on_delete=models.CASCADE)
     part_number = models.PositiveIntegerField()
-    audio = models.FileField(upload_to='listening_audio/', null=True, blank=True)
+    audio = models.CharField(max_length=500, blank=True, null=True)
     audio_duration = models.FloatField(default=0)
     instructions = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -211,15 +211,14 @@ class ListeningPart(models.Model):
 
 class ListeningQuestion(models.Model):
     part = models.ForeignKey(ListeningPart, related_name='questions', on_delete=models.CASCADE)
-    question_type = models.CharField(max_length=32)
-    question_text = models.TextField(blank=True, null=True)
-    order = models.PositiveIntegerField()
-    extra_data = JSONField(default=dict, blank=True)  # For matching, dropdown, etc.
-    correct_answers = JSONField(default=list, blank=True)  # List for multiple correct answers
-    header = models.TextField(blank=True, default='')
-    instruction = models.TextField(blank=True, default='')
-    image = models.CharField(max_length=500, blank=True, null=True)
-    points = models.PositiveIntegerField(default=1)  # Количество баллов за вопрос (особенно для multiple_response)
+    question_type = models.CharField(max_length=32, blank=True, null=True, default=None)
+    question_text = models.TextField(blank=True, null=True, default=None)
+    extra_data = JSONField(default=dict, blank=True, null=True)
+    correct_answers = JSONField(default=list, blank=True, null=True)
+    header = models.TextField(blank=True, default='', null=True)
+    instruction = models.TextField(blank=True, default='', null=True)
+    image = models.CharField(max_length=500, blank=True, null=True, default=None)
+    points = models.PositiveIntegerField(default=1, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

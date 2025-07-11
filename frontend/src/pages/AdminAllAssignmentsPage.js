@@ -186,7 +186,7 @@ export default function AdminAllAssignmentsPage() {
                         onClick={() => handleOpenDetails(h)}
                         className="text-blue-600 hover:underline"
                       >
-                        Подробнее
+                        Details
                       </button>
                     </td>
                   </tr>

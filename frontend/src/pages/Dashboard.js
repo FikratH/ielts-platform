@@ -130,28 +130,28 @@ export default function Dashboard() {
 
   return (
     <div className="p-10 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Личный кабинет</h1>
+      <h1 className="text-3xl font-bold mb-6">My Dashboard</h1>
 
       <div className="grid grid-cols-4 gap-4 mb-8">
-        <StatCard title="Пройдено тестов" value={count} />
-        <StatCard title="Средний балл" value={avg} />
-        <StatCard title="Лучший результат" value={max} />
+        <StatCard title="Tests Taken" value={count} />
+        <StatCard title="Average Score" value={avg} />
+        <StatCard title="Best Result" value={max} />
         <button
           onClick={() => navigate('/writing/start')}
           className="bg-blue-600 text-white rounded-xl px-4 py-2 hover:bg-blue-700"
         >
-          Начать новый тест
+          Start New Test
         </button>
       </div>
 
-      <h2 className="text-xl font-semibold mb-2">История тестов</h2>
+      <h2 className="text-xl font-semibold mb-2">Test History</h2>
       <table className="w-full border rounded-xl overflow-hidden">
         <thead className="bg-gray-100">
           <tr>
-            <th className="px-4 py-2 text-left">Дата</th>
-            <th className="px-4 py-2 text-left">Секция</th>
-            <th className="px-4 py-2 text-left">Задание</th>
-            <th className="px-4 py-2 text-left">Балл</th>
+            <th className="px-4 py-2 text-left">Date</th>
+            <th className="px-4 py-2 text-left">Section</th>
+            <th className="px-4 py-2 text-left">Test</th>
+            <th className="px-4 py-2 text-left">Score</th>
             <th className="px-4 py-2 text-left">Band Score</th>
             <th className="px-4 py-2 text-left"></th>
           </tr>
@@ -171,7 +171,7 @@ export default function Dashboard() {
                   onClick={() => handleOpenDetails(h)}
                   className="text-blue-600 hover:underline"
                 >
-                  Подробнее
+                  Details
                 </button>
               </td>
             </tr>
@@ -184,14 +184,14 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold">Writing — {selectedItem.item.submitted_at?.slice(0, 10)}</h3>
-              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Закрыть</button>
+              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
             </div>
             <div className="mb-4">
-              <p className="text-sm text-gray-600 font-semibold mb-1">Ваше эссе:</p>
+              <p className="text-sm text-gray-600 font-semibold mb-1">Your Essay:</p>
               <pre className="bg-gray-100 p-3 rounded whitespace-pre-wrap text-sm overflow-x-auto">{selectedItem.item.submitted_text}</pre>
             </div>
             <div className="mb-4">
-              <p className="text-sm text-gray-600 font-semibold mb-1">Фидбек от AI:</p>
+              <p className="text-sm text-gray-600 font-semibold mb-1">AI Feedback:</p>
               <pre className="bg-gray-100 p-3 rounded whitespace-pre-wrap text-sm overflow-x-auto">{selectedItem.item.feedback}</pre>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -209,17 +209,17 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Результаты: {selectedItem.item.test_title}</h3>
-              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Закрыть</button>
+              <h3 className="text-xl font-bold">Results: {selectedItem.item.test_title}</h3>
+              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
             </div>
 
             {detailsLoading ? (
-              <p>Загрузка деталей...</p>
+              <p>Loading details...</p>
             ) : itemDetails ? (
               <>
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                     <div className="p-4 bg-blue-100 rounded-lg">
-                        <p className="text-sm text-blue-800">Правильные ответы</p>
+                        <p className="text-sm text-blue-800">Correct Answers</p>
                         <p className="text-2xl font-bold text-blue-900">{itemDetails.raw_score} / {itemDetails.total_questions}</p>
                     </div>
                     <div className="p-4 bg-purple-100 rounded-lg">
@@ -228,31 +228,31 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор</h3>
+                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Detailed Analysis</h3>
                 <div className="space-y-4">
                   {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
                     itemDetails.question_feedback.map((feedback, index) => (
                       <div key={feedback.question_id} className={`p-4 border rounded-lg ${feedback.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                         <div className="flex justify-between items-start">
-                           <p className="font-semibold text-gray-800 pr-4">Вопрос {index + 1}: {feedback.question_text}</p>
+                           <p className="font-semibold text-gray-800 pr-4">Question {index + 1}: {feedback.question_text}</p>
                            {feedback.is_correct ? (
-                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Правильно</span>
+                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Correct</span>
                            ) : (
-                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Неправильно</span>
+                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Incorrect</span>
                            )}
                         </div>
                          <div className="mt-2 text-sm">
-                             <p className="text-gray-600">Ваш ответ: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "Нет ответа"}</span></p>
-                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Правильный ответ: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
+                             <p className="text-gray-600">Your answer: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "No answer"}</span></p>
+                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Correct answer: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
                          </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-gray-500 text-center py-4">Детальный разбор недоступен.</p>
+                    <p className="text-gray-500 text-center py-4">Detailed analysis not available.</p>
                   )}
                 </div>
               </>
-            ) : <p>Не удалось загрузить детали.</p>}
+            ) : <p>Failed to load details.</p>}
           </div>
         </div>
       )}
@@ -261,17 +261,17 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Результаты: {selectedItem.item.test_title}</h3>
-              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Закрыть</button>
+              <h3 className="text-xl font-bold">Results: {selectedItem.item.test_title}</h3>
+              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
             </div>
 
             {detailsLoading ? (
-              <p>Загрузка деталей...</p>
+              <p>Loading details...</p>
             ) : itemDetails ? (
               <>
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                     <div className="p-4 bg-blue-100 rounded-lg">
-                        <p className="text-sm text-blue-800">Правильные ответы</p>
+                        <p className="text-sm text-blue-800">Correct Answers</p>
                         <p className="text-2xl font-bold text-blue-900">{itemDetails.correct_answers_count} / {itemDetails.total_questions_count}</p>
                     </div>
                     <div className="p-4 bg-purple-100 rounded-lg">
@@ -280,13 +280,13 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Детальный разбор (как на тесте)</h3>
+                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Detailed Analysis</h3>
                 {itemDetails.test_render_structure && Array.isArray(itemDetails.test_render_structure) ? (
                   <div className="space-y-8">
                     {itemDetails.test_render_structure.map((part, partIdx) => (
                       <div key={partIdx} className="border rounded-lg p-4 bg-gray-50">
                         <h4 className="text-lg font-semibold mb-3 text-gray-800">
-                          Часть {part.part_number}
+                          Section {part.part_number}
                           {part.instructions && (
                             <span className="text-sm font-normal text-gray-600 ml-2">— {part.instructions}</span>
                           )}
@@ -304,10 +304,10 @@ export default function Dashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-4">Детальный разбор недоступен.</p>
+                  <p className="text-gray-500 text-center py-4">Detailed analysis not available.</p>
                 )}
               </>
-            ) : <p>Не удалось загрузить детали.</p>}
+            ) : <p>Failed to load details.</p>}
           </div>
         </div>
       )}

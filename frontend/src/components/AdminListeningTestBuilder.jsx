@@ -91,7 +91,7 @@ function normalizeTestFromAPI(apiTest) {
         }
         return {
           ...q,
-          id: q.id && typeof q.id === 'string' ? q.id : `q-${q.order || Math.random()}`,
+          id: q.id || `q-${Math.random()}`,
           type: normalizedType,
           text: q.text || q.question_text || '',
           options: Array.isArray(q.options)
@@ -178,7 +178,8 @@ const AdminListeningTestBuilder = () => {
   // Add question
   const addQuestion = (partIdx) => {
     const parts = [...test.parts];
-    parts[partIdx].questions.push({
+    const questions = parts[partIdx].questions || [];
+    questions.push({
       id: `q-${Date.now()}`,
       type: 'multiple_choice',
       text: '',
@@ -191,8 +192,9 @@ const AdminListeningTestBuilder = () => {
       answer: 0,
       image: '',
       audio_start: 0,
-      audio_end: 30
+      audio_end: 30,
     });
+    parts[partIdx].questions = questions;
     setTest({ ...test, parts });
   };
 
@@ -427,10 +429,17 @@ const AdminListeningTestBuilder = () => {
                         <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
                       )}
                       <Button
-                        variant={question.answer === idx ? 'contained' : 'outlined'}
+                        variant={question.answer === (option.label || String.fromCharCode(65 + idx)) ? 'contained' : 'outlined'}
                         color="success"
                         size="small"
-                        onClick={() => updateQ({ answer: idx })}
+                        onClick={() => updateQ({
+                          answer: option.label || String.fromCharCode(65 + idx),
+                          correct_answers: [option.label || String.fromCharCode(65 + idx)],
+                          extra_data: {
+                            ...(question.extra_data || {}),
+                            answer: option.label || String.fromCharCode(65 + idx)
+                          }
+                        })}
                         sx={{ minWidth: 90 }}
                       >
                         Correct
@@ -1170,14 +1179,23 @@ const AdminListeningTestBuilder = () => {
                       size="small"
                       sx={{ flex: 2 }}
                     />
-                    {option.image && (
-                      <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                    {question.image && (
+                      <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center' }}>
+                        <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ width: '500px', maxWidth: '100%', height: 'auto', display: 'block', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                      </Box>
                     )}
                     <Button
-                      variant={question.answer === idx ? 'contained' : 'outlined'}
+                      variant={question.answer === (option.label || String.fromCharCode(65 + idx)) ? 'contained' : 'outlined'}
                       color="success"
                       size="small"
-                      onClick={() => updateQ({ answer: idx })}
+                      onClick={() => updateQ({
+                        answer: option.label || String.fromCharCode(65 + idx),
+                        correct_answers: [option.label || String.fromCharCode(65 + idx)],
+                        extra_data: {
+                          ...(question.extra_data || {}),
+                          answer: option.label || String.fromCharCode(65 + idx)
+                        }
+                      })}
                       sx={{ minWidth: 90 }}
                     >
                       Correct
@@ -1236,7 +1254,9 @@ const AdminListeningTestBuilder = () => {
                 style={{ marginBottom: 8 }}
               />
               {question.image && (
-                <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                <Box sx={{ minWidth: 500, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ width: '500px', height: 'auto', maxWidth: '100%', maxHeight: '400px', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                </Box>
               )}
             </Grid>
           </Grid>
@@ -1278,7 +1298,7 @@ const AdminListeningTestBuilder = () => {
                       size="small"
                       sx={{ mt: 1 }}
                     >
-                      Заменить аудио
+                      Replace audio
                       <input
                         type="file"
                         accept="audio/*"
@@ -1294,7 +1314,7 @@ const AdminListeningTestBuilder = () => {
                     size="small"
                     sx={{ mt: 1 }}
                   >
-                    Добавить аудио
+                    Add audio
                     <input
                       type="file"
                       accept="audio/*"
@@ -1315,7 +1335,7 @@ const AdminListeningTestBuilder = () => {
               />
               {part.image && (
                 <Box sx={{ mt: 1 }}>
-                  <img src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)} alt="Section" style={{ maxWidth: '300px', maxHeight: '200px' }} />
+                  <img src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
             </Grid>
@@ -1336,7 +1356,7 @@ const AdminListeningTestBuilder = () => {
       parts: test.parts.map((part, partIdx) => ({
         part_number: partIdx + 1,
         title: part.title,
-        audio: part.audio || '',
+        audio: typeof part.audio === 'string' ? part.audio : (Array.isArray(part.audio) ? part.audio[0] || '' : ''),
         image: part.image || '',
         questions: (part.questions || [])
           .filter(q => {
@@ -1557,7 +1577,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1588,7 +1608,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
               <TextField
@@ -1608,7 +1628,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1695,7 +1715,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1729,7 +1749,7 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '200px' }} />
+                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
                 </Box>
               )}
               <TextField
@@ -1768,7 +1788,7 @@ const AdminListeningTestBuilder = () => {
             <Typography variant="h6" gutterBottom>{currentPart.title}</Typography>
             {currentPart.image && (
               <Box sx={{ mb: 2 }}>
-                <img src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '300px' }} />
+                <img src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
               </Box>
             )}
             {currentPart.audio && (
@@ -1797,8 +1817,6 @@ const AdminListeningTestBuilder = () => {
     const parts = [...test.parts];
     const questions = [...parts[partIdx].questions];
     [questions[qIdx - 1], questions[qIdx]] = [questions[qIdx], questions[qIdx - 1]];
-    // Пересчитать order
-    questions.forEach((q, i) => { q.order = i + 1; });
     parts[partIdx].questions = questions;
     setTest({ ...test, parts });
   };
@@ -1808,8 +1826,6 @@ const AdminListeningTestBuilder = () => {
     const questions = [...parts[partIdx].questions];
     if (qIdx === questions.length - 1) return;
     [questions[qIdx + 1], questions[qIdx]] = [questions[qIdx], questions[qIdx + 1]];
-    // Пересчитать order
-    questions.forEach((q, i) => { q.order = i + 1; });
     parts[partIdx].questions = questions;
     setTest({ ...test, parts });
   };
@@ -1888,8 +1904,56 @@ const AdminListeningTestBuilder = () => {
       </Button>
 
       {test.parts.map((part, partIdx) => (
-        <Box key={part.id} sx={{ mb: 4 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>{part.title || `Part ${partIdx + 1}`}</Typography>
+        <Card key={part.id} sx={{ mb: 2 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Typography variant="h6">{part.title}</Typography>
+              <Box>
+                <IconButton onClick={() => setEditingPart(partIdx)}>
+                  <EditIcon />
+                </IconButton>
+              </Box>
+            </Box>
+            {/* --- ДОБАВЛЯЕМ ЗАГРУЗКУ АУДИО --- */}
+            <Box sx={{ mt: 2 }}>
+              {part.audio ? (
+                <>
+                  <audio controls style={{ width: '100%' }}>
+                    <source src={part.audio} />
+                  </audio>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    size="small"
+                    sx={{ mt: 1 }}
+                  >
+                    Replace audio
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      hidden
+                      onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'audio', partIdx)}
+                    />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="contained"
+                  component="label"
+                  size="small"
+                  sx={{ mt: 1 }}
+                >
+                  Add audio
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    hidden
+                    onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'audio', partIdx)}
+                  />
+                </Button>
+              )}
+            </Box>
+            {/* --- КОНЕЦ ДОБАВЛЕНИЯ --- */}
           {part.questions.map((question, qIdx) => (
             <Paper key={question.id} sx={{ p: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box sx={{ flex: 1 }}>
@@ -1915,7 +1979,8 @@ const AdminListeningTestBuilder = () => {
               </Paper>
             ))}
           <Button onClick={() => addQuestion(partIdx)} startIcon={<AddIcon />}>Add Question</Button>
-        </Box>
+          </CardContent>
+        </Card>
       ))}
 
       {editingQuestion && renderQuestionEditor(
@@ -1923,6 +1988,7 @@ const AdminListeningTestBuilder = () => {
         editingQuestion.partIdx,
         editingQuestion.qIdx
       )}
+      {editingPart !== null && renderPartEditor(test.parts[editingPart], editingPart)}
       {showPreview && <PreviewDialog />}
     </Box>
   );

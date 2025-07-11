@@ -11,10 +11,10 @@ const TRUE_FALSE_OPTIONS = [
   { label: 'FALSE', text: 'Неверно' },
 ];
 
-const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
+const QuestionForm = ({ onSubmit, onUpdate, initialData }) => {
   const [questionType, setQuestionType] = useState(QUESTION_TYPES.MULTIPLE_CHOICE);
   const [questionText, setQuestionText] = useState('');
-  const [order, setOrder] = useState(initialOrder);
+  // order больше не нужен
   const [options, setOptions] = useState([]);
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [image, setImage] = useState(null);
@@ -23,14 +23,14 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    setOrder(initialOrder);
-  }, [initialOrder]);
+    // order больше не нужен
+  }, []);
 
   useEffect(() => {
     if (initialData) {
       setQuestionType(initialData.question_type || QUESTION_TYPES.MULTIPLE_CHOICE);
       setQuestionText(initialData.question_text || '');
-      setOrder(initialData.order || initialOrder);
+      // order больше не нужен
       setOptions(initialData.options || []);
       setCorrectAnswer(initialData.correct_answer || '');
       setImage(null);
@@ -38,12 +38,12 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
     } else {
       resetForm();
     }
-  }, [initialData, initialOrder]);
+  }, [initialData]);
 
   const resetForm = () => {
     setQuestionType(QUESTION_TYPES.MULTIPLE_CHOICE);
     setQuestionText('');
-    setOrder(initialOrder);
+    // order больше не нужен
     setOptions([]);
     setCorrectAnswer('');
     setImage(null);
@@ -80,7 +80,7 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
     const questionData = {
       question_type: questionType,
       question_text: questionText,
-      order,
+      // order больше не нужен
       options: questionType === QUESTION_TYPES.TRUE_FALSE ? [] : options, // Не сохраняем опции для True/False
       correct_answer: correctAnswer,
     };
@@ -114,10 +114,7 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
             <option value={QUESTION_TYPES.TRUE_FALSE}>Верно/Неверно</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium">Номер вопроса (Порядок)</label>
-          <input type="number" name="order" value={order} onChange={(e) => setOrder(e.target.value)} className="w-full p-2 border rounded" />
-        </div>
+        {/* order больше не нужен */}
       </div>
       <div>
         <label className="block text-sm font-medium">Текст вопроса</label>
@@ -126,11 +123,11 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
 
       {questionType === QUESTION_TYPES.MULTIPLE_CHOICE && (
         <div>
-          <label className="block text-sm font-medium">Варианты ответа (Отметьте правильный)</label>
+          <label className="block text-sm font-medium">Answer options (Mark the correct one)</label>
           <div className="space-y-1 mt-1">
             {options.map((opt, idx) => (
               <div key={idx} className="flex items-center space-x-2">
-                <input type="radio" name={`correct_answer_${order}`} checked={correctAnswer === opt.text} onChange={() => setCorrectAnswer(opt.text)} />
+                <input type="radio" checked={correctAnswer === opt.text} onChange={() => setCorrectAnswer(opt.text)} />
                 <span>{opt.label}. {opt.text}</span>
                 <button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 text-xs">Удалить</button>
               </div>
@@ -145,10 +142,10 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
       
       {questionType === QUESTION_TYPES.TRUE_FALSE && (
         <div>
-          <label className="block text-sm font-medium">Правильный ответ</label>
+          <label className="block text-sm font-medium">Correct answer</label>
           {options.map(opt => (
             <label key={opt.text} className="flex items-center space-x-2">
-              <input type="radio" name={`correct_answer_${order}`} value={opt.text} checked={correctAnswer === opt.text} onChange={() => setCorrectAnswer(opt.text)} />
+              <input type="radio" value={opt.text} checked={correctAnswer === opt.text} onChange={() => setCorrectAnswer(opt.text)} />
               <span>{opt.text}</span>
             </label>
           ))}
@@ -157,8 +154,8 @@ const QuestionForm = ({ onSubmit, onUpdate, initialData, initialOrder }) => {
 
       {questionType === QUESTION_TYPES.SHORT_ANSWER && (
         <div>
-          <label className="block text-sm font-medium">Правильный ответ</label>
-          <input type="text" name="correct_answer" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} className="w-full p-2 border rounded" placeholder="Введите правильный ответ..." />
+          <label className="block text-sm font-medium">Correct answer</label>
+          <input type="text" name="correct_answer" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} className="w-full p-2 border rounded" placeholder="Enter the correct answer..." />
         </div>
       )}
 
@@ -194,7 +191,7 @@ export function QuestionReview({ question }) {
         const correct = gap.correct_answer;
         const isCorrect = gap.is_correct;
         const isAnswered = gap.is_answered;
-        const input = `<span style=\"display:inline-block;min-width:80px;padding:2px 6px;border-radius:6px;border:1px solid ${isCorrect ? '#22c55e' : isAnswered ? '#ef4444' : '#aaa'};background:${isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f3f4f6'};color:${isCorrect ? '#166534' : isAnswered ? '#991b1b' : '#6b7280'};font-weight:bold;\">${value || '—'}</span>` + (!isCorrect ? `<span style=\"font-size:12px;color:#2563eb;display:block;\">Правильный: ${correct}</span>` : '');
+        const input = `<span style=\"display:inline-block;min-width:80px;padding:2px 6px;border-radius:6px;border:1px solid ${isCorrect ? '#22c55e' : isAnswered ? '#ef4444' : '#aaa'};background:${isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f3f4f6'};color:${isCorrect ? '#166534' : isAnswered ? '#991b1b' : '#6b7280'};font-weight:bold;\">${value || '—'}</span>` + (!isCorrect ? `<span style=\"font-size:12px;color:#2563eb;display:block;\">Correct: ${correct}</span>` : '');
         // Заменяем переносы строк на <br> для сохранения форматирования
         text = text.replace(`[[${gap.number}]]`, input);
       });
@@ -217,7 +214,7 @@ export function QuestionReview({ question }) {
                 {row.map((cell, colIdx) => cell.isAnswer ? (
                   <td key={colIdx} className={`p-2 border text-center align-middle`} style={{background: cell.is_correct ? '#dcfce7' : cell.is_answered ? '#fee2e2' : '#f3f4f6', borderColor: cell.is_correct ? '#22c55e' : cell.is_answered ? '#ef4444' : '#aaa'}}>
                     <div className="font-bold" style={{color: cell.is_correct ? '#166534' : cell.is_answered ? '#991b1b' : '#6b7280'}}>{cell.student_answer || '—'}</div>
-                    {!cell.is_correct && <div className="text-xs text-blue-700">Правильный: {cell.correct_answer}</div>}
+                    {!cell.is_correct && <div className="text-xs text-blue-700">Correct: {cell.correct_answer}</div>}
                   </td>
                 ) : (
                   <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">{cell.text}</td>
@@ -239,11 +236,11 @@ export function QuestionReview({ question }) {
         {question.options.map(opt => {
           let bg = '#f3f4f6', color = '#6b7280', note = '';
           if (opt.student_selected && opt.should_be_selected) {
-            bg = '#dcfce7'; color = '#166534'; note = 'Правильно';
+            bg = '#dcfce7'; color = '#166534'; note = 'Correct';
           } else if (opt.student_selected && !opt.should_be_selected) {
-            bg = '#fee2e2'; color = '#991b1b'; note = 'Не нужно было выбирать';
+            bg = '#fee2e2'; color = '#991b1b'; note = 'You did not need to select';
           } else if (!opt.student_selected && opt.should_be_selected) {
-            bg = '#fee2e2'; color = '#991b1b'; note = 'Нужно было выбрать';
+            bg = '#fee2e2'; color = '#991b1b'; note = 'You needed to select';
           }
           return (
             <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: bg, borderRadius: 6, padding: '2px 8px'}}>
@@ -267,7 +264,7 @@ export function QuestionReview({ question }) {
           <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: opt.is_correct ? '#dcfce7' : opt.student_selected ? '#fee2e2' : '#f3f4f6', borderRadius: 6, padding: '2px 8px'}}>
             <input type="radio" checked={opt.student_selected} disabled className="accent-blue-600" />
             <span className="font-medium" style={{color: opt.is_correct ? '#166534' : opt.student_selected ? '#991b1b' : '#6b7280'}}>{opt.label}. {opt.text}</span>
-            {!opt.is_correct && opt.should_be_selected && <span className="text-xs text-blue-700 ml-2">Правильный ответ</span>}
+            {!opt.is_correct && opt.should_be_selected && <span className="text-xs text-blue-700 ml-2">Correct answer</span>}
           </label>
         ))}
       </div>

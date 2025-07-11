@@ -30,7 +30,7 @@ const WritingPromptsAdminPage = () => {
       setPrompts(res.data);
     } catch (err) {
       console.error(err);
-      alert("Ошибка при загрузке заданий");
+      alert("Error loading prompts");
     }
   };
 
@@ -42,13 +42,13 @@ const WritingPromptsAdminPage = () => {
       fetchPrompts();
     } catch (err) {
       console.error(err);
-      alert("Ошибка при установке активного задания");
+      alert("Error setting active prompt");
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return alert("Введите текст задания");
+    if (!text.trim()) return alert("Enter prompt text");
 
     setLoading(true);
     const formData = new FormData();
@@ -79,7 +79,7 @@ const WritingPromptsAdminPage = () => {
 
     } catch (err) {
       console.error(err);
-      alert("Ошибка при сохранении: " + (err.response?.data?.detail || err.message));
+      alert("Error saving: " + (err.response?.data?.detail || err.message));
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ const WritingPromptsAdminPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Удалить задание?")) return;
+    if (!window.confirm("Delete prompt?")) return;
     try {
       await axios.delete(`/api/prompts/${id}/`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -108,7 +108,7 @@ const WritingPromptsAdminPage = () => {
       fetchPrompts();
     } catch (err) {
       console.error(err);
-      alert("Ошибка при удалении");
+      alert("Error deleting prompt");
     }
   };
 
@@ -116,7 +116,7 @@ const WritingPromptsAdminPage = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Управление заданиями Writing</h2>
+      <h2 className="text-2xl font-bold mb-6">Writing Prompts Management</h2>
 
       
       
