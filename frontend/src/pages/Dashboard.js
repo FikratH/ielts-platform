@@ -5,7 +5,7 @@ import { QuestionReview } from '../components/QuestionForm';
 
 export default function Dashboard() {
   const [essays, setEssays] = useState([]);
-  const [readingSessions, setReadingSessions] = useState([]);
+
   const [listeningSessions, setListeningSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -18,11 +18,8 @@ export default function Dashboard() {
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
-        const [essRes, readRes, listenRes] = await Promise.all([
+        const [essRes, listenRes] = await Promise.all([
           axios.get('http://localhost:8000/api/essays/', {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          axios.get('http://localhost:8000/api/reading/sessions/', {
             headers: { Authorization: `Bearer ${token}` },
           }),
           axios.get('http://localhost:8000/api/listening/sessions/', {
@@ -30,7 +27,6 @@ export default function Dashboard() {
           })
         ]);
         setEssays(essRes.data);
-        setReadingSessions(readRes.data);
         setListeningSessions(listenRes.data);
       } catch (err) {
         console.error('Ошибка при загрузке истории:', err);
@@ -51,21 +47,7 @@ export default function Dashboard() {
 
   const handleOpenDetails = async (item) => {
     setSelectedItem(item);
-    if (item.type === 'Reading') {
-      setDetailsLoading(true);
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:8000/api/reading/sessions/${item.item.id}/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setItemDetails(res.data);
-      } catch (err) {
-        console.error("Failed to load session details", err);
-        setItemDetails(null); 
-      } finally {
-        setDetailsLoading(false);
-      }
-    } else if (item.type === 'Listening') {
+ if (item.type === 'Listening') {
       setDetailsLoading(true);
       try {
         const token = localStorage.getItem('token');
@@ -97,13 +79,7 @@ export default function Dashboard() {
       score: e.overall_band || '-',
       item: e,
     })),
-    ...readingSessions.map(r => ({
-      type: 'Reading',
-      date: r.completed_at?.slice(0, 10),
-      task: r.test_title,
-      score: r.band_score || '-',
-      item: r,
-    })),
+
     ...listeningSessions.map(l => ({
       type: 'Listening',
       date: l.started_at ? l.started_at.slice(0, 10) : '-',
@@ -118,7 +94,6 @@ export default function Dashboard() {
   const getStats = () => {
     const scores = [
       ...essays.map(e => e.overall_band).filter(Boolean),
-      ...readingSessions.map(r => r.band_score).filter(Boolean),
       ...listeningSessions.map(l => l.score).filter(Boolean)
     ];
     const avg = scores.length ? (scores.reduce((a, b) => a + b) / scores.length).toFixed(1) : '-';
@@ -164,7 +139,7 @@ export default function Dashboard() {
               <td className="px-4 py-2">{h.task}</td>
               <td className="px-4 py-2 font-semibold">{h.score}</td>
               <td className="px-4 py-2 font-semibold">
-                {h.type === 'Listening' ? (h.item.band_score ?? '-') : h.type === 'Reading' ? (h.item.band_score ?? '-') : '-'}
+                {h.type === 'Listening' ? (h.item.band_score ?? '-') : '-'}
               </td>
               <td className="px-4 py-2">
                 <button
@@ -205,57 +180,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {selectedItem && selectedItem.type === 'Reading' && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Results: {selectedItem.item.test_title}</h3>
-              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
-            </div>
 
-            {detailsLoading ? (
-              <p>Loading details...</p>
-            ) : itemDetails ? (
-              <>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                    <div className="p-4 bg-blue-100 rounded-lg">
-                        <p className="text-sm text-blue-800">Correct Answers</p>
-                        <p className="text-2xl font-bold text-blue-900">{itemDetails.raw_score} / {itemDetails.total_questions}</p>
-                    </div>
-                    <div className="p-4 bg-purple-100 rounded-lg">
-                        <p className="text-sm text-purple-800">Band Score</p>
-                        <p className="text-2xl font-bold text-purple-900">{itemDetails.band_score}</p>
-                    </div>
-                </div>
-
-                <h3 className="mt-8 text-xl font-bold border-b pb-2 mb-4 text-gray-700">Detailed Analysis</h3>
-                <div className="space-y-4">
-                  {itemDetails.question_feedback && itemDetails.question_feedback.length > 0 ? (
-                    itemDetails.question_feedback.map((feedback, index) => (
-                      <div key={feedback.question_id} className={`p-4 border rounded-lg ${feedback.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                        <div className="flex justify-between items-start">
-                           <p className="font-semibold text-gray-800 pr-4">Question {index + 1}: {feedback.question_text}</p>
-                           {feedback.is_correct ? (
-                                <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full">Correct</span>
-                           ) : (
-                                <span className="flex-shrink-0 text-xs font-bold text-red-700 bg-red-200 px-2 py-1 rounded-full">Incorrect</span>
-                           )}
-                        </div>
-                         <div className="mt-2 text-sm">
-                             <p className="text-gray-600">Your answer: <span className={`font-medium ${feedback.is_correct ? 'text-green-800' : 'text-red-800'}`}>{feedback.user_answer || "No answer"}</span></p>
-                             {!feedback.is_correct && <p className="text-gray-600 mt-1">Correct answer: <span className="font-medium text-blue-800">{feedback.correct_answer}</span></p>}
-                         </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Detailed analysis not available.</p>
-                  )}
-                </div>
-              </>
-            ) : <p>Failed to load details.</p>}
-          </div>
-        </div>
-      )}
 
       {selectedItem && selectedItem.type === 'Listening' && (
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">

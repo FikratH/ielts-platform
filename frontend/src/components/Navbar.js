@@ -25,9 +25,10 @@ const Navbar = ({ role, setRole }) => {
     <>
       <Link to="/admin/dashboard" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Панель</Link>
       <Link to="/admin/assignments" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Сабмиты студентов</Link>
-      <Link to="/admin/reading" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Reading</Link>
+
       <Link to="/admin/prompts" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Writing</Link>
       <Link to="/admin/listening" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Listening</Link>
+      <Link to="/admin/reading" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans">Reading</Link>
       
     </>
   );

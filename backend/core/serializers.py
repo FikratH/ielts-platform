@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import ReadingTest, ReadingQuestion, AnswerOption, AnswerKey, Essay, WritingPrompt, ReadingPassage, ReadingTestSession, User, ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption, ListeningTestResult, ListeningTestClone, ListeningStudentAnswer
+from .models import (
+    Essay, WritingPrompt, User, 
+    ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, 
+    ListeningAnswerOption, ListeningTestResult, ListeningTestClone, ListeningStudentAnswer,
+    ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, 
+    ReadingTestSession, ReadingTestResult
+)
 import re
 import json
 
@@ -18,283 +24,12 @@ class EssaySerializer(serializers.ModelSerializer):
             'submitted_text': {'required': True},
         }
 
-class AnswerOptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AnswerOption
-        fields = ['label', 'text']
-
-
-class ReadingQuestionSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-    options = AnswerOptionSerializer(many=True, read_only=True)
-    correct_answer = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ReadingQuestion
-        fields = ['id', 'order', 'question_type', 'question_text', 'paragraph_ref', 'options', 'image', 'correct_answer']
-
-    def get_image(self, obj):
-        request = self.context.get('request', None)
-        if obj.image and hasattr(obj.image, 'url'):
-            if request is not None:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
-        return None
-
-    def get_correct_answer(self, obj):
-        try:
-            return AnswerKey.objects.get(question=obj).correct_answer
-        except AnswerKey.DoesNotExist:
-            return None
-
-
-class ReadingPassageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ReadingPassage
-        fields = ['text', 'created_at', 'updated_at']
-
-
-class ReadingTestSessionSerializer(serializers.ModelSerializer):
-    test_title = serializers.CharField(source='test.title', read_only=True)
-    student_id = serializers.CharField(source='user.student_id', read_only=True)
-    
-    class Meta:
-        model = ReadingTestSession
-        fields = ['id', 'test', 'test_title', 'student_id', 'started_at', 'completed_at', 
-                 'time_taken', 'band_score', 'raw_score', 'completed', 'answers']
-        read_only_fields = ['user', 'started_at', 'completed_at', 'band_score', 'raw_score', 'completed']
-
-
-class ReadingTestListSerializer(serializers.ModelSerializer):
-    has_attempted = serializers.SerializerMethodField()
-    is_active = serializers.BooleanField()
-
-    class Meta:
-        model = ReadingTest
-        fields = ['id', 'title', 'description', 'has_attempted', 'is_active']
-
-    def get_has_attempted(self, obj):
-        request = self.context.get('request')
-        if request:
-           
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            if auth_header.startswith('Bearer '):
-                from .firebase_config import verify_firebase_token
-                
-                id_token = auth_header.split(' ')[1]
-                decoded = verify_firebase_token(id_token)
-                if decoded:
-                    uid = decoded['uid']
-                    try:
-                        user = User.objects.get(uid=uid)
-                        return ReadingTestSession.objects.filter(
-                            test=obj,
-                            user=user,
-                            completed=True
-                        ).exists()
-                    except User.DoesNotExist:
-                        pass
-        return False
-
-
-class ReadingTestDetailSerializer(serializers.ModelSerializer):
-    questions = ReadingQuestionSerializer(many=True, read_only=True)
-    passage = ReadingPassageSerializer(read_only=True)
-    time_limit = serializers.IntegerField(default=60)   
-    is_active = serializers.BooleanField()
-
-    class Meta:
-        model = ReadingTest
-        fields = ['id', 'title', 'description', 'questions', 'passage', 'time_limit', 'is_active']
-
 class WritingPromptSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)
     class Meta:
         model = WritingPrompt
         fields = ['id', 'task_type', 'prompt_text', 'created_at', 'image', 'is_active']
 
-class AnswerOptionCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AnswerOption
-        fields = ['label', 'text']
-
-class ReadingQuestionCreateSerializer(serializers.ModelSerializer):
-    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
-    options = AnswerOptionCreateSerializer(many=True, required=False)
-    correct_answer = serializers.CharField(allow_blank=True, required=False)
-
-    class Meta:
-        model = ReadingQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer']
-
-class ReadingTestCreateSerializer(serializers.ModelSerializer):
-    questions = ReadingQuestionCreateSerializer(many=True)
-    passage = serializers.CharField(write_only=True, required=False)
-    passage_text = serializers.CharField(source='passage.text', read_only=True)
-
-    class Meta:
-        model = ReadingTest
-        fields = ['id', 'title', 'description', 'questions', 'passage', 'passage_text', 'time_limit']
-        extra_kwargs = {
-            'time_limit': {'required': False, 'default': 60}
-        }
-
-    def create(self, validated_data):
-        questions_data = validated_data.pop('questions')
-        passage_text = validated_data.pop('passage')
-        test = ReadingTest.objects.create(**validated_data)
-        ReadingPassage.objects.create(test=test, text=passage_text)
-        for q_data in questions_data:
-            options_data = q_data.pop('options', [])
-            image = q_data.pop('image', None)
-            correct_answer = q_data.pop('correct_answer', None)
-            question = ReadingQuestion.objects.create(test=test, image=image, **q_data)
-            for opt_data in options_data:
-                AnswerOption.objects.create(question=question, **opt_data)
-            if correct_answer:
-                AnswerKey.objects.create(question=question, correct_answer=correct_answer)
-        return test
-
-    def update(self, instance, validated_data):
-    
-        instance.title = validated_data.get('title', instance.title)
-        instance.description = validated_data.get('description', instance.description)
-        instance.time_limit = validated_data.get('time_limit', instance.time_limit)
-        
-       
-        passage_text = validated_data.get('passage')
-        if passage_text:
-            if hasattr(instance, 'passage'):
-                instance.passage.text = passage_text
-                instance.passage.save()
-            else:
-                ReadingPassage.objects.create(test=instance, text=passage_text)
-
-        instance.save()
-
-       
-        questions_data = validated_data.get('questions', [])
-        question_ids = [q_data.get('id') for q_data in questions_data if q_data.get('id')]
-
-        
-        for question in instance.questions.all():
-            if question.id not in question_ids:
-                question.delete()
-
-        for q_data in questions_data:
-            question_id = q_data.get('id')
-            options_data = q_data.pop('options', [])
-            correct_answer = q_data.pop('correct_answer', None)
-
-            if question_id:
-                
-                question = ReadingQuestion.objects.get(id=question_id, test=instance)
-                question.question_type = q_data.get('question_type', question.question_type)
-                question.question_text = q_data.get('question_text', question.question_text)
-                question.order = q_data.get('order', question.order)
-                question.save()
-            else:
-                
-                question = ReadingQuestion.objects.create(test=instance, **q_data)
-
-            
-            if correct_answer is not None:
-                AnswerKey.objects.update_or_create(question=question, defaults={'correct_answer': correct_answer})
-
-            
-            option_ids = [opt.get('id') for opt in options_data if opt.get('id')]
-            for option in question.options.all():
-                if option.id not in option_ids:
-                    option.delete()
-            
-            for opt_data in options_data:
-                option_id = opt_data.get('id')
-                if option_id:
-                    option = AnswerOption.objects.get(id=option_id, question=question)
-                    option.label = opt_data.get('label', option.label)
-                    option.text = opt_data.get('text', option.text)
-                    option.save()
-
-        return instance
-
-class ReadingQuestionUpdateSerializer(serializers.ModelSerializer):
-    image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
-    options = AnswerOptionCreateSerializer(many=True, required=False)
-    correct_answer = serializers.CharField(allow_blank=True, required=False)
-
-    class Meta:
-        model = ReadingQuestion
-        fields = ['question_type', 'question_text', 'order', 'options', 'image', 'correct_answer']
-
-    def update(self, instance, validated_data):
-        correct_answer = validated_data.pop('correct_answer', None)
-        instance = super().update(instance, validated_data)
-        if correct_answer is not None:
-            AnswerKey.objects.update_or_create(question=instance, defaults={'correct_answer': correct_answer})
-        return instance
-
-class ReadingTestSessionResultSerializer(serializers.ModelSerializer):
-    test_title = serializers.CharField(source='test.title', read_only=True)
-    student_id = serializers.CharField(source='user.student_id', read_only=True)
-    correct_answers = serializers.SerializerMethodField()
-    total_questions = serializers.SerializerMethodField()
-    question_feedback = serializers.SerializerMethodField()
-    time_taken = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ReadingTestSession
-        fields = [
-            'id', 'test', 'test_title', 'student_id', 'started_at', 'completed_at',
-            'time_taken', 'band_score', 'raw_score', 'completed', 'answers',
-            'correct_answers', 'total_questions', 'question_feedback'
-        ]
-        read_only_fields = ['user', 'started_at', 'completed_at', 'band_score', 'raw_score', 'completed']
-
-    def get_correct_answers(self, obj):
-        correct = 0
-        for q in obj.test.questions.all():
-            user_answer = obj.answers.get(f"{q.id}__", '').strip().upper()
-            try:
-                correct_answer = AnswerKey.objects.get(question=q).correct_answer.strip().upper()
-                if user_answer == correct_answer:
-                    correct += 1
-            except AnswerKey.DoesNotExist:
-                continue
-        return correct
-
-    def get_total_questions(self, obj):
-        return obj.test.questions.count()
-
-    def get_question_feedback(self, obj):
-        feedback = []
-        for question in obj.test.questions.all():
-            user_answer_text = obj.answers.get(f"{question.id}__", 'No Answer')
-            correct_answer_text = 'N/A'
-            is_correct = False
-            
-            try:
-                correct_answer_key = AnswerKey.objects.get(question=question)
-                correct_answer_text = correct_answer_key.correct_answer
-                
-                if user_answer_text.strip().lower() == correct_answer_text.strip().lower():
-                    is_correct = True
-
-            except AnswerKey.DoesNotExist:
-                
-                pass
-
-            feedback.append({
-                'question_id': question.id,
-                'question_text': question.question_text,
-                'user_answer': user_answer_text,
-                'correct_answer': correct_answer_text,
-                'is_correct': is_correct,
-                'question_type': question.question_type,
-            })
-        return feedback
-
-    def get_time_taken(self, obj):
-        return getattr(obj, 'time_taken', 0) or 0
 
 
 
@@ -349,15 +84,9 @@ class ListeningTestDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'time_limit', 'is_active']
 
 
-class ListeningAnswerOptionCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListeningAnswerOption
-        fields = ['id', 'label', 'text']
-
-
 class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
     image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
-    options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
+    options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
     question_text = serializers.CharField(required=False, allow_blank=True)
     points = serializers.IntegerField(required=False, default=1)
@@ -472,7 +201,7 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
 
 class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
     image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
-    options = ListeningAnswerOptionCreateSerializer(many=True, required=False)
+    options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
     correct_answer = serializers.CharField(allow_blank=True, required=False)
     question_text = serializers.CharField(required=False, allow_blank=True)
     points = serializers.IntegerField(required=False, default=1)
@@ -1214,3 +943,174 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active', 'is_staff', 'is_superuser'
         ]
         read_only_fields = ['id', 'uid', 'is_active', 'is_staff', 'is_superuser']
+
+# Reading Serializers - обновлённые для совместимости с фронтендом
+class ReadingAnswerOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReadingAnswerOption
+        fields = ['id', 'text', 'is_correct', 'label']
+
+class ReadingQuestionWriteSerializer(serializers.ModelSerializer):
+    answer_options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
+    
+    class Meta:
+        model = ReadingQuestion
+        fields = [
+            'id', 'order', 'question_text', 'question_type', 'points', 
+            'image_url', 'correct_answers', 'extra_data', 'answer_options'
+        ]
+
+class ReadingQuestionSerializer(serializers.ModelSerializer):
+    answer_options = ReadingAnswerOptionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ReadingQuestion
+        fields = [
+            'id', 'order', 'question_text', 'question_type', 'points', 
+            'image_url', 'correct_answers', 'extra_data', 'answer_options'
+        ]
+
+class ReadingPartWriteSerializer(serializers.ModelSerializer):
+    questions = ReadingQuestionWriteSerializer(many=True, required=False)
+    
+    class Meta:
+        model = ReadingPart
+        fields = [
+            'id', 'title', 'part_number', 'passage_text', 'passage_image_url',
+            'instructions', 'order', 'questions'
+        ]
+
+class ReadingPartSerializer(serializers.ModelSerializer):
+    questions = ReadingQuestionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ReadingPart
+        fields = [
+            'id', 'title', 'part_number', 'passage_text', 'passage_image_url',
+            'instructions', 'order', 'questions'
+        ]
+
+class ReadingTestSerializer(serializers.ModelSerializer):
+    parts = ReadingPartWriteSerializer(many=True, required=False)
+    
+    class Meta:
+        model = ReadingTest
+        fields = [
+            'id', 'title', 'description', 'time_limit', 
+            'total_points', 'is_active', 'created_at', 'parts'
+        ]
+    
+    def create(self, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        test = ReadingTest.objects.create(**validated_data)
+        
+        for part_data in parts_data:
+            questions_data = part_data.pop('questions', [])
+            part = ReadingPart.objects.create(test=test, **part_data)
+            
+            for question_data in questions_data:
+                answer_options_data = question_data.pop('answer_options', [])
+                question = ReadingQuestion.objects.create(part=part, **question_data)
+                
+                # Создаём answer_options для multiple choice/response
+                for idx, option_data in enumerate(answer_options_data):
+                    ReadingAnswerOption.objects.create(
+                        question=question,
+                        label=option_data.get('label', chr(65 + idx)),
+                        text=option_data.get('text', ''),
+                        is_correct=option_data.get('is_correct', False)
+                    )
+        
+        return test
+    
+    def update(self, instance, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        
+        # Обновляем основные поля теста
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Обновляем части
+        existing_parts = {p.part_number: p for p in instance.parts.all()}
+        sent_part_numbers = set()
+        
+        for part_data in parts_data:
+            part_number = part_data.get('part_number')
+            sent_part_numbers.add(part_number)
+            questions_data = part_data.pop('questions', [])
+            
+            part, created = instance.parts.get_or_create(
+                part_number=part_number, 
+                defaults={**part_data, 'test': instance}
+            )
+            if not created:
+                for attr, value in part_data.items():
+                    setattr(part, attr, value)
+                part.save()
+            
+            # Обновляем вопросы
+            existing_questions = {q.order: q for q in part.questions.all()}
+            sent_question_orders = set()
+            
+            for question_data in questions_data:
+                order = question_data.get('order')
+                sent_question_orders.add(order)
+                answer_options_data = question_data.pop('answer_options', [])
+                
+                question, created = part.questions.get_or_create(
+                    order=order,
+                    defaults={**question_data, 'part': part}
+                )
+                if not created:
+                    for attr, value in question_data.items():
+                        setattr(question, attr, value)
+                    question.save()
+                
+                # Обновляем answer_options
+                question.answer_options.all().delete()  # Удаляем старые
+                for idx, option_data in enumerate(answer_options_data):
+                    ReadingAnswerOption.objects.create(
+                        question=question,
+                        label=option_data.get('label', chr(65 + idx)),
+                        text=option_data.get('text', ''),
+                        is_correct=option_data.get('is_correct', False)
+                    )
+            
+            # Удаляем неотправленные вопросы
+            for order, question in existing_questions.items():
+                if order not in sent_question_orders:
+                    question.delete()
+        
+        # Удаляем неотправленные части
+        for part_number, part in existing_parts.items():
+            if part_number not in sent_part_numbers:
+                part.delete()
+        
+        return instance
+
+class ReadingTestReadSerializer(serializers.ModelSerializer):
+    parts = ReadingPartSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ReadingTest
+        fields = [
+            'id', 'title', 'description', 'time_limit', 
+            'total_points', 'is_active', 'created_at', 'parts'
+        ]
+
+class ReadingTestSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReadingTestSession
+        fields = [
+            'id', 'test', 'user', 'started_at', 'completed_at', 
+            'status', 'answers', 'time_left', 'submitted'
+        ]
+
+class ReadingTestResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReadingTestResult
+        fields = [
+            'id', 'session', 'raw_score', 'band_score', 
+            'breakdown', 'calculated_at'
+        ]

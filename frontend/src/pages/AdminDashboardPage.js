@@ -14,9 +14,7 @@ const AdminDashboardPage = () => {
         <Link to="/admin/assignments" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Поиск заданий студентов</h2>
         </Link>
-        <Link to="/admin/reading" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-xl font-bold text-gray-800">Управление Reading тестами</h2>
-        </Link>
+
         <Link to="/admin/prompts" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Управление Writing заданиями</h2>
         </Link>

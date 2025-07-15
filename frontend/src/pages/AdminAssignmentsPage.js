@@ -12,8 +12,6 @@ const AdminAssignmentsPage = () => {
   const handleSelect = (type) => {
     if (type === 'writing') {
       navigate('/admin/prompts');
-    } else if (type === 'reading') {
-      navigate('/admin/reading');
     } else if (type === 'listening') {
       navigate('/admin/listening');
     }
@@ -29,12 +27,7 @@ const AdminAssignmentsPage = () => {
         >
           Writing
         </button>
-        <button
-          onClick={() => handleSelect('reading')}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Reading
-        </button>
+
         <button
           onClick={() => handleSelect('listening')}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"

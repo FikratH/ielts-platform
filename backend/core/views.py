@@ -6,10 +6,9 @@ from .utils import CsrfExemptAPIView
 from .firebase_config import verify_firebase_token
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
-from .models import ReadingTest, ReadingQuestion, AnswerKey, ReadingTestSession, AnswerOption, ReadingPassage, ListeningTest, ListeningTestSession
+from .models import ListeningTest, ListeningTestSession
 from .serializers import (
-    ReadingTestListSerializer, ReadingTestDetailSerializer, EssaySerializer, WritingPromptSerializer,
-    ReadingTestSessionSerializer, ReadingPassageSerializer, ReadingTestCreateSerializer, ReadingQuestionSerializer, ReadingQuestionUpdateSerializer, ReadingTestSessionResultSerializer,
+    EssaySerializer, WritingPromptSerializer,
     ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer,
     ListeningTestSessionHistorySerializer
 )
@@ -48,11 +47,12 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import csv
-from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from .serializers import UserSerializer
 import firebase_admin
 from firebase_admin import auth as firebase_auth
+from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
+from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -66,12 +66,13 @@ class FirebaseLoginView(APIView):
             return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
 
         uid = decoded_token['uid']
+        email = decoded_token.get('email')
         role = request.data.get('role')
         student_id = request.data.get('student_id')
 
         user, created = User.objects.get_or_create(
             uid=uid,
-            defaults={'role': role, 'student_id': student_id}
+            defaults={'role': role, 'student_id': student_id, 'email': email}
         )
         if not user.student_id and student_id:
             user.student_id = student_id
@@ -81,7 +82,6 @@ class FirebaseLoginView(APIView):
             'message': 'Login successful',
             'uid': uid,
             'role': user.role,
-            'student_id': user.student_id
         })
 
 
@@ -232,164 +232,9 @@ class EssayDetailView(RetrieveAPIView):
         except User.DoesNotExist:
             return Essay.objects.none()
 
-class ReadingTestListView(ListAPIView):
-    serializer_class = ReadingTestListSerializer
-    permission_classes = [AllowAny]
 
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if auth_header.startswith('Bearer '):
-            id_token = auth_header.split(' ')[1]
-            decoded = verify_firebase_token(id_token)
-            if decoded:
-                uid = decoded['uid']
-                try:
-                    user = User.objects.get(uid=uid)
-                    if user.role == 'admin':
-                        return ReadingTest.objects.all()
-                except User.DoesNotExist:
-                    pass
-        return ReadingTest.objects.filter(is_active=True)
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
 
-class ReadingTestDetailView(RetrieveAPIView):
-    serializer_class = ReadingTestDetailSerializer
-    permission_classes = [AllowAny]
-    queryset = ReadingTest.objects.all()
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
-
-class StartReadingTestView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, pk):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        try:
-            test = ReadingTest.objects.get(pk=pk)
-        except ReadingTest.DoesNotExist:
-            return Response({"error": "Test not found"}, status=404)
-
-        existing_session = ReadingTestSession.objects.filter(
-            user=user,
-            test=test,
-            completed=False
-        ).first()
-
-        from .serializers import ReadingTestDetailSerializer
-        test_data = ReadingTestDetailSerializer(test).data
-
-        if existing_session:
-            return Response({
-                "session_id": existing_session.id,
-                "test": test_data,
-                "message": "Resuming existing session"
-            })
-
-        session = ReadingTestSession.objects.create(
-            user=user,
-            test=test
-        )
-
-        return Response({
-            "session_id": session.id,
-            "test": test_data,
-            "message": "New session started"
-        })
-
-class SubmitReadingTestView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, session_id):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        try:
-            session = ReadingTestSession.objects.get(id=session_id, user=user)
-        except ReadingTestSession.DoesNotExist:
-            return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
-
-        session.answers = request.data.get("answers", {})
-        session.completed = True
-        session.completed_at = timezone.now()
-        raw_score = session.calculate_score()
-        band_score = session.convert_to_band(raw_score)
-        session.raw_score = raw_score
-        session.band_score = band_score
-        session.save()
-        serializer = ReadingTestSessionResultSerializer(session, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-class ReadingTestSessionListView(ListAPIView):
-    serializer_class = ReadingTestSessionSerializer  # Исправлено: правильный сериализатор
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ReadingTestSession.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ReadingTestSession.objects.none()
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            return ReadingTestSession.objects.filter(
-                user=user,
-                completed=True
-            ).select_related('test')
-        except User.DoesNotExist:
-            return ReadingTestSession.objects.none()
-
-class ReadingTestSessionDetailView(RetrieveAPIView):
-    serializer_class = ReadingTestSessionResultSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ReadingTestSession.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ReadingTestSession.objects.none()
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            return ReadingTestSession.objects.filter(
-                user=user
-            ).select_related('test')
-        except User.DoesNotExist:
-            return ReadingTestSession.objects.none()
 
 class StartWritingSessionView(APIView):
     permission_classes = [AllowAny]
@@ -640,212 +485,7 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
         prompt.save()
         return Response({'message': 'Prompt activated', 'id': prompt.id})
 
-class ReadingTestCreateView(APIView):
-    permission_classes = [AllowAny]  
 
-    def post(self, request):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        test_data = {
-            'title': request.data.get('title'),
-            'description': request.data.get('description', ''),
-            'passage': request.data.get('passage')
-        }
-        test = ReadingTest.objects.create(
-            title=test_data['title'],
-            description=test_data['description']
-        )
-        if test_data['passage']:
-            ReadingPassage.objects.create(
-                test=test,
-                text=test_data['passage']
-            )
-        return Response({
-            'id': test.id, 
-            'message': 'Test created successfully. Now you can add questions.',
-            'test_id': test.id
-        }, status=201)
-
-class ReadingQuestionAddView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, test_id):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        try:
-            test = ReadingTest.objects.get(id=test_id)
-        except ReadingTest.DoesNotExist:
-            return Response({'error': 'Test not found'}, status=404)
-
-        question_data = {
-            'question_type': request.data.get('question_type'),
-            'question_text': request.data.get('question_text'),
-            'order': request.data.get('order'),
-            'paragraph_ref': request.data.get('paragraph_ref'),
-            'image': request.FILES.get('image'),
-            'test': test
-        }
-        question = ReadingQuestion.objects.create(**question_data)
-        options_json = request.data.get('options', '[]')
-        options_data = json.loads(options_json)
-        for opt_data in options_data:
-            AnswerOption.objects.create(
-                question=question,
-                label=opt_data.get('label'),
-                text=opt_data.get('text')
-            )
-        correct_answer = request.data.get('correct_answer')
-        if correct_answer:
-            AnswerKey.objects.create(
-                question=question,
-                correct_answer=correct_answer
-            )
-        return Response({
-            'message': 'Question added successfully',
-            'question_id': question.id
-        }, status=201)
-
-class ActivateReadingTestView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, pk):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
-        ReadingTest.objects.all().update(is_active=False)
-        test = ReadingTest.objects.get(pk=pk)
-        test.is_active = True
-        test.save()
-        return Response({'message': 'Test activated', 'id': test.id})
-
-class ReadingTestUpdateDeleteView(RetrieveUpdateDestroyAPIView):
-    queryset = ReadingTest.objects.all()
-    serializer_class = ReadingTestCreateSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ReadingTest.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ReadingTest.objects.none()
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return ReadingTest.objects.none()
-        except User.DoesNotExist:
-            return ReadingTest.objects.none()
-
-        return ReadingTest.objects.all()
-
-class ReadingQuestionUpdateDeleteView(RetrieveUpdateDestroyAPIView):
-    queryset = ReadingQuestion.objects.all()
-    serializer_class = ReadingQuestionUpdateSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ReadingQuestion.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ReadingQuestion.objects.none()
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return ReadingQuestion.objects.none()
-        except User.DoesNotExist:
-            return ReadingQuestion.objects.none()
-
-        return ReadingQuestion.objects.all()
-
-class AdminReadingSessionListView(ListAPIView):
-    serializer_class = ReadingTestSessionSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return ReadingTestSession.objects.none()
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return ReadingTestSession.objects.none()
-        try:
-            user = User.objects.get(uid=decoded['uid'])
-            if user.role != 'admin':
-                return ReadingTestSession.objects.none()
-        except User.DoesNotExist:
-            return ReadingTestSession.objects.none()
-        queryset = ReadingTestSession.objects.filter(completed=True).select_related('user', 'test').order_by('-completed_at')
-        student_id = self.request.query_params.get('student_id')
-        if student_id:
-            queryset = queryset.filter(user__student_id=student_id)
-        return queryset
-
-class AdminReadingSessionDetailView(RetrieveAPIView):
-    serializer_class = ReadingTestSessionResultSerializer
-    permission_classes = [AllowAny]
-    queryset = ReadingTestSession.objects.all()
-
-    def get_object(self):
-        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            raise PermissionDenied("No auth token provided.")
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            raise PermissionDenied("Invalid token.")
-        try:
-            user = User.objects.get(uid=decoded['uid'])
-            if user.role != 'admin':
-                raise PermissionDenied("You must be an admin to view this.")
-        except User.DoesNotExist:
-            raise PermissionDenied("User not found.")
-        return super().get_object()
 
 class ListeningTestListView(ListAPIView):
     serializer_class = ListeningTestListSerializer
@@ -1054,9 +694,9 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        instance = serializer.save()
         from .serializers import ListeningTestReadSerializer
-        read_serializer = ListeningTestReadSerializer(self.get_object())
+        read_serializer = ListeningTestReadSerializer(instance)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
@@ -1557,3 +1197,193 @@ class AdminStudentDetailView(RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
     queryset = User.objects.filter(role='student')
     lookup_field = 'id'
+
+# Reading Views - обновлённые для совместимости с фронтендом
+class ReadingTestViewSet(viewsets.ModelViewSet):
+    queryset = ReadingTest.objects.all().order_by('-created_at')
+    serializer_class = ReadingTestSerializer
+    permission_classes = [AllowAny]  # TODO: restrict to admin for write operations
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return ReadingTestReadSerializer
+        return ReadingTestSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        from .serializers import ReadingTestReadSerializer
+        read_serializer = ReadingTestReadSerializer(self.get_object())
+        return Response(read_serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        from .serializers import ReadingTestReadSerializer
+        read_serializer = ReadingTestReadSerializer(instance)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    def get_queryset(self):
+        return ReadingTest.objects.all().order_by('-created_at')
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        test = self.get_object()
+        test.is_active = True
+        test.save()
+        return Response({'message': 'Test activated successfully'})
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        test = self.get_object()
+        test.is_active = False
+        test.save()
+        return Response({'message': 'Test deactivated successfully'})
+
+
+class ReadingPartViewSet(viewsets.ModelViewSet):
+    queryset = ReadingPart.objects.all()
+    serializer_class = ReadingPartSerializer
+    permission_classes = [AllowAny]
+
+
+class ReadingQuestionViewSet(viewsets.ModelViewSet):
+    queryset = ReadingQuestion.objects.all()
+    serializer_class = ReadingQuestionSerializer
+    permission_classes = [AllowAny]
+
+
+class ReadingAnswerOptionViewSet(viewsets.ModelViewSet):
+    queryset = ReadingAnswerOption.objects.all()
+    serializer_class = ReadingAnswerOptionSerializer
+    permission_classes = [AllowAny]
+
+
+class ReadingTestSessionViewSet(viewsets.ModelViewSet):
+    queryset = ReadingTestSession.objects.all()
+    serializer_class = ReadingTestSessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return ReadingTestSession.objects.all()
+        return ReadingTestSession.objects.filter(student=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(student=self.request.user)
+
+
+class ReadingTestResultViewSet(viewsets.ModelViewSet):
+    queryset = ReadingTestResult.objects.all()
+    serializer_class = ReadingTestResultSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return ReadingTestResult.objects.all()
+        return ReadingTestResult.objects.filter(session__student=self.request.user)
+
+# Reading Test Session Views (для студентов)
+class ReadingTestSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, test_id):
+        """Начать тест"""
+        try:
+            test = ReadingTest.objects.get(id=test_id, is_active=True)
+            session, created = ReadingTestSession.objects.get_or_create(
+                test=test,
+                user=request.user,
+                submitted=False
+            )
+            
+            if created:
+                session.started_at = timezone.now()
+                session.save()
+            
+            return Response({
+                'session_id': session.id,
+                'test_title': test.title,
+                'time_limit': test.time_limit,
+                'total_parts': test.parts.count()
+            })
+        except ReadingTest.DoesNotExist:
+            return Response({'error': 'Test not found'}, status=404)
+
+    def put(self, request, session_id):
+        """Синхронизация сессии"""
+        try:
+            session = ReadingTestSession.objects.get(
+                id=session_id,
+                user=request.user,
+                submitted=False
+            )
+            
+            current_part = request.data.get('current_part', session.current_part)
+            current_question = request.data.get('current_question', session.current_question)
+            
+            session.current_part = current_part
+            session.current_question = current_question
+            session.save()
+            
+            return Response({'status': 'synced'})
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+    def patch(self, request, session_id):
+        """Завершить тест"""
+        try:
+            session = ReadingTestSession.objects.get(
+                id=session_id,
+                user=request.user,
+                submitted=False
+            )
+            
+            session.submitted = True
+            session.submitted_at = timezone.now()
+            session.save()
+            
+            # Создаём результат
+            result = ReadingTestResult.objects.create(
+                session=session,
+                total_points=session.test.total_points,
+                earned_points=0,  # Будет рассчитано позже
+                score_percentage=0,
+                completed_at=timezone.now(),
+                answers_data={}  # Будет заполнено позже
+            )
+            
+            return Response({
+                'result_id': result.id,
+                'status': 'submitted'
+            })
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+
+class ReadingTestResultView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        """Получить результат теста"""
+        try:
+            session = ReadingTestSession.objects.get(
+                id=session_id,
+                user=request.user,
+                submitted=True
+            )
+            
+            result = ReadingTestResult.objects.get(session=session)
+            
+            return Response({
+                'total_points': result.total_points,
+                'earned_points': result.earned_points,
+                'score_percentage': result.score_percentage,
+                'completed_at': result.completed_at
+            })
+        except (ReadingTestSession.DoesNotExist, ReadingTestResult.DoesNotExist):
+            return Response({'error': 'Result not found'}, status=404)

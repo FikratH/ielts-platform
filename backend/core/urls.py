@@ -5,22 +5,13 @@ from .views import (
     EssaySubmissionView,
     EssayListView,
     EssayDetailView,
-    ReadingTestListView,
-    ReadingTestDetailView,
+
     StartWritingSessionView,
     SubmitTaskView,
     FinishWritingSessionView,
     WritingPromptViewSet,
     AdminEssayListView,
-    StartReadingTestView,
-    SubmitReadingTestView,
-    ReadingTestSessionListView,
-    ReadingTestSessionDetailView,
-    ReadingTestCreateView,
-    ActivateReadingTestView,
-    ReadingTestUpdateDeleteView,
-    AdminReadingSessionListView,
-    AdminReadingSessionDetailView,
+
     ListeningTestViewSet,
     ListeningPartViewSet,
     ListeningQuestionViewSet,
@@ -35,7 +26,17 @@ from .views import (
     ListeningTestExportCSVView,
     AdminCreateStudentView,
     AdminStudentListView,
-    AdminStudentDetailView
+    AdminStudentDetailView,
+    
+    # Reading Views
+    ReadingTestViewSet,
+    ReadingPartViewSet,
+    ReadingQuestionViewSet,
+    ReadingAnswerOptionViewSet,
+    ReadingTestSessionViewSet,
+    ReadingTestResultViewSet,
+    ReadingTestSessionView,
+    ReadingTestResultView
 )
 
 router = DefaultRouter()
@@ -44,6 +45,14 @@ router.register(r'listening-tests', ListeningTestViewSet, basename='listening-te
 router.register(r'listening-parts', ListeningPartViewSet, basename='listening-part')
 router.register(r'listening-questions', ListeningQuestionViewSet, basename='listening-question')
 router.register(r'listening-clones', ListeningTestCloneViewSet, basename='listening-clone')
+
+# Reading URLs
+router.register(r'reading-tests', ReadingTestViewSet, basename='reading-test')
+router.register(r'reading-parts', ReadingPartViewSet, basename='reading-part')
+router.register(r'reading-questions', ReadingQuestionViewSet, basename='reading-question')
+router.register(r'reading-answer-options', ReadingAnswerOptionViewSet, basename='reading-answer-option')
+router.register(r'reading-test-sessions', ReadingTestSessionViewSet, basename='reading-test-session')
+router.register(r'reading-test-results', ReadingTestResultViewSet, basename='reading-test-result')
 
 urlpatterns = router.urls + [
     # Firebase Authentication
@@ -54,16 +63,7 @@ urlpatterns = router.urls + [
     path('essays/', EssayListView.as_view(), name='essay-list'),
     path('essays/<int:pk>/', EssayDetailView.as_view(), name='essay-detail'),
     
-    # Reading test endpoints
-    path('reading/tests/', ReadingTestListView.as_view(), name='reading-test-list'),
-    path('reading/tests/create/', ReadingTestCreateView.as_view(), name='reading-test-create'),
-    path('reading/tests/<int:pk>/', ReadingTestDetailView.as_view(), name='reading-test-detail'),
-    path('reading/tests/<int:pk>/start/', StartReadingTestView.as_view(), name='reading-test-start'),
-    path('reading/tests/<int:pk>/activate/', ActivateReadingTestView.as_view(), name='reading-test-activate'),
-    path('reading/tests/<int:pk>/update/', ReadingTestUpdateDeleteView.as_view(), name='reading-test-update-delete'),
-    path('reading/sessions/<int:session_id>/submit/', SubmitReadingTestView.as_view(), name='reading-test-submit'),
-    path('reading/sessions/', ReadingTestSessionListView.as_view(), name='reading-session-list'),
-    path('reading/sessions/<int:pk>/', ReadingTestSessionDetailView.as_view(), name='reading-session-detail'),
+
     
     # Writing session endpoints
     path('start-writing-session/', StartWritingSessionView.as_view(), name='start-writing-session'),
@@ -72,8 +72,7 @@ urlpatterns = router.urls + [
     
     # Admin endpoints
     path('admin/essays/', AdminEssayListView.as_view(), name='admin-essay-list'),
-    path('admin/reading-sessions/', AdminReadingSessionListView.as_view(), name='admin-reading-session-list'),
-    path('admin/reading-sessions/<int:pk>/', AdminReadingSessionDetailView.as_view(), name='admin-reading-session-detail'),
+
     path('admin/check/', AdminCheckView.as_view(), name='admin-check'),
     path('admin/audio/upload/', SecureAudioUploadView.as_view(), name='secure-audio-upload'),
     path('admin/image/upload/', AdminImageUploadView.as_view(), name='admin-image-upload'),
@@ -92,4 +91,10 @@ urlpatterns = router.urls + [
 
 urlpatterns += [
     path('admin/listening-test/<int:test_id>/export-csv/', ListeningTestExportCSVView.as_view(), name='listening-test-export-csv'),
+    
+    # Reading test session endpoints
+    path('reading-tests/<int:test_id>/start/', ReadingTestSessionView.as_view(), name='reading-session-start'),
+    path('reading-sessions/<int:session_id>/sync/', ReadingTestSessionView.as_view(), name='reading-session-sync'),
+    path('reading-sessions/<int:session_id>/submit/', ReadingTestSessionView.as_view(), name='reading-session-submit'),
+    path('reading-sessions/<int:session_id>/result/', ReadingTestResultView.as_view(), name='reading-session-result'),
 ]
