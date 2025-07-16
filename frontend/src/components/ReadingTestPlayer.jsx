@@ -79,7 +79,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setIsLoading(false);
         }
     };
-    
+
     const handleAnswerChange = (questionId, subKey, value, type = 'text') => {
         const qIdStr = questionId.toString();
         
@@ -104,13 +104,25 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         });
     };
 
+    const goToNextPart = () => {
+        if (test && currentPartIndex < test.parts.length - 1) {
+            setCurrentPartIndex(currentPartIndex + 1);
+        }
+    };
+
+    const goToPreviousPart = () => {
+        if (currentPartIndex > 0) {
+            setCurrentPartIndex(currentPartIndex - 1);
+        }
+    };
+
     const submitTest = async () => {
         if (!session || isSubmitting) return;
         setIsSubmitting(true);
         
         try {
           const response = await axios.put(`/api/reading-sessions/${session.id}/submit/`, { 
-              answers,
+              answers, 
           });
           
           if (response.status === 200) {
@@ -121,8 +133,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
           console.error("Submit error:", err.response?.data || err);
           setIsSubmitting(false);
         }
-    };
-
+      };
+    
     const currentPart = test?.parts?.[currentPartIndex];
 
     const renderQuestion = (question) => {
@@ -240,7 +252,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
 
         // --- Table Completion ---
-        if (type === 'table' && question.extra_data && question.extra_data.headers && question.extra_data.rows) {
+        if (['table', 'table_completion'].includes(type) && question.extra_data && question.extra_data.headers && question.extra_data.rows) {
             const { headers, rows } = question.extra_data;
             return (
                  <div key={question.id} className="mb-6">
@@ -347,85 +359,84 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 </div>
             );
         }
-
+        
         // --- Fallback for unknown question types ---
-        return (
-            <div key={question.id} className="mb-6 p-4 bg-yellow-100 rounded-lg">
-                {headerBlock}
-                <p>{question.question_text}</p>
-                <p className="text-sm text-red-600 mt-2">
-                    This question type ({question.question_type}) is not fully supported yet.
-                </p>
-            </div>
-        );
+        return <div key={question.id} className="p-4 bg-yellow-100 rounded-md">Unsupported question type: {question.question_type}</div>;
     };
 
-    // --- Main Render ---
 
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-screen"><p>Loading Test...</p></div>;
-    }
-
-    if (error) {
-        return <div className="flex justify-center items-center h-screen text-red-500"><p>{error}</p></div>;
-    }
-
-    if (!test || !currentPart) {
-        return <div className="flex justify-center items-center h-screen">Test data is missing.</div>;
-    }
+    if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="text-lg font-semibold text-gray-600">Loading test session...</div></div>;
+    if (error) return <div className="flex items-center justify-center min-h-screen bg-gray-100"><div className="p-8 bg-red-100 text-red-700 rounded-lg shadow-md">Error: {error}</div></div>;
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50 font-sans">
-            {/* --- Header Bar --- */}
-            <header className="flex items-center justify-between p-3 bg-white shadow-md z-10 w-full">
-                <div className="flex items-center gap-4">
-                     <button 
-                        onClick={() => { if(window.confirm('Are you sure you want to go back? Your progress will be saved.')) navigate('/reading'); }}
-                        className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-                    >
-                        Back to Tests
-                    </button>
-                    {(test?.parts?.length > 1) && test.parts.map((part, index) => (
-                        <button 
-                            key={part.id}
+        <div className="bg-gray-50 min-h-screen font-sans p-2 sm:p-4">
+            <div className="container mx-auto">
+                {/* Header: Title and Timer */}
+                <div className="flex justify-between items-center mb-2">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">{test?.title || 'Reading Test'}</h1>
+                        <p className="text-gray-500">Part {currentPartIndex + 1} of {test?.parts?.length || 0}</p>
+                    </div>
+                        <ReadingTimer timeLeft={timeLeft} />
+                </div>
+
+                {/* Main Content Card */}
+                <div className="bg-white rounded-xl shadow-lg flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 80px)' }}>
+                    { !test || !currentPart ? (
+                        <div className="text-center p-8 w-full">Loading test data...</div>
+                    ) : (
+                        <>
+                            {/* Left Column: Passage */}
+                            <div className="w-full lg:w-5/12 border-b lg:border-b-0 lg:border-r border-gray-200 p-10 flex flex-col">
+                                <h2 className="text-xl font-bold mb-4 flex-shrink-0">Passage</h2>
+                                <div className="overflow-y-auto flex-grow">
+                                     <div className="prose max-w-none prose-xl text-lg leading-relaxed" dangerouslySetInnerHTML={{ __html: currentPart.passage_text?.replace(/\n/g, '<br />') }} />
+                                </div>
+                            </div>
+
+                            {/* Right Column: Questions and Navigation */}
+                            <div className="w-full lg:w-7/12 p-10 flex flex-col">
+                                {/* Part Navigation Tabs */}
+                                <div className="flex-shrink-0 border-b border-gray-200 mb-4">
+                                    <nav className="-mb-px flex space-x-6">
+                                        {test.parts.map((part, index) => (
+                            <button
+                                                key={part.id}
                             onClick={() => setCurrentPartIndex(index)}
-                            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${currentPartIndex === index ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}
-                        >
-                            Part {part.part_number}
-                        </button>
-                    ))}
-                </div>
-                
-                <ReadingTimer timeLeft={timeLeft} />
+                                                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                currentPartIndex === index
+                                                        ? 'border-blue-500 text-blue-600'
+                                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                            >
+                                                Part {part.part_number}
+                            </button>
+                        ))}
+                                    </nav>
+            </div>
 
-                <button 
-                    onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
-                    disabled={isSubmitting}
-                    className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400"
-                >
-                    {isSubmitting ? 'Submitting...' : 'Finish Test'}
-                </button>
-            </header>
-
-            {/* --- Main Content --- */}
-            <main className="flex-grow flex flex-row overflow-hidden">
-                {/* Left Panel: Passage */}
-                <div className="w-1/2 overflow-y-auto p-6 bg-white border-r">
-                    <h2 className="text-2xl font-bold mb-2">{currentPart.title}</h2>
-                    <p className="text-sm text-gray-500 italic mb-4">{currentPart.instructions}</p>
-                    <div 
-                        className="prose max-w-none" 
-                        style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}
-                        dangerouslySetInnerHTML={{ __html: currentPart.passage_text }}
-                    />
+                                {/* Questions Area */}
+                                <div className="overflow-y-auto flex-grow text-lg">
+                                    <div className="space-y-8">
+                                        {currentPart.questions.map(renderQuestion)}
                 </div>
+                                </div>
 
-                {/* Right Panel: Questions */}
-                <div className="w-1/2 overflow-y-auto p-6">
-                    <h2 className="text-2xl font-bold mb-4">Questions</h2>
-                    {currentPart.questions.map(renderQuestion)}
+                                {/* Submit Button Area */}
+                                <div className="flex-shrink-0 pt-6 mt-auto">
+                                    <button
+                                        onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
+                                        disabled={isSubmitting}
+                                        className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all disabled:bg-gray-400"
+                                    >
+                                        {isSubmitting ? 'Submitting...' : 'Submit Test'}
+                                    </button>
+                                </div>
+                                </div>
+                            </>
+                        )}
                 </div>
-            </main>
+            </div>
         </div>
     );
 };
