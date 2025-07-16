@@ -1283,86 +1283,250 @@ class ReadingTestResultViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_staff:
-            return ReadingTestResult.objects.all()
-        return ReadingTestResult.objects.filter(session__student=self.request.user)
+        return ReadingTestResult.objects.filter(session__user=self.request.user)
 
-# Reading Test Session Views (для студентов)
 class ReadingTestSessionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, test_id):
-        """Начать тест"""
-        try:
-            test = ReadingTest.objects.get(id=test_id, is_active=True)
-            session, created = ReadingTestSession.objects.get_or_create(
-                test=test,
-                user=request.user,
-                submitted=False
-            )
+        """
+        Start a new test session.
+        """
+        test = get_object_or_404(ReadingTest, pk=test_id)
+        
+        # Instead of get_or_create, fetch the latest incomplete session or create a new one
+        session = ReadingTestSession.objects.filter(
+            user=request.user,
+            test=test,
+            completed=False
+        ).order_by('-start_time').first()
+
+        if not session:
+            session = ReadingTestSession.objects.create(user=request.user, test=test)
             
-            if created:
-                session.started_at = timezone.now()
-                session.save()
-            
-            return Response({
-                'session_id': session.id,
-                'test_title': test.title,
-                'time_limit': test.time_limit,
-                'total_parts': test.parts.count()
-            })
-        except ReadingTest.DoesNotExist:
-            return Response({'error': 'Test not found'}, status=404)
+        serializer = ReadingTestSessionSerializer(session)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, session_id):
-        """Синхронизация сессии"""
-        try:
-            session = ReadingTestSession.objects.get(
-                id=session_id,
-                user=request.user,
-                submitted=False
-            )
-            
-            current_part = request.data.get('current_part', session.current_part)
-            current_question = request.data.get('current_question', session.current_question)
-            
-            session.current_part = current_part
-            session.current_question = current_question
-            session.save()
-            
-            return Response({'status': 'synced'})
-        except ReadingTestSession.DoesNotExist:
-            return Response({'error': 'Session not found'}, status=404)
+        """
+        Submit answers for a session (finish test).
+        """
+        session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
+        if session.completed:
+            return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        answers_data = request.data.get('answers', {})
+        session.answers = answers_data
+        session.end_time = timezone.now()
+        session.completed = True
+        session.save()
+        
+        # Trigger result calculation
+        result = self._calculate_and_save_results(session)
+
+        return Response(ReadingTestResultSerializer(result).data, status=status.HTTP_200_OK)
 
     def patch(self, request, session_id):
-        """Завершить тест"""
-        try:
-            session = ReadingTestSession.objects.get(
-                id=session_id,
-                user=request.user,
-                submitted=False
-            )
+        """
+        Sync answers periodically.
+        """
+        session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
+        if session.completed:
+            return Response({'error': 'Cannot sync a completed session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        answers_data = request.data.get('answers', {})
+        
+        if not isinstance(session.answers, dict):
+            session.answers = {}
             
-            session.submitted = True
-            session.submitted_at = timezone.now()
-            session.save()
+        session.answers.update(answers_data)
+        session.save()
+
+        return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
+
+    def _calculate_and_save_results(self, session):
+        student_answers = session.answers
+        test = session.test
+        
+        raw_score = 0
+        total_score = 0
+        breakdown = {'parts': []}
+
+        def normalize_answer(answer):
+            if not isinstance(answer, str):
+                return ""
+            return answer.strip().lower()
+
+        for part in test.parts.all().order_by('part_number'):
+            part_breakdown = {
+                'part_number': part.part_number,
+                'part_title': part.title,
+                'questions': []
+            }
+            for question in part.questions.all().order_by('order'):
+                q_id_str = str(question.id)
+                q_points = 0
+                q_possible_points = 0
+                q_breakdown = {
+                    'question_id': q_id_str,
+                    'question_text': question.question_text,
+                    'question_type': question.question_type,
+                    'sub_questions': []
+                }
+
+                if question.question_type == 'multiple_choice':
+                    q_possible_points = 1  # Standard 1 point
+                    correct_option = question.answer_options.filter(is_correct=True).first()
+                    student_answer_text = student_answers.get(q_id_str, {}).get('text')
+                    is_correct = correct_option and normalize_answer(student_answer_text) == normalize_answer(correct_option.text)
+                    if is_correct:
+                        q_points = 1
+                    
+                    q_breakdown['sub_questions'].append({
+                        'user_answer': student_answer_text,
+                        'correct_answer': correct_option.text if correct_option else 'N/A',
+                        'is_correct': is_correct,
+                        'points_earned': q_points,
+                    })
+
+                elif question.question_type in ['gap_fill', 'table']:
+                     # Logic for gap-fill and table is similar: 1 point per correct gap
+                    gaps = []
+                    if question.question_type == 'gap_fill':
+                        gaps = question.correct_answers or []
+                    elif question.question_type == 'table' and question.extra_data.get('rows'):
+                        for r_idx, row in enumerate(question.extra_data['rows']):
+                            for c_idx, cell in enumerate(row):
+                                if isinstance(cell, dict) and cell.get('type') == 'gap':
+                                    gaps.append({
+                                        'id': f"r{r_idx}c{c_idx}",
+                                        'answer': cell.get('answer', '')
+                                    })
+                    
+                    for gap in gaps:
+                        q_possible_points += 1
+                        gap_id = gap.get('id', str(len(q_breakdown['sub_questions']) + 1))
+                        student_ans = student_answers.get(q_id_str, {}).get(gap_id, "")
+                        correct_ans = gap.get('answer', '')
+                        is_correct = normalize_answer(student_ans) == normalize_answer(correct_ans)
+                        points_earned = 1 if is_correct else 0
+                        q_points += points_earned
+                        q_breakdown['sub_questions'].append({
+                            'id': gap_id,
+                            'user_answer': student_ans,
+                            'correct_answer': correct_ans,
+                            'is_correct': is_correct,
+                            'points_earned': points_earned
+                        })
+                
+                elif question.question_type == 'multiple_response':
+                    correct_options = question.answer_options.filter(is_correct=True)
+                    student_answer_options = student_answers.get(q_id_str, []) # Expecting a list of texts
+                    
+                    q_possible_points = question.points
+                    points_per_correct_answer = q_possible_points / correct_options.count() if correct_options.count() > 0 else 0
+                    
+                    correctly_selected_count = 0
+                    
+                    correct_option_texts = {normalize_answer(opt.text) for opt in correct_options}
+                    student_answer_texts = {normalize_answer(txt) for txt in student_answer_options}
+
+                    for student_ans_text in student_answer_texts:
+                        if student_ans_text in correct_option_texts:
+                            correctly_selected_count += 1
+                    
+                    q_points = correctly_selected_count * points_per_correct_answer
+
+                    q_breakdown['sub_questions'].append({
+                        'user_answers': student_answer_options,
+                        'correct_answers': [opt.text for opt in correct_options],
+                        'is_correct': q_points == q_possible_points,
+                        'points_earned': q_points,
+                    })
+
+                elif question.question_type == 'matching':
+                    match_questions = question.extra_data.get('questions', [])
+                    correct_answers = question.extra_data.get('answers', [])
+                    for q_idx, q_text in enumerate(match_questions):
+                        q_possible_points += 1
+                        sub_key = f"match{q_idx}"
+                        student_ans = student_answers.get(q_id_str, {}).get(sub_key, "")
+                        correct_ans = correct_answers[q_idx] if q_idx < len(correct_answers) else None
+                        is_correct = student_ans is not None and correct_ans is not None and normalize_answer(student_ans) == normalize_answer(correct_ans)
+                        points_earned = 1 if is_correct else 0
+                        q_points += points_earned
+                        q_breakdown['sub_questions'].append({
+                            'id': sub_key,
+                            'question_text': q_text,
+                            'user_answer': student_ans,
+                            'correct_answer': correct_ans,
+                            'is_correct': is_correct,
+                            'points_earned': points_earned
+                        })
+                
+                elif question.question_type == 'true_false_not_given':
+                    statements = question.extra_data.get('statements', [])
+                    correct_answers = question.extra_data.get('answers', [])
+                    for s_idx, s_text in enumerate(statements):
+                        q_possible_points += 1
+                        sub_key = f"stmt{s_idx}"
+                        student_ans = student_answers.get(q_id_str, {}).get(sub_key, "")
+                        correct_ans = correct_answers[s_idx] if s_idx < len(correct_answers) else None
+                        is_correct = student_ans is not None and correct_ans is not None and normalize_answer(student_ans) == normalize_answer(correct_ans)
+                        points_earned = 1 if is_correct else 0
+                        q_points += points_earned
+                        q_breakdown['sub_questions'].append({
+                            'id': sub_key,
+                            'question_text': s_text,
+                            'user_answer': student_ans,
+                            'correct_answer': correct_ans,
+                            'is_correct': is_correct,
+                            'points_earned': points_earned
+                        })
+
+
+                raw_score += q_points
+                total_score += q_possible_points
+                q_breakdown['points_earned'] = q_points
+                q_breakdown['points_possible'] = q_possible_points
+                part_breakdown['questions'].append(q_breakdown)
             
-            # Создаём результат
-            result = ReadingTestResult.objects.create(
-                session=session,
-                total_points=session.test.total_points,
-                earned_points=0,  # Будет рассчитано позже
-                score_percentage=0,
-                completed_at=timezone.now(),
-                answers_data={}  # Будет заполнено позже
-            )
-            
-            return Response({
-                'result_id': result.id,
-                'status': 'submitted'
-            })
-        except ReadingTestSession.DoesNotExist:
-            return Response({'error': 'Session not found'}, status=404)
+            breakdown['parts'].append(part_breakdown)
+        
+        # --- Band Score Calculation ---
+        def get_reading_band_score(rs, tq=40):
+            # Approximate IELTS band score conversion
+            if tq != 40: # Scale score to be out of 40 for band conversion
+                rs = (rs / tq) * 40 if tq > 0 else 0
+            if rs >= 39: return 9.0
+            if rs >= 37: return 8.5
+            if rs >= 35: return 8.0
+            if rs >= 33: return 7.5
+            if rs >= 30: return 7.0
+            if rs >= 27: return 6.5
+            if rs >= 23: return 6.0
+            if rs >= 19: return 5.5
+            if rs >= 15: return 5.0
+            if rs >= 13: return 4.5
+            if rs >= 10: return 4.0
+            if rs >= 6: return 3.5
+            if rs >= 4: return 3.0
+            return 2.5
+        
+        band_score = get_reading_band_score(raw_score, total_score)
+        time_taken = session.end_time - session.start_time if session.end_time and session.start_time else None
+
+        result, created = ReadingTestResult.objects.update_or_create(
+            session=session,
+            defaults={
+                'raw_score': raw_score,
+                'total_score': total_score,
+                'band_score': band_score,
+                'breakdown': breakdown,
+                'time_taken': time_taken,
+            }
+        )
+        return result
 
 
 class ReadingTestResultView(APIView):
@@ -1380,10 +1544,12 @@ class ReadingTestResultView(APIView):
             result = ReadingTestResult.objects.get(session=session)
             
             return Response({
-                'total_points': result.total_points,
-                'earned_points': result.earned_points,
-                'score_percentage': result.score_percentage,
-                'completed_at': result.completed_at
+                'test_title': session.test.title,
+                'raw_score': result.raw_score,
+                'band_score': result.band_score,
+                'total_questions': session.total_questions_count,
+                'breakdown': result.breakdown,
+                'completed_at': result.calculated_at
             })
         except (ReadingTestSession.DoesNotExist, ReadingTestResult.DoesNotExist):
             return Response({'error': 'Result not found'}, status=404)

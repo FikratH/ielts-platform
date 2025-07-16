@@ -182,6 +182,9 @@ class ReadingPart(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['order']
+
 class ReadingQuestion(models.Model):
     part = models.ForeignKey(ReadingPart, related_name='questions', on_delete=models.CASCADE)
     order = models.PositiveIntegerField()
@@ -197,6 +200,9 @@ class ReadingQuestion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['order']
+
 class ReadingAnswerOption(models.Model):
     question = models.ForeignKey(ReadingQuestion, related_name='answer_options', on_delete=models.CASCADE)
     label = models.CharField(max_length=16)
@@ -207,23 +213,25 @@ class ReadingAnswerOption(models.Model):
 class ReadingTestSession(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     test = models.ForeignKey(ReadingTest, on_delete=models.CASCADE)
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=32, default='in_progress')
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    completed = models.BooleanField(default=False)
     answers = models.JSONField(default=dict, blank=True)  # {question_id: answer, ...}
-    flagged = models.JSONField(default=dict, blank=True)
-    time_left = models.IntegerField(default=3600)  # 60 минут
-    score = models.FloatField(null=True, blank=True)
-    correct_answers_count = models.IntegerField(default=0)
-    total_questions_count = models.IntegerField(default=0)
-    band_score = models.FloatField(null=True, blank=True)
-    submitted = models.BooleanField(default=False)
+    time_left_seconds = models.IntegerField(default=3600)  # 60 минут
+
+    def __str__(self):
+        return f"Reading Session for {self.user.email} on {self.test.title}"
 
 class ReadingTestResult(models.Model):
-    session = models.OneToOneField(ReadingTestSession, on_delete=models.CASCADE)
-    raw_score = models.IntegerField(default=0)
+    session = models.OneToOneField(ReadingTestSession, on_delete=models.CASCADE, related_name='result')
+    raw_score = models.FloatField(default=0)
+    total_score = models.FloatField(default=0)
     band_score = models.FloatField(default=0)
-    breakdown = models.JSONField(default=dict, blank=True)  # Per-question feedback
+    breakdown = models.JSONField(default=dict, blank=True)
     calculated_at = models.DateTimeField(auto_now_add=True)
+    time_taken = models.DurationField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Result for session {self.session.id} - Score: {self.raw_score}/{self.total_score}"
 
 

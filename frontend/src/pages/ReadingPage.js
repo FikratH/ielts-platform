@@ -91,10 +91,6 @@ const ReadingPage = () => {
                                     <span className="font-bold text-gray-700 block">{test.time_limit}</span>
                                     <span>Minutes</span>
                                 </div>
-                                <div>
-                                    <span className="font-bold text-gray-700 block">{test.total_points}</span>
-                                    <span>Points</span>
-                                </div>
                             </div>
                             
                             <button 

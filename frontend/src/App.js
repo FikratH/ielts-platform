@@ -26,6 +26,7 @@ import AdminStudentsPage from './pages/AdminStudentsPage';
 import ReadingPage from './pages/ReadingPage';
 import AdminReadingPage from './pages/AdminReadingPage';
 import AdminReadingTestBuilderPage from './pages/AdminReadingTestBuilderPage';
+import ReadingResultPage from './pages/ReadingResultPage';
 
 
 const MainLayout = ({ role, setRole, children }) => {
@@ -92,14 +93,17 @@ function App() {
           <Route path="/admin/listening/builder/new" element={<AdminListeningTestBuilderPage />} />
           <Route path="/admin/listening/builder/:testId" element={<AdminListeningTestBuilderPage />} />
           <Route path="/admin/students" element={<AdminStudentsPage />} />
+          <Route path="/listening-sessions/:sessionId/result" element={<StudentSubmissionView />} />
           
           {/* Reading Routes */}
           <Route path="/reading" element={<ReadingPage />} />
+          <Route path="/reading-test/:id" element={<ListeningTestPlayerPage />} />
+          <Route path="/reading-result/:sessionId" element={<ReadingResultPage />} />
           <Route path="/admin/reading" element={<AdminReadingPage />} />
           <Route path="/admin/reading/builder/new" element={<AdminReadingTestBuilderPage />} />
           <Route path="/admin/reading/builder/:testId" element={<AdminReadingTestBuilderPage />} />
-          
-      </Routes>
+          <Route path="/admin/reading/edit/:testId" element={<AdminReadingTestBuilderPage />} />
+        </Routes>
       </MainLayout>
     </Router>
   );

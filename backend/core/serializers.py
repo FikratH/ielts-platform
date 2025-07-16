@@ -46,10 +46,21 @@ class ListeningTestSessionSerializer(serializers.ModelSerializer):
 class ListeningTestListSerializer(serializers.ModelSerializer):
     has_attempted = serializers.SerializerMethodField()
     is_active = serializers.BooleanField()
+    parts_count = serializers.SerializerMethodField()
+    time_limit = serializers.SerializerMethodField()
 
     class Meta:
         model = ListeningTest
-        fields = ['id', 'title', 'description', 'has_attempted', 'is_active']
+        fields = ['id', 'title', 'description', 'has_attempted', 'is_active', 'parts_count', 'time_limit']
+
+    def get_parts_count(self, obj):
+        return obj.parts.count()
+
+    def get_time_limit(self, obj):
+        # Assuming time_limit is stored on the test model. If not, this needs adjustment.
+        # Let's say we calculate it based on parts or have a default.
+        # For now, let's look for a `time_limit` attribute, or default to 30.
+        return getattr(obj, 'time_limit', 30)
 
     def get_has_attempted(self, obj):
         request = self.context.get('request')
@@ -373,140 +384,145 @@ def create_detailed_breakdown(session):
 def get_test_render_structure(self, obj):
     """
     Возвращает структуру для рендера теста (как на тесте) для вкладки "Подробнее"
+    Это универсальная функция для Listening и Reading.
     """
     result = []
     session = obj
     answers = session.answers or {}
     test = session.test
-    for part in test.parts.all():
+    
+    module = 'listening' if hasattr(test, 'listeningpart_set') or isinstance(test, ListeningTest) else 'reading'
+
+    parts_query = test.parts.all().order_by('part_number')
+
+    for part in parts_query:
         part_data = {
             'part_number': part.part_number,
-            'instructions': part.instructions,
+            'title': getattr(part, 'title', ''),
+            'passage_text': getattr(part, 'passage_text', ''),
+            'instructions': part.instructions if module == 'listening' else getattr(part, 'instructions', ''),
             'questions': []
         }
-        for q in part.questions.all():
+
+        for q in part.questions.all().order_by('order'):
             q_data = {
                 'id': q.id,
                 'type': q.question_type,
                 'header': q.header,
                 'instruction': q.instruction,
-                'image': q.image,
+                'image': getattr(q, 'image_url', None) or getattr(q, 'image', None),
+                'question_text': q.question_text,
+                'sub_questions': []
             }
-            # GAP FILL
-            if q.question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
+            
+            # --- Multiple Choice ---
+            if q.question_type in ['multiple_choice', 'multiplechoice']:
+                user_answer = answers.get(str(q.id))
+                correct_option = None
+                options = []
+
+                # Reading has answer_options, Listening has options
+                options_qs = q.answer_options.all() if hasattr(q, 'answer_options') else q.options.all()
+
+                for opt in options_qs:
+                    is_correct = opt.is_correct if hasattr(opt, 'is_correct') else (q.correct_answers and str(opt.id) in q.correct_answers)
+                    if is_correct:
+                        correct_option = opt.label
+                    options.append({
+                        'label': opt.label,
+                        'text': opt.text
+                    })
+                
+                is_answered_correctly = (user_answer == correct_option)
+
+                q_data['sub_questions'].append({
+                    'type': 'mcq_single',
+                    'student_answer': user_answer,
+                    'correct_answer': correct_option,
+                    'is_correct': is_answered_correctly,
+                    'options': options,
+                })
+            
+            # --- Multiple Response ---
+            elif q.question_type == 'multiple_response':
+                user_answers = answers.get(str(q.id), {}) # e.g., {'A': true, 'C': true}
+                sub_questions = []
+                
+                options_qs = q.answer_options.all()
+                all_correct = True
+                
+                for opt in options_qs:
+                    is_correct_option = opt.is_correct
+                    was_selected_by_user = user_answers.get(opt.label, False)
+                    
+                    if is_correct_option != was_selected_by_user:
+                        all_correct = False
+
+                    sub_questions.append({
+                        'label': opt.label,
+                        'text': opt.text,
+                        'student_selected': was_selected_by_user,
+                        'is_correct_option': is_correct_option,
+                    })
+
+                q_data['sub_questions'].append({
+                    'type': 'multiple_response',
+                    'is_correct': all_correct, # The whole group is correct only if all choices are right
+                    'options': sub_questions
+                })
+
+            # --- Gap Fill ---
+            elif q.question_type in ['gap_fill', 'gapfill', 'summary_completion', 'sentence_completion']:
                 text = q.question_text or ''
-                gaps = []
-                if q.extra_data and 'gaps' in q.extra_data:
-                    gaps = q.extra_data['gaps']
-                elif isinstance(q.correct_answers, list) and all(isinstance(x, dict) and 'number' in x for x in q.correct_answers):
-                    gaps = q.correct_answers
-                else:
-                    gaps = [{'number': i+1, 'answer': ca} for i, ca in enumerate(q.correct_answers)]
-                gaps_render = []
-                for gap in gaps:
-                    gap_num = gap.get('number')
-                    correct_val = gap.get('answer', '')
-                    key = f"{q.id}__gap{gap_num}"
-                    user_val = answers.get(key, '')
-                    gaps_render.append({
+                gap_matches = list(re.finditer(r'\[\[(\d+)\]\]', text))
+                
+                for match in gap_matches:
+                    gap_num = match.group(1)
+                    answer_key = f"{q.id}__gap{gap_num}"
+                    user_val = answers.get(answer_key, '')
+
+                    correct_val = ''
+                    if isinstance(q.correct_answers, list):
+                        # Ищем в списке словарей [{number: '1', answer: '...'}, ...]
+                        correct_entry = next((item for item in q.correct_answers if str(item.get('number')) == str(gap_num)), None)
+                        if correct_entry:
+                            correct_val = correct_entry.get('answer', '')
+
+                    is_correct = (normalize_answer(user_val) == normalize_answer(correct_val))
+                    
+                    q_data['sub_questions'].append({
+                        'type': 'gap',
                         'number': gap_num,
                         'student_answer': user_val,
                         'correct_answer': correct_val,
-                        'is_correct': normalize_answer(user_val) == normalize_answer(correct_val),
-                        'is_answered': bool(user_val and user_val.strip())
+                        'is_correct': is_correct
                     })
-                q_data.update({
-                    'text': text,
-                    'gaps': gaps_render
-                })
-            # TABLE
-            elif q.question_type in ['table', 'table_completion', 'tablecompletion', 'form', 'form_completion']:
-                table = q.extra_data.get('table', {}) if q.extra_data else {}
-                cells = table.get('cells', [])
-                table_render = []
-                for row_idx, row in enumerate(cells):
-                    row_render = []
-                    for col_idx, cell in enumerate(row):
-                        if cell.get('isAnswer'):
-                            correct_val = cell.get('answer', '')
-                            key = f"{q.id}__r{row_idx}c{col_idx}"
-                            user_val = answers.get(key, '')
-                            row_render.append({
-                                'isAnswer': True,
-                                'student_answer': user_val,
-                                'correct_answer': correct_val,
-                                'is_correct': normalize_answer(user_val) == normalize_answer(correct_val),
-                                'is_answered': bool(user_val and user_val.strip()),
-                                'text': cell.get('text', '')
-                            })
-                        else:
-                            row_render.append({
-                                'isAnswer': False,
-                                'text': cell.get('text', '')
-                            })
-                    table_render.append(row_render)
-                q_data['table'] = {
-                    'cols': table.get('cols', 0),
-                    'rows': table.get('rows', 0),
-                    'cells': table_render
-                }
-            # MULTIPLE RESPONSE
-            elif q.question_type in ['multiple_response', 'checkbox', 'multi_select']:
-                options = list(q.options.all())
-                correct_labels = set()
-                if q.extra_data and 'options' in q.extra_data:
-                    for opt in q.extra_data['options']:
-                        if opt.get('isCorrect') or (isinstance(q.correct_answers, list) and (opt.get('label') in q.correct_answers or opt.get('text') in q.correct_answers)):
-                            correct_labels.add(opt.get('label'))
-                elif isinstance(q.correct_answers, list):
-                    for label in q.correct_answers:
-                        correct_labels.add(label)
-                opts_render = []
-                for o in options:
-                    label = o.label
-                    text = o.text
-                    key = f"{q.id}__{label}"
-                    user_val = answers.get(key, False)
-                    is_selected = user_val is True or user_val == "true" or user_val == label
-                    should_be_selected = label in correct_labels
-                    opts_render.append({
-                        'label': label,
-                        'text': text,
-                        'student_selected': is_selected,
-                        'should_be_selected': should_be_selected,
-                        'is_correct': is_selected == should_be_selected
-                    })
-                q_data['options'] = opts_render
-            # MULTIPLE CHOICE
-            elif q.question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer']:
-                options = list(q.options.all())
-                correct_label = ''
-                if isinstance(q.correct_answers, list) and q.correct_answers:
-                    correct_label = q.correct_answers[0]
-                elif isinstance(q.correct_answers, str):
-                    correct_label = q.correct_answers
-                opts_render = []
-                for o in options:
-                    label = o.label
-                    text = o.text
-                    key = f"{q.id}__{label}"
-                    user_val = answers.get(key, False)
-                    is_selected = user_val is True or user_val == "true" or user_val == label
-                    is_correct = (label == correct_label and is_selected)
-                    opts_render.append({
-                        'label': label,
-                        'text': text,
-                        'student_selected': is_selected,
-                        'is_correct': is_correct,
-                        'should_be_selected': label == correct_label
-                    })
-                q_data['options'] = opts_render
-            # Если что-то другое — просто текст
-            else:
-                q_data['text'] = q.question_text
+
+            # --- Table Completion ---
+            elif q.question_type == 'table':
+                if q.extra_data and 'rows' in q.extra_data:
+                    for r_idx, row in enumerate(q.extra_data['rows']):
+                        for c_idx, cell in enumerate(row):
+                            if isinstance(cell, dict) and cell.get('type') == 'gap':
+                                answer_key = f"{q.id}__gap{r_idx}-{c_idx}"
+                                user_val = answers.get(answer_key, '')
+                                
+                                correct_val = cell.get('answer', '')
+                                is_correct = (normalize_answer(user_val) == normalize_answer(correct_val))
+
+                                q_data['sub_questions'].append({
+                                    'type': 'gap',
+                                    'number': f'R{r_idx+1}, C{c_idx+1}',
+                                    'student_answer': user_val,
+                                    'correct_answer': correct_val,
+                                    'is_correct': is_correct
+                                })
+
             part_data['questions'].append(q_data)
         result.append(part_data)
+
     return result
+
 
 class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='test.title', read_only=True)
@@ -565,12 +581,9 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
         return result.breakdown if result and result.breakdown else {}
 
     def get_detailed_breakdown(self, obj):
-        try:
-            return create_detailed_breakdown(obj)
-        except Exception as e:
-            print(f"[ERROR] get_detailed_breakdown: {str(e)}")
-            return []
-
+        # Эта функция теперь проксирует к универсальной
+        return get_test_render_structure(self, obj)
+        
     def get_test_render_structure(self, obj):
         return get_test_render_structure(self, obj)
 
@@ -944,150 +957,32 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'uid', 'is_active', 'is_staff', 'is_superuser']
 
-# Reading Serializers - обновлённые для совместимости с фронтендом
+# --- READING SERIALIZERS ---
+
 class ReadingAnswerOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingAnswerOption
         fields = ['id', 'text', 'is_correct', 'label']
 
-class ReadingQuestionWriteSerializer(serializers.ModelSerializer):
-    answer_options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
-    
-    class Meta:
-        model = ReadingQuestion
-        fields = [
-            'id', 'order', 'question_text', 'question_type', 'points', 
-            'image_url', 'correct_answers', 'extra_data', 'answer_options'
-        ]
+# --- READ-ONLY (for GET requests) ---
 
 class ReadingQuestionSerializer(serializers.ModelSerializer):
     answer_options = ReadingAnswerOptionSerializer(many=True, read_only=True)
-    
     class Meta:
         model = ReadingQuestion
         fields = [
-            'id', 'order', 'question_text', 'question_type', 'points', 
-            'image_url', 'correct_answers', 'extra_data', 'answer_options'
-        ]
-
-class ReadingPartWriteSerializer(serializers.ModelSerializer):
-    questions = ReadingQuestionWriteSerializer(many=True, required=False)
-    
-    class Meta:
-        model = ReadingPart
-        fields = [
-            'id', 'title', 'part_number', 'passage_text', 'passage_image_url',
-            'instructions', 'order', 'questions'
+            'id', 'order', 'group_number', 'question_type', 'header', 'instruction',
+            'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options'
         ]
 
 class ReadingPartSerializer(serializers.ModelSerializer):
     questions = ReadingQuestionSerializer(many=True, read_only=True)
-
     class Meta:
         model = ReadingPart
         fields = [
-            'id', 'title', 'part_number', 'passage_text', 'passage_image_url',
-            'instructions', 'order', 'questions'
+            'id', 'part_number', 'title', 'instructions', 'passage_text', 
+            'passage_image_url', 'order', 'questions'
         ]
-
-class ReadingTestSerializer(serializers.ModelSerializer):
-    parts = ReadingPartWriteSerializer(many=True, required=False)
-    
-    class Meta:
-        model = ReadingTest
-        fields = [
-            'id', 'title', 'description', 'time_limit', 
-            'total_points', 'is_active', 'created_at', 'parts'
-        ]
-    
-    def create(self, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        test = ReadingTest.objects.create(**validated_data)
-        
-        for part_data in parts_data:
-            questions_data = part_data.pop('questions', [])
-            part = ReadingPart.objects.create(test=test, **part_data)
-            
-            for question_data in questions_data:
-                answer_options_data = question_data.pop('answer_options', [])
-                question = ReadingQuestion.objects.create(part=part, **question_data)
-                
-                # Создаём answer_options для multiple choice/response
-                for idx, option_data in enumerate(answer_options_data):
-                    ReadingAnswerOption.objects.create(
-                        question=question,
-                        label=option_data.get('label', chr(65 + idx)),
-                        text=option_data.get('text', ''),
-                        is_correct=option_data.get('is_correct', False)
-                    )
-        
-        return test
-    
-    def update(self, instance, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        
-        # Обновляем основные поля теста
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        
-        # Обновляем части
-        existing_parts = {p.part_number: p for p in instance.parts.all()}
-        sent_part_numbers = set()
-        
-        for part_data in parts_data:
-            part_number = part_data.get('part_number')
-            sent_part_numbers.add(part_number)
-            questions_data = part_data.pop('questions', [])
-            
-            part, created = instance.parts.get_or_create(
-                part_number=part_number, 
-                defaults={**part_data, 'test': instance}
-            )
-            if not created:
-                for attr, value in part_data.items():
-                    setattr(part, attr, value)
-                part.save()
-            
-            # Обновляем вопросы
-            existing_questions = {q.order: q for q in part.questions.all()}
-            sent_question_orders = set()
-            
-            for question_data in questions_data:
-                order = question_data.get('order')
-                sent_question_orders.add(order)
-                answer_options_data = question_data.pop('answer_options', [])
-                
-                question, created = part.questions.get_or_create(
-                    order=order,
-                    defaults={**question_data, 'part': part}
-                )
-                if not created:
-                    for attr, value in question_data.items():
-                        setattr(question, attr, value)
-                    question.save()
-                
-                # Обновляем answer_options
-                question.answer_options.all().delete()  # Удаляем старые
-                for idx, option_data in enumerate(answer_options_data):
-                    ReadingAnswerOption.objects.create(
-                        question=question,
-                        label=option_data.get('label', chr(65 + idx)),
-                        text=option_data.get('text', ''),
-                        is_correct=option_data.get('is_correct', False)
-                    )
-            
-            # Удаляем неотправленные вопросы
-            for order, question in existing_questions.items():
-                if order not in sent_question_orders:
-                    question.delete()
-        
-        # Удаляем неотправленные части
-        for part_number, part in existing_parts.items():
-            if part_number not in sent_part_numbers:
-                part.delete()
-        
-        return instance
 
 class ReadingTestReadSerializer(serializers.ModelSerializer):
     parts = ReadingPartSerializer(many=True, read_only=True)
@@ -1099,18 +994,164 @@ class ReadingTestReadSerializer(serializers.ModelSerializer):
             'total_points', 'is_active', 'created_at', 'parts'
         ]
 
+# --- WRITE-ONLY (for POST/PUT/PATCH requests) ---
+
+class ReadingQuestionWriteSerializer(serializers.ModelSerializer):
+    answer_options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
+    
+    class Meta:
+        model = ReadingQuestion
+        fields = [
+            'id', 'order', 'group_number', 'question_type', 'header', 'instruction',
+            'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options'
+        ]
+        extra_kwargs = {
+            'id': {'read_only': False, 'required': False},
+        }
+
+class ReadingPartWriteSerializer(serializers.ModelSerializer):
+    questions = ReadingQuestionWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = ReadingPart
+        fields = [
+            'id', 'part_number', 'title', 'instructions', 'passage_text', 
+            'passage_image_url', 'order', 'questions'
+        ]
+        extra_kwargs = {
+            'id': {'read_only': False, 'required': False},
+        }
+
+
+class ReadingTestSerializer(serializers.ModelSerializer):
+    parts = ReadingPartWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = ReadingTest
+        fields = [
+            'id', 'title', 'description', 'time_limit', 
+            'is_active', 'parts'
+        ]
+
+    def create(self, validated_data):
+        parts_data = validated_data.pop('parts', [])
+        test = ReadingTest.objects.create(**validated_data)
+
+        for part_data in parts_data:
+            questions_data = part_data.pop('questions', [])
+            part_data.pop('id', None) # Remove id for creation
+            part = ReadingPart.objects.create(test=test, **part_data)
+
+            for question_data in questions_data:
+                answer_options_data = question_data.pop('answer_options', [])
+                question_data.pop('id', None) # Remove id for creation
+                question = ReadingQuestion.objects.create(part=part, **question_data)
+
+                for option_data in answer_options_data:
+                    ReadingAnswerOption.objects.create(question=question, **option_data)
+        
+        return test
+
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.time_limit = validated_data.get('time_limit', instance.time_limit)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        parts_data = validated_data.get('parts', [])
+        
+        # --- Parts ---
+        existing_parts = {part.id: part for part in instance.parts.all()}
+        incoming_part_ids = {item.get('id') for item in parts_data if item.get('id')}
+        
+        # Delete parts that are not in the incoming data
+        for part_id, part in existing_parts.items():
+            if part_id not in incoming_part_ids:
+                part.delete()
+
+        for part_data in parts_data:
+            part_id = part_data.get('id')
+            questions_data = part_data.pop('questions', [])
+            
+            if part_id and part_id in existing_parts:
+                # Update existing part
+                part = existing_parts[part_id]
+                for key, value in part_data.items():
+                    setattr(part, key, value)
+                part.save()
+            else:
+                # Create new part
+                part_data.pop('id', None)
+                part = ReadingPart.objects.create(test=instance, **part_data)
+
+            # --- Questions ---
+            existing_questions = {q.id: q for q in part.questions.all()}
+            incoming_question_ids = {item.get('id') for item in questions_data if item.get('id')}
+
+            # Delete questions
+            for q_id, q in existing_questions.items():
+                if q_id not in incoming_question_ids:
+                    q.delete()
+            
+            for question_data in questions_data:
+                q_id = question_data.get('id')
+                answer_options_data = question_data.pop('answer_options', [])
+                
+                if q_id and q_id in existing_questions:
+                    # Update question
+                    question = existing_questions[q_id]
+                    for key, value in question_data.items():
+                        setattr(question, key, value)
+                    question.save()
+                else:
+                    # Create question
+                    question_data.pop('id', None)
+                    question = ReadingQuestion.objects.create(part=part, **question_data)
+                
+                # --- Answer Options ---
+                # Simple approach: delete all and recreate
+                question.answer_options.all().delete()
+                for option_data in answer_options_data:
+                    option_data.pop('id', None)
+                    ReadingAnswerOption.objects.create(question=question, **option_data)
+
+        return instance
+
+
 class ReadingTestSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingTestSession
         fields = [
-            'id', 'test', 'user', 'started_at', 'completed_at', 
-            'status', 'answers', 'time_left', 'submitted'
+            'id', 'user', 'test', 'start_time', 'end_time', 
+            'completed', 'answers', 'time_left_seconds'
         ]
+        read_only_fields = ['user', 'test', 'start_time', 'end_time', 'completed']
 
 class ReadingTestResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingTestResult
         fields = [
-            'id', 'session', 'raw_score', 'band_score', 
-            'breakdown', 'calculated_at'
+            'id', 'session', 'raw_score', 'total_score', 'band_score', 
+            'breakdown', 'calculated_at', 'time_taken'
         ]
+        extra_kwargs = {
+            'session': {'read_only': True},
+            'raw_score': {'read_only': True},
+            'total_score': {'read_only': True},
+            'band_score': {'read_only': True},
+            'breakdown': {'read_only': True},
+            'calculated_at': {'read_only': True},
+            'time_taken': {'read_only': True},
+        }
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Форматируем time_taken для удобного отображения
+        if instance.time_taken:
+            total_seconds = int(instance.time_taken.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            representation['time_taken'] = f'{hours:02}:{minutes:02}:{seconds:02}'
+        return representation
