@@ -136,7 +136,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
       };
     
     const currentPart = test?.parts?.[currentPartIndex];
-
+    
     const renderQuestion = (question) => {
         const type = (question.question_type || '').toLowerCase();
 
@@ -420,7 +420,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                     <div className="space-y-8">
                                         {currentPart.questions.map(renderQuestion)}
                 </div>
-                                </div>
+                </div>
 
                                 {/* Submit Button Area */}
                                 <div className="flex-shrink-0 pt-6 mt-auto">
@@ -435,7 +435,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                 </div>
                             </>
                         )}
-                </div>
+                    </div>
             </div>
         </div>
     );

@@ -3,3 +3,4 @@ touch .gitignore
 
 backend/.env
 .env
+backend/core/firebase_credentials.json
