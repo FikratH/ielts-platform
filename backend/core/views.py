@@ -1345,159 +1345,117 @@ class ReadingTestSessionView(APIView):
         return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
 
     def _calculate_and_save_results(self, session):
-        student_answers = session.answers
+        user_answers = session.answers
         test = session.test
-        
         raw_score = 0
-        total_score = 0
-        breakdown = {'parts': []}
+        total_possible_score = 0
+        full_breakdown = {}
 
         def normalize_answer(answer):
-            if not isinstance(answer, str):
+            if not answer:
                 return ""
-            return answer.strip().lower()
+            return re.sub(r'[^\w\s]', '', answer.strip().lower())
 
-        for part in test.parts.all().order_by('part_number'):
-            part_breakdown = {
-                'part_number': part.part_number,
-                'part_title': part.title,
-                'questions': []
-            }
-            for question in part.questions.all().order_by('order'):
-                q_id_str = str(question.id)
-                q_points = 0
-                q_possible_points = 0
-                q_breakdown = {
-                    'question_id': q_id_str,
-                    'question_text': question.question_text,
-                    'question_type': question.question_type,
-                    'sub_questions': []
-                }
-
-                if question.question_type == 'multiple_choice':
-                    q_possible_points = 1  # Standard 1 point
-                    correct_option = question.answer_options.filter(is_correct=True).first()
-                    student_answer_text = student_answers.get(q_id_str, {}).get('text')
-                    is_correct = correct_option and normalize_answer(student_answer_text) == normalize_answer(correct_option.text)
-                    if is_correct:
-                        q_points = 1
-                    
-                    q_breakdown['sub_questions'].append({
-                        'user_answer': student_answer_text,
-                        'correct_answer': correct_option.text if correct_option else 'N/A',
-                        'is_correct': is_correct,
-                        'points_earned': q_points,
-                    })
-
-                elif question.question_type in ['gap_fill', 'table']:
-                     # Logic for gap-fill and table is similar: 1 point per correct gap
-                    gaps = []
-                    if question.question_type == 'gap_fill':
-                        gaps = question.correct_answers or []
-                    elif question.question_type == 'table' and question.extra_data.get('rows'):
-                        for r_idx, row in enumerate(question.extra_data['rows']):
-                            for c_idx, cell in enumerate(row):
-                                if isinstance(cell, dict) and cell.get('type') == 'gap':
-                                    gaps.append({
-                                        'id': f"r{r_idx}c{c_idx}",
-                                        'answer': cell.get('answer', '')
-                                    })
-                    
-                    for gap in gaps:
-                        q_possible_points += 1
-                        gap_id = gap.get('id', str(len(q_breakdown['sub_questions']) + 1))
-                        student_ans = student_answers.get(q_id_str, {}).get(gap_id, "")
-                        correct_ans = gap.get('answer', '')
-                        is_correct = normalize_answer(student_ans) == normalize_answer(correct_ans)
-                        points_earned = 1 if is_correct else 0
-                        q_points += points_earned
-                        q_breakdown['sub_questions'].append({
-                            'id': gap_id,
-                            'user_answer': student_ans,
-                            'correct_answer': correct_ans,
-                            'is_correct': is_correct,
-                            'points_earned': points_earned
-                        })
-                
-                elif question.question_type == 'multiple_response':
-                    correct_options = question.answer_options.filter(is_correct=True)
-                    student_answer_options = student_answers.get(q_id_str, []) # Expecting a list of texts
-                    
-                    q_possible_points = question.points
-                    points_per_correct_answer = q_possible_points / correct_options.count() if correct_options.count() > 0 else 0
-                    
-                    correctly_selected_count = 0
-                    
-                    correct_option_texts = {normalize_answer(opt.text) for opt in correct_options}
-                    student_answer_texts = {normalize_answer(txt) for txt in student_answer_options}
-
-                    for student_ans_text in student_answer_texts:
-                        if student_ans_text in correct_option_texts:
-                            correctly_selected_count += 1
-                    
-                    q_points = correctly_selected_count * points_per_correct_answer
-
-                    q_breakdown['sub_questions'].append({
-                        'user_answers': student_answer_options,
-                        'correct_answers': [opt.text for opt in correct_options],
-                        'is_correct': q_points == q_possible_points,
-                        'points_earned': q_points,
-                    })
-
-                elif question.question_type == 'matching':
-                    match_questions = question.extra_data.get('questions', [])
-                    correct_answers = question.extra_data.get('answers', [])
-                    for q_idx, q_text in enumerate(match_questions):
-                        q_possible_points += 1
-                        sub_key = f"match{q_idx}"
-                        student_ans = student_answers.get(q_id_str, {}).get(sub_key, "")
-                        correct_ans = correct_answers[q_idx] if q_idx < len(correct_answers) else None
-                        is_correct = student_ans is not None and correct_ans is not None and normalize_answer(student_ans) == normalize_answer(correct_ans)
-                        points_earned = 1 if is_correct else 0
-                        q_points += points_earned
-                        q_breakdown['sub_questions'].append({
-                            'id': sub_key,
-                            'question_text': q_text,
-                            'user_answer': student_ans,
-                            'correct_answer': correct_ans,
-                            'is_correct': is_correct,
-                            'points_earned': points_earned
-                        })
-                
-                elif question.question_type == 'true_false_not_given':
-                    statements = question.extra_data.get('statements', [])
-                    correct_answers = question.extra_data.get('answers', [])
-                    for s_idx, s_text in enumerate(statements):
-                        q_possible_points += 1
-                        sub_key = f"stmt{s_idx}"
-                        student_ans = student_answers.get(q_id_str, {}).get(sub_key, "")
-                        correct_ans = correct_answers[s_idx] if s_idx < len(correct_answers) else None
-                        is_correct = student_ans is not None and correct_ans is not None and normalize_answer(student_ans) == normalize_answer(correct_ans)
-                        points_earned = 1 if is_correct else 0
-                        q_points += points_earned
-                        q_breakdown['sub_questions'].append({
-                            'id': sub_key,
-                            'question_text': s_text,
-                            'user_answer': student_ans,
-                            'correct_answer': correct_ans,
-                            'is_correct': is_correct,
-                            'points_earned': points_earned
-                        })
-
-
-                raw_score += q_points
-                total_score += q_possible_points
-                q_breakdown['points_earned'] = q_points
-                q_breakdown['points_possible'] = q_possible_points
-                part_breakdown['questions'].append(q_breakdown)
-            
-            breakdown['parts'].append(part_breakdown)
+        all_questions = [q for part in test.parts.all() for q in part.questions.all()]
         
-        # --- Band Score Calculation ---
+        for question in all_questions:
+            user_q_answers = user_answers.get(str(question.id))
+            correct_answers = question.correct_answers or []
+            question_breakdown = []
+
+            # Multiple Choice
+            if question.question_type in ['multiple_choice', 'multiplechoice']:
+                total_possible_score += question.points
+                correct_answer = (correct_answers[0] if correct_answers and len(correct_answers) > 0 else {}).get('text')
+                user_answer = user_q_answers.get('text') if user_q_answers else None
+                is_correct = user_answer is not None and normalize_answer(user_answer) == normalize_answer(correct_answer)
+                if is_correct:
+                    raw_score += question.points
+                question_breakdown.append({
+                    'text': question.question_text, 'user_answer': user_answer,
+                    'correct_answer': correct_answer, 'is_correct': is_correct
+                })
+
+            # Multiple Response
+            elif question.question_type == 'multiple_response':
+                total_possible_score += question.points
+                correct_set = {normalize_answer(ans.get('text')) for ans in (correct_answers or [])}
+                user_set = {normalize_answer(ans) for ans in (user_q_answers or [])} if user_q_answers else set()
+                correctly_selected = len(user_set.intersection(correct_set))
+                incorrectly_selected = len(user_set.difference(correct_set))
+                score_for_q = max(0, (correctly_selected - incorrectly_selected) / len(correct_set)) if len(correct_set) > 0 else 0
+                q_score = score_for_q * question.points
+                raw_score += q_score
+                question_breakdown.append({
+                    'text': question.question_text, 'user_answer': list(user_set),
+                    'correct_answer': list(correct_set), 'is_correct': q_score > 0, 'score': q_score,
+                })
+
+            # Gap Fill
+            elif question.question_type in ['gap_fill', 'summary_completion', 'sentence_completion', 'note_completion']:
+                total_possible_score += len(correct_answers)
+                correct_map = {item['number']: item['answer'] for item in (correct_answers or [])}
+                for gap_num, correct_ans_text in correct_map.items():
+                    user_ans_text = user_q_answers.get(f'gap{gap_num}') if user_q_answers else None
+                    is_correct = user_ans_text is not None and normalize_answer(user_ans_text) == normalize_answer(correct_ans_text)
+                    if is_correct:
+                        raw_score += 1
+                    question_breakdown.append({
+                        'text': f"Gap {gap_num}", 'user_answer': user_ans_text,
+                        'correct_answer': correct_ans_text, 'is_correct': is_correct
+                    })
+
+            # Table Completion
+            elif question.question_type == 'table':
+                total_possible_score += len(correct_answers)
+                for correct_ans_item in (correct_answers or []):
+                    row, col, correct_text = correct_ans_item['row'], correct_ans_item['col'], correct_ans_item['answer']
+                    user_text = user_q_answers.get(f'cell_{row}_{col}') if user_q_answers else None
+                    is_correct = user_text is not None and normalize_answer(user_text) == normalize_answer(correct_text)
+                    if is_correct:
+                        raw_score += 1
+                    question_breakdown.append({
+                        'text': f"Table Cell ({row+1}, {col+1})", 'user_answer': user_text,
+                        'correct_answer': correct_text, 'is_correct': is_correct
+                    })
+
+            # True/False/Not Given
+            elif question.question_type == 'true_false_not_given':
+                total_possible_score += len(correct_answers)
+                statements = question.extra_data.get('statements', [])
+                for idx, correct_ans_text in enumerate(correct_answers or []):
+                    user_ans_text = user_q_answers.get(f'statement_{idx}') if user_q_answers else None
+                    is_correct = user_ans_text is not None and (user_ans_text or '').lower() == (correct_ans_text or '').lower()
+                    if is_correct:
+                        raw_score += 1
+                    question_breakdown.append({
+                        'text': statements[idx] if idx < len(statements) else f"Statement {idx+1}",
+                        'user_answer': user_ans_text, 'correct_answer': correct_ans_text, 'is_correct': is_correct
+                    })
+
+            # Matching
+            elif question.question_type == 'matching':
+                total_possible_score += len(correct_answers)
+                correct_map = correct_answers or {}
+                for item_text, correct_opt_text in correct_map.items():
+                    user_opt_text = user_q_answers.get(item_text) if user_q_answers else None
+                    is_correct = user_opt_text is not None and normalize_answer(user_opt_text) == normalize_answer(correct_opt_text)
+                    if is_correct:
+                        raw_score += 1
+                    question_breakdown.append({
+                        'text': item_text, 'user_answer': user_opt_text,
+                        'correct_answer': correct_opt_text, 'is_correct': is_correct
+                    })
+
+            full_breakdown[question.id] = {
+                'question_text': question.question_text, 'question_type': question.question_type,
+                'header': question.header, 'instruction': question.instruction,
+                'sub_questions': question_breakdown,
+            }
+
         def get_reading_band_score(rs, tq=40):
-            # Approximate IELTS band score conversion
-            if tq != 40: # Scale score to be out of 40 for band conversion
-                rs = (rs / tq) * 40 if tq > 0 else 0
+            if tq != 40 and tq > 0:
+                rs = (rs / tq) * 40
             if rs >= 39: return 9.0
             if rs >= 37: return 8.5
             if rs >= 35: return 8.0
@@ -1512,18 +1470,15 @@ class ReadingTestSessionView(APIView):
             if rs >= 6: return 3.5
             if rs >= 4: return 3.0
             return 2.5
-        
-        band_score = get_reading_band_score(raw_score, total_score)
-        time_taken = session.end_time - session.start_time if session.end_time and session.start_time else None
 
         result, created = ReadingTestResult.objects.update_or_create(
             session=session,
             defaults={
                 'raw_score': raw_score,
-                'total_score': total_score,
-                'band_score': band_score,
-                'breakdown': breakdown,
-                'time_taken': time_taken,
+                'total_score': total_possible_score,
+                'band_score': get_reading_band_score(raw_score, total_possible_score),
+                'breakdown': full_breakdown,
+                'time_taken': session.end_time - session.start_time
             }
         )
         return result
@@ -1533,23 +1488,13 @@ class ReadingTestResultView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, session_id):
-        """Получить результат теста"""
         try:
             session = ReadingTestSession.objects.get(
-                id=session_id,
+                id=session_id, 
                 user=request.user,
-                submitted=True
+                completed=True
             )
-            
-            result = ReadingTestResult.objects.get(session=session)
-            
-            return Response({
-                'test_title': session.test.title,
-                'raw_score': result.raw_score,
-                'band_score': result.band_score,
-                'total_questions': session.total_questions_count,
-                'breakdown': result.breakdown,
-                'completed_at': result.calculated_at
-            })
-        except (ReadingTestSession.DoesNotExist, ReadingTestResult.DoesNotExist):
-            return Response({'error': 'Result not found'}, status=404)
+            serializer = ReadingTestResultSerializer(session.result)
+            return Response(serializer.data)
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Result not found or test not completed.'}, status=404)

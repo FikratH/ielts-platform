@@ -32,39 +32,33 @@ const ReadingResultPage = () => {
     };
 
     const renderBreakdown = () => {
-        if (!result || !result.breakdown || !result.breakdown.parts) {
+        if (!result || !result.breakdown) {
             return <p>No detailed breakdown available.</p>;
         }
-
-        return result.breakdown.parts.map(part => (
-            <div key={part.part_number} className="mb-8">
-                <h3 className="text-xl font-bold mb-4 text-gray-800">
-                    {part.part_title} (Part {part.part_number})
+    
+        return Object.entries(result.breakdown).map(([questionId, data]) => (
+            <div key={questionId} className="mb-8 p-4 border rounded-lg bg-white shadow-sm">
+                <h3 className="text-lg font-bold mb-3 text-gray-800">
+                    {data.header || `Question ${questionId}`}
                 </h3>
-                {part.questions.map(q => (
-                    <div key={q.question_id} className="mb-6 p-4 border rounded-lg bg-white">
-                        <p className="font-semibold text-gray-700">{q.question_text}</p>
-                        <div className="mt-3 space-y-2">
-                            {q.sub_questions.map((sub, index) => {
-                                const isCorrect = sub.is_correct;
-                                const bgColor = isCorrect ? 'bg-green-50' : 'bg-red-50';
-                                const borderColor = isCorrect ? 'border-green-300' : 'border-red-300';
-                                
-                                return (
-                                    <div key={sub.id || index} className={`p-3 border rounded-md ${bgColor} ${borderColor}`}>
-                                        <p><strong>Your Answer:</strong> <span className="font-mono">{sub.user_answer || 'No answer'}</span></p>
-                                        {!isCorrect && (
-                                            <p><strong>Correct Answer:</strong> <span className="font-mono">{sub.correct_answer}</span></p>
-                                        )}
-                                        <p className={`font-bold ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                                            {isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                                        </p>
-                                    </div>
-                                );
-                            })}
+                {data.sub_questions.map((sub, index) => {
+                    const isCorrect = sub.is_correct;
+                    const bgColor = isCorrect ? 'bg-green-50' : 'bg-red-50';
+                    const borderColor = isCorrect ? 'border-green-300' : 'border-red-300';
+                    
+                    return (
+                        <div key={sub.id || index} className={`p-3 border rounded-md mb-2 ${bgColor} ${borderColor}`}>
+                            <p className="font-semibold text-gray-600 mb-1">{sub.text}</p>
+                            <p><strong>Your Answer:</strong> <span className="font-mono">{sub.user_answer || 'No answer'}</span></p>
+                            {!isCorrect && (
+                                <p><strong>Correct Answer:</strong> <span className="font-mono">{sub.correct_answer}</span></p>
+                            )}
+                            <p className={`font-bold mt-1 ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                                {isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                            </p>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         ));
     };
@@ -73,7 +67,8 @@ const ReadingResultPage = () => {
     if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
     if (!result) return <div className="text-center p-8">No results found.</div>;
 
-    const timeTaken = result.time_taken ? new Date(result.time_taken).toISOString().substr(11, 8) : 'N/A';
+    // Directly use the time_taken string from the server
+    const timeTaken = result.time_taken || 'N/A';
     
     return (
         <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen">

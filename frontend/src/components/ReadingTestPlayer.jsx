@@ -5,7 +5,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import axios from '../axios';
 
 
-const ReadingTimer = ({ timeLeft, color = 'text-red-600' }) => {
+const ReadingTimer = ({ timeLeft, color = 'text-blue-600' }) => {
     const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
     const secs = (timeLeft % 60).toString().padStart(2, '0');
     return (
@@ -85,24 +85,19 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         
         setAnswers(prev => {
             const newAnswers = { ...prev };
-            
-            if (!newAnswers[qIdStr]) {
-                newAnswers[qIdStr] = {};
-            }
 
             if (type === 'multiple_choice') {
                 newAnswers[qIdStr] = { text: value };
             } else if (type === 'multiple_response') {
-                const currentSelection = newAnswers[qIdStr] || [];
+                const currentSelection = Array.isArray(newAnswers[qIdStr]) ? newAnswers[qIdStr] : [];
                 if (value.checked) {
                     newAnswers[qIdStr] = [...currentSelection, value.text];
                 } else {
                     newAnswers[qIdStr] = currentSelection.filter(item => item !== value.text);
                 }
-            } else if (type === 'matching') {
-                newAnswers[qIdStr] = { ...newAnswers[qIdStr], [subKey]: value };
-            } else { // Gap-fill, table cells
-                newAnswers[qIdStr][subKey] = value;
+            } else { // For gap_fill, matching, table... which use a subKey
+                const currentSubAnswers = newAnswers[qIdStr] || {};
+                newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
             }
 
             return newAnswers;
@@ -122,7 +117,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             navigate(`/reading-result/${session.id}`);
           }
         } catch (err) {
-          setError('Failed to submit test. Your progress is saved, please contact support.');
+          setError('Failed to submit test.');
           console.error("Submit error:", err.response?.data || err);
           setIsSubmitting(false);
         }
@@ -375,57 +370,62 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         return <div className="flex justify-center items-center h-screen text-red-500"><p>{error}</p></div>;
     }
 
-    if (!test || !session) {
-        return <div className="flex justify-center items-center h-screen"><p>Could not load test data.</p></div>;
+    if (!test || !currentPart) {
+        return <div className="flex justify-center items-center h-screen">Test data is missing.</div>;
     }
-    
+
     return (
-        <div style={{ height: 'calc(100vh - 80px)' }} className="flex bg-gray-50 font-sans">
-            {/* Left Side: Passage */}
-            <div className="w-1/2 p-6 overflow-y-auto">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">{currentPart?.title || 'Reading Passage'}</h2>
-                <div 
-                    className="text-base text-gray-700 leading-relaxed" 
-                    style={{ whiteSpace: 'pre-wrap' }}
-                    dangerouslySetInnerHTML={{ __html: currentPart?.passage_text || "No passage available." }}
-                />
-            </div>
-            
-            {/* Right Side: Questions */}
-            <div className="w-1/2 p-6 flex flex-col border-l border-gray-200">
-                <div className="flex-grow overflow-y-auto">
-                    <h2 className="text-2xl font-bold mb-4 text-gray-800">Questions</h2>
-                    {currentPart?.questions?.map(renderQuestion)}
-                </div>
-
-                {/* Footer and Navigation */}
-                <div className="flex-shrink-0 mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            {/* Part navigation */}
-                            {test.parts.map((part, index) => (
-                                <button 
-                                    key={part.id || index}
-                                    onClick={() => setCurrentPartIndex(index)}
-                                    className={`px-3 py-1 rounded-md text-sm mr-2 ${currentPartIndex === index ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                                >
-                                    Part {part.part_number}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        <ReadingTimer timeLeft={timeLeft} />
-
-                        <button
-                            onClick={submitTest}
-                            disabled={isSubmitting}
-                            className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+        <div className="flex flex-col h-screen bg-gray-50 font-sans">
+            {/* --- Header Bar --- */}
+            <header className="flex items-center justify-between p-3 bg-white shadow-md z-10 w-full">
+                <div className="flex items-center gap-4">
+                     <button 
+                        onClick={() => { if(window.confirm('Are you sure you want to go back? Your progress will be saved.')) navigate('/reading'); }}
+                        className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    >
+                        Back to Tests
+                    </button>
+                    {(test?.parts?.length > 1) && test.parts.map((part, index) => (
+                        <button 
+                            key={part.id}
+                            onClick={() => setCurrentPartIndex(index)}
+                            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${currentPartIndex === index ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}
                         >
-                            {isSubmitting ? 'Submitting...' : 'Finish Test'}
+                            Part {part.part_number}
                         </button>
-                    </div>
+                    ))}
                 </div>
-            </div>
+                
+                <ReadingTimer timeLeft={timeLeft} />
+
+                <button 
+                    onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
+                    disabled={isSubmitting}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                >
+                    {isSubmitting ? 'Submitting...' : 'Finish Test'}
+                </button>
+            </header>
+
+            {/* --- Main Content --- */}
+            <main className="flex-grow flex flex-row overflow-hidden">
+                {/* Left Panel: Passage */}
+                <div className="w-1/2 overflow-y-auto p-6 bg-white border-r">
+                    <h2 className="text-2xl font-bold mb-2">{currentPart.title}</h2>
+                    <p className="text-sm text-gray-500 italic mb-4">{currentPart.instructions}</p>
+                    <div 
+                        className="prose max-w-none" 
+                        style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}
+                        dangerouslySetInnerHTML={{ __html: currentPart.passage_text }}
+                    />
+                </div>
+
+                {/* Right Panel: Questions */}
+                <div className="w-1/2 overflow-y-auto p-6">
+                    <h2 className="text-2xl font-bold mb-4">Questions</h2>
+                    {currentPart.questions.map(renderQuestion)}
+                </div>
+            </main>
         </div>
     );
 };
