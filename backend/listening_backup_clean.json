@@ -1,0 +1,2776 @@
+[
+  {
+    "model": "core.listeningtest",
+    "pk": 1,
+    "fields": {
+      "title": "New Listening Test",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-07T09:09:01.144Z",
+      "updated_at": "2025-07-10T22:28:41.822Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 2,
+    "fields": {
+      "title": "mock test 2025 january 1",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-07T09:16:56.351Z",
+      "updated_at": "2025-07-07T11:20:45.425Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 3,
+    "fields": {
+      "title": "New Listening Test",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-09T11:58:33.889Z",
+      "updated_at": "2025-07-09T11:58:33.889Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 4,
+    "fields": {
+      "title": "IELTS",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-09T12:24:50.960Z",
+      "updated_at": "2025-07-10T22:10:11.957Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 5,
+    "fields": {
+      "title": "IELTS January practice 2",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-10T02:08:40.129Z",
+      "updated_at": "2025-07-11T01:26:57.536Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 6,
+    "fields": {
+      "title": "New Listening Test",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-14T16:53:33.080Z",
+      "updated_at": "2025-07-14T16:53:33.080Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 7,
+    "fields": {
+      "title": "New Listening Test",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-14T16:53:55.704Z",
+      "updated_at": "2025-07-14T16:53:55.704Z"
+    }
+  },
+  {
+    "model": "core.listeningtest",
+    "pk": 8,
+    "fields": {
+      "title": "New Listening Test",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-07-14T16:55:48.630Z",
+      "updated_at": "2025-07-14T16:55:48.630Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 1,
+    "fields": {
+      "test": 1,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-07T09:09:01.586Z",
+      "updated_at": "2025-07-10T22:28:41.937Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 2,
+    "fields": {
+      "test": 2,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-07T09:16:56.468Z",
+      "updated_at": "2025-07-07T11:20:45.824Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 3,
+    "fields": {
+      "test": 2,
+      "part_number": 2,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-07T09:16:56.559Z",
+      "updated_at": "2025-07-07T11:20:45.904Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 4,
+    "fields": {
+      "test": 2,
+      "part_number": 3,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-07T09:16:56.560Z",
+      "updated_at": "2025-07-07T11:20:45.924Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 5,
+    "fields": {
+      "test": 2,
+      "part_number": 4,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-07T09:16:56.560Z",
+      "updated_at": "2025-07-07T11:20:45.952Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 6,
+    "fields": {
+      "test": 3,
+      "part_number": 1,
+      "audio": "/media/secure_audio/2b49f8ac28516f63963803a55093b594_aoyPvL3.mp3",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-09T11:58:33.975Z",
+      "updated_at": "2025-07-09T11:58:33.975Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 7,
+    "fields": {
+      "test": 4,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-09T12:24:50.964Z",
+      "updated_at": "2025-07-10T22:10:12.128Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 8,
+    "fields": {
+      "test": 4,
+      "part_number": 2,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-09T12:24:50.980Z",
+      "updated_at": "2025-07-10T22:10:12.189Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 9,
+    "fields": {
+      "test": 4,
+      "part_number": 3,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-09T12:24:50.982Z",
+      "updated_at": "2025-07-10T22:10:12.199Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 10,
+    "fields": {
+      "test": 4,
+      "part_number": 4,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-09T12:24:50.985Z",
+      "updated_at": "2025-07-10T22:10:12.208Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 11,
+    "fields": {
+      "test": 5,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-10T02:08:40.210Z",
+      "updated_at": "2025-07-11T01:26:57.543Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 12,
+    "fields": {
+      "test": 5,
+      "part_number": 2,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-10T02:14:41.187Z",
+      "updated_at": "2025-07-11T01:26:57.555Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 13,
+    "fields": {
+      "test": 5,
+      "part_number": 3,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-10T02:18:19.327Z",
+      "updated_at": "2025-07-11T01:26:57.568Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 14,
+    "fields": {
+      "test": 5,
+      "part_number": 4,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-11T01:21:27.230Z",
+      "updated_at": "2025-07-11T01:26:57.624Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 15,
+    "fields": {
+      "test": 6,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-14T16:53:33.528Z",
+      "updated_at": "2025-07-14T16:53:33.528Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 16,
+    "fields": {
+      "test": 7,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-14T16:53:55.707Z",
+      "updated_at": "2025-07-14T16:53:55.707Z"
+    }
+  },
+  {
+    "model": "core.listeningpart",
+    "pk": 17,
+    "fields": {
+      "test": 8,
+      "part_number": 1,
+      "audio": "",
+      "audio_duration": 0.0,
+      "instructions": "",
+      "created_at": "2025-07-14T16:55:48.633Z",
+      "updated_at": "2025-07-14T16:55:48.633Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 1,
+    "fields": {
+      "part": 1,
+      "question_type": "multiple_choice",
+      "question_text": "What is the main topic of the conversation?",
+      "extra_data": {
+        "answer": 2,
+        "options": [
+          {
+            "id": "A",
+            "text": "Weather",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Transportation",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Shopping",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Entertainment",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "C"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:09:01.725Z",
+      "updated_at": "2025-07-07T09:09:01.725Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 2,
+    "fields": {
+      "part": 2,
+      "question_type": "multiple_response",
+      "question_text": null,
+      "extra_data": {
+        "answer": [
+          "B",
+          "D"
+        ],
+        "options": [
+          {
+            "id": "A",
+            "text": "A big family with many young children",
+            "image": "",
+            "label": "A",
+            "isCorrect": false
+          },
+          {
+            "id": "B",
+            "text": "A family without smoker or drinkers",
+            "image": "",
+            "label": "B",
+            "isCorrect": true
+          },
+          {
+            "id": "C",
+            "text": "A family without any pets",
+            "image": "",
+            "label": "C",
+            "isCorrect": false
+          },
+          {
+            "id": "D",
+            "text": "A family with many animals or pets",
+            "image": "",
+            "label": "D",
+            "isCorrect": true
+          }
+        ]
+      },
+      "correct_answers": [
+        "B",
+        "D"
+      ],
+      "header": "Question 6",
+      "instruction": "Mark TWO letter that represent the correct answer.\n\nWhick kind of family does the girls prefer?",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:16:56.544Z",
+      "updated_at": "2025-07-07T11:20:45.831Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 3,
+    "fields": {
+      "part": 2,
+      "question_type": "table",
+      "question_text": null,
+      "extra_data": {
+        "table": {
+          "cols": 2,
+          "rows": 9,
+          "cells": [
+            [
+              {
+                "text": "First name",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "Keiko",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Family name",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "Yuichini",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Gender",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "Female",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Age",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "28",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Passport number",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "JO6337",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Nationality",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "Japanese",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Course enrolled",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "Advanced english studies",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Length of the course",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "5 months",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Homestay time",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "About 4 months",
+                "isAnswer": true
+              }
+            ]
+          ]
+        }
+      },
+      "correct_answers": [
+        "B",
+        "D"
+      ],
+      "header": "Questions 1-5",
+      "instruction": "The housing officer takes some details from the girl.\n\nComplete the following form with NO MORE THAN THREE WORDS AND/OR A NUMBER for each answer.",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:17:54.402Z",
+      "updated_at": "2025-07-07T11:20:45.895Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 4,
+    "fields": {
+      "part": 2,
+      "question_type": "gap_fill",
+      "question_text": "Although the girl is not a vegetarian, she doesn't eat a lot of meat. Her favourite food is [[7]]\nThe girls has given up playing handball. Now, she just play [[8]] with her friends at weekends.\nThe girl does not like the bus because they are always late. She would rather [[9]] .\nThe girl can get the information about the homestay family that she wants [[10]]",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "Seafood",
+            "number": 7
+          },
+          {
+            "answer": "Tennis",
+            "number": 8
+          },
+          {
+            "answer": "Take the train",
+            "number": 9
+          },
+          {
+            "answer": "This afternoon",
+            "number": 10
+          }
+        ]
+      },
+      "correct_answers": [
+        "Seafood",
+        "Tennis",
+        "Take the train",
+        "This afternoon"
+      ],
+      "header": "Question 7-10",
+      "instruction": "Fill in the blanks with NO MORE THAN THREE WORDS for each answer.",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:19:54.196Z",
+      "updated_at": "2025-07-07T11:20:45.901Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 5,
+    "fields": {
+      "part": 3,
+      "question_type": "gap_fill",
+      "question_text": "VISAS:\n\nNow Enzinia visas are needed by almost all nationalities.\nNormal visas last [[11]].\nYou need to pay [[12]] for the visa.\nPrice may change from time to time.\nSome Enzian consulates neighbouring countries require you to provide a letter to [[13]].\nYou can get information of major embassies on [[14]] of the student handbook.\nIf you want to re-enter Enzinia, you must get a multi-entry visa.\n\nSOME MISCELLANEOUS GENERAL ADVICE:\n\nIf you carry a lot of money, you need to complete a [[15]].\nRemember to declare all your items, especially expensive items, on a [[16]].\nYou are advised to carry a health certificate. The one you need is the [[17]].\n\nNOTES FOR STUDENTS:\n\nIf you wish to get a youth fare card, you should show your [[18]].\nDue to the bureaucracy in Enzinia, you are advised to take at least [[19]] passport photos with you.\n\nCURRENCY:\n\nPounds and US dollars are not very useful now in Enzinia, so you should take Yen or [[20]] with you.\nCredit cards are not acceptable because of fraud scandals.",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "90 days",
+            "number": 11
+          },
+          {
+            "answer": "30 pounds",
+            "number": 12
+          },
+          {
+            "answer": "Confirm your nationality",
+            "number": 13
+          },
+          {
+            "answer": "Page 13",
+            "number": 14
+          },
+          {
+            "answer": "Currency form",
+            "number": 15
+          },
+          {
+            "answer": "Tourist export form",
+            "number": 16
+          },
+          {
+            "answer": "BM276",
+            "number": 17
+          },
+          {
+            "answer": "International student card",
+            "number": 18
+          },
+          {
+            "answer": "12",
+            "number": 19
+          },
+          {
+            "answer": "Australian dollar",
+            "number": 20
+          }
+        ]
+      },
+      "correct_answers": [
+        "90 days",
+        "30 pounds",
+        "Confirm your nationality",
+        "Page 13",
+        "Currency form",
+        "Tourist export form",
+        "BM276",
+        "International student card",
+        "12",
+        "Australian dollar"
+      ],
+      "header": "Questions 11-20",
+      "instruction": "You will hear a talk by a tour guide about travel to Enzia.\n\nComplete the notes by filling in the blanks with NO MORE THAN THREE WORDS AND/OR NUMBER for each answer.",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:24:11.827Z",
+      "updated_at": "2025-07-07T11:20:45.908Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 9,
+    "fields": {
+      "part": 4,
+      "question_type": "gap_fill",
+      "question_text": "The woman being interviewed is now working in the bank. Her occupation is [[21]].\nThe woman usually spends about [[22]] pounds when she goes shopping.\nThe woman often goes to [[23]] because she finds them convenient.\nAccording to the woman, [[24]] is/are her most difficult thing(s) to buy",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "Cashier",
+            "number": 21
+          },
+          {
+            "answer": "50",
+            "number": 22
+          },
+          {
+            "answer": "Big department stores",
+            "number": 23
+          },
+          {
+            "answer": "Jeans",
+            "number": 24
+          }
+        ]
+      },
+      "correct_answers": [
+        "Cashier",
+        "50",
+        "Big department stores",
+        "Jeans"
+      ],
+      "header": "Questions 21-24",
+      "instruction": "Complete the sentences below.\n\nWrite NO MORE THAN THREE WORDS AND/OR A NUMBER for each answer.",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:48:18.736Z",
+      "updated_at": "2025-07-07T11:20:45.928Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 10,
+    "fields": {
+      "part": 4,
+      "question_type": "gap_fill",
+      "question_text": "BLUE: 50% of the people being interviewed spend [[25]] pounds a month.\nRED: 15% of the people being interviewed spend [[26]] pounds a month.\nGREEN: 35% of the people being interviewed spend [[27]] pounds a month.",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "45",
+            "number": 25
+          },
+          {
+            "answer": "75",
+            "number": 26
+          },
+          {
+            "answer": "20",
+            "number": 27
+          }
+        ]
+      },
+      "correct_answers": [
+        "45",
+        "75",
+        "20"
+      ],
+      "header": "Questions 25-27",
+      "instruction": "Fill in the blanks with ONE WORD AND/OR A NUMBER for each answer.",
+      "image": "https://ieltsonlinetests.com/sites/default/files/2018-11/Questions%2025-27.png",
+      "points": 1,
+      "created_at": "2025-07-07T09:48:18.739Z",
+      "updated_at": "2025-07-07T11:20:45.933Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 11,
+    "fields": {
+      "part": 4,
+      "question_type": "multiple_response",
+      "question_text": null,
+      "extra_data": {
+        "answer": [
+          "D",
+          "E",
+          "F"
+        ],
+        "options": [
+          {
+            "id": "A",
+            "text": "Books",
+            "image": "",
+            "label": "A",
+            "isCorrect": false
+          },
+          {
+            "id": "B",
+            "text": "Study materials",
+            "image": "",
+            "label": "B",
+            "isCorrect": false
+          },
+          {
+            "id": "C",
+            "text": "Foods",
+            "image": "",
+            "label": "C",
+            "isCorrect": false
+          },
+          {
+            "id": "D",
+            "text": "Trousers",
+            "image": "",
+            "label": "D",
+            "isCorrect": true
+          },
+          {
+            "id": "E",
+            "text": "Shoes",
+            "image": "",
+            "label": "E",
+            "isCorrect": true
+          },
+          {
+            "id": "F",
+            "text": "Sportswear",
+            "image": "",
+            "label": "F",
+            "isCorrect": true
+          }
+        ]
+      },
+      "correct_answers": [
+        "D",
+        "E",
+        "F"
+      ],
+      "header": "Questions 28-30",
+      "instruction": "Mark THREE letter that represent the correct answer.\n\nMost of the people being interviewed think that _________ is/are most difficult to buy.",
+      "image": null,
+      "points": 3,
+      "created_at": "2025-07-07T09:48:18.742Z",
+      "updated_at": "2025-07-07T11:20:45.937Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 12,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "In this college, students are assigned ___________ at the end of each semester.",
+      "extra_data": {
+        "answer": 2,
+        "options": [
+          {
+            "id": "A",
+            "text": "team projects.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "final term examinations.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "essays.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "time management courses.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "C"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:54:11.176Z",
+      "updated_at": "2025-07-07T11:20:45.955Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 13,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "What does the lecturer provide for those who are interested in doing extra reading?",
+      "extra_data": {
+        "answer": 1,
+        "options": [
+          {
+            "id": "A",
+            "text": "Free glasses.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Personal consultation sessions.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Extra materials, such as a booklist.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Mid-term examination.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "B"
+      ],
+      "header": "Questions 31-40",
+      "instruction": "Choose the correct letter, A, B, ╤ or D.",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:54:11.184Z",
+      "updated_at": "2025-07-07T11:20:45.969Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 14,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "One sign the lecturer mentions that students feel under pressure is",
+      "extra_data": {
+        "answer": 3,
+        "options": [
+          {
+            "id": "A",
+            "text": "students get angry for no reason.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "lower class attendance rates.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "trouble at the library.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "library books go missing.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "D"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:54:11.193Z",
+      "updated_at": "2025-07-07T11:20:45.981Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 15,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "In the past, time management meant you needed to",
+      "extra_data": {
+        "answer": 1,
+        "options": [
+          {
+            "id": "A",
+            "text": "reduce your stress.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "plan for every hour of the week.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "own a good watch.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "set goals and try to achieve these goals.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "B"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:54:11.201Z",
+      "updated_at": "2025-07-07T11:20:45.991Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 16,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "Today, wise time management means you need to",
+      "extra_data": {
+        "answer": "",
+        "options": [
+          {
+            "id": "A",
+            "text": "set goals and work in a systematic way.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "work faster.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "set an overview of your assignment.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "make a list, plan for everything and try to stick to this plan.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:54:11.210Z",
+      "updated_at": "2025-07-07T11:20:46.002Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 17,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "What kind of suggestion does the lecturer give to the students?",
+      "extra_data": {
+        "answer": 2,
+        "options": [
+          {
+            "id": "A",
+            "text": "Making a very detailed plan of their daily activities.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Not being so stressed just because there is an assignment.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "A regular one-hour session in their personal timetables.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Wearing comfortable shoes.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "C"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:58:12.104Z",
+      "updated_at": "2025-07-07T11:20:46.016Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 18,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "According to the lecturer, there are three kinds of planners. They are:",
+      "extra_data": {
+        "answer": 3,
+        "options": [
+          {
+            "id": "A",
+            "text": "one weekly planner, one daily planner and one hour planner.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "one yearly planner, one weekly planner and one daily planner.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "one term planner, one monthly planner and one weekly planner.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "one term planner, one weekly and one daily planner.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "D"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:58:12.496Z",
+      "updated_at": "2025-07-07T11:20:46.027Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 19,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "If you want to set an overview of your time, you should need at least",
+      "extra_data": {
+        "answer": "",
+        "options": [
+          {
+            "id": "A",
+            "text": "one week.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "half a week.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "one month.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "one term.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:58:12.504Z",
+      "updated_at": "2025-07-07T11:20:46.039Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 20,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "The daily planner of time is mainly concerned with",
+      "extra_data": {
+        "answer": "",
+        "options": [
+          {
+            "id": "A",
+            "text": "the detailed planning.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "how to plan all available time.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "TV schedules.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "an overview of everything you need to do for several days.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:58:12.514Z",
+      "updated_at": "2025-07-07T11:20:46.050Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 21,
+    "fields": {
+      "part": 5,
+      "question_type": "multiple_choice",
+      "question_text": "According to the lecturer, wise time management may have the following benefit:",
+      "extra_data": {
+        "answer": "",
+        "options": [
+          {
+            "id": "A",
+            "text": "improving your performance in the final term assignment.",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "helping you write better essays.",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "improving your memory.",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "having more time to spend on relaxation and other activities.",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": null,
+      "points": 1,
+      "created_at": "2025-07-07T09:58:12.522Z",
+      "updated_at": "2025-07-07T11:20:46.061Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 270,
+    "fields": {
+      "part": 11,
+      "question_type": "gap_fill",
+      "question_text": "Southern Rental Car Ц booking\n\nName: William [[1]]\nAddress: 10 [[2]] Nelson\nContact number: 07 [[3]]\nPayment by credit card type: [[4]] card.\nCard No.: 4550 1392 8309 3221\nCard expiry date: July 20XX\nRental period: [[5]] days",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "Waddell ",
+            "number": 1
+          },
+          {
+            "answer": "Robyn Place",
+            "number": 2
+          },
+          {
+            "answer": "2638666",
+            "number": 3
+          },
+          {
+            "answer": "Visa",
+            "number": 4
+          },
+          {
+            "answer": "10",
+            "number": 5
+          }
+        ]
+      },
+      "correct_answers": [
+        "Waddell ",
+        "Robyn Place",
+        "2638666",
+        "Visa",
+        "10"
+      ],
+      "header": "Questions 1-5",
+      "instruction": "Complete the form below.\n\nWrite NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer.",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.546Z",
+      "updated_at": "2025-07-11T01:26:57.546Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 271,
+    "fields": {
+      "part": 11,
+      "question_type": "gap_fill",
+      "question_text": "How much  is the car per day?\n[[6]] $\n\nWhat does the price include?\n[[7]]\n\nWho will he be visiting?\n[[8]]\n\nWhat kind of car does the agent recommend?\n[[9]]\n\nWhat does he need to collect the car?\n[[10]]",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "35",
+            "number": 6
+          },
+          {
+            "answer": "Unlimited kilometres ",
+            "number": 7
+          },
+          {
+            "answer": "Relatives",
+            "number": 8
+          },
+          {
+            "answer": "automatic",
+            "number": 9
+          },
+          {
+            "answer": "Driving license",
+            "number": 10
+          }
+        ]
+      },
+      "correct_answers": [
+        "35",
+        "Unlimited kilometres ",
+        "Relatives",
+        "automatic",
+        "Driving license"
+      ],
+      "header": "Questions 6-10",
+      "instruction": "Answer the following questions USING NO MORE THAN TWO WORDS OR A NUMBER",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.548Z",
+      "updated_at": "2025-07-11T01:26:57.548Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 272,
+    "fields": {
+      "part": 12,
+      "question_type": "table",
+      "question_text": null,
+      "extra_data": {
+        "table": {
+          "cols": 2,
+          "rows": 12,
+          "cells": [
+            [
+              {
+                "text": "OVERLANDER:",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Distance / km",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "X",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Highlight",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "3 volcanoes",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Time / hours",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "11",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "TRANSALPINE:",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Distance / km",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "223",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Highlight",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "16 tunnels",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Time / hours",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "5",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "TRANSCOASTAL:",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "",
+                "isAnswer": false
+              }
+            ],
+            [
+              {
+                "text": "Distance / km",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "X",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Highlight",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "",
+                "answer": "Whale watching ",
+                "isAnswer": true
+              }
+            ],
+            [
+              {
+                "text": "Time / hours",
+                "answer": "",
+                "isAnswer": false
+              },
+              {
+                "text": "5",
+                "answer": "",
+                "isAnswer": false
+              }
+            ]
+          ]
+        }
+      },
+      "correct_answers": [],
+      "header": "Questions 11-15",
+      "instruction": "Complete the tables below. If there is no information given, write X.\n\nWrite NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer.",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.557Z",
+      "updated_at": "2025-07-11T01:26:57.557Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 273,
+    "fields": {
+      "part": 12,
+      "question_type": "gap_fill",
+      "question_text": "Taking three days to complete, the [[16]] is one of the worldТs longest train journeys.\nThe Ghan is shorter, passing through towns built by the [[17]].\nThere is also a sculpture designed to mark the laying of the [[18]] concrete sleeper.\nThe Overland was the first train to travel between the capital cities in two [[19]],\nand it is also the oldest journey of its kind on [[20]].",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "Indian Pacific ",
+            "number": 16
+          },
+          {
+            "answer": "Earlie",
+            "number": 17
+          },
+          {
+            "answer": "1 Millionth ",
+            "number": 18
+          },
+          {
+            "answer": "States",
+            "number": 19
+          },
+          {
+            "answer": "The continent ",
+            "number": 20
+          }
+        ]
+      },
+      "correct_answers": [
+        "Indian Pacific ",
+        "Earlie",
+        "1 Millionth ",
+        "States",
+        "The continent "
+      ],
+      "header": "Questions 16-20",
+      "instruction": "Complete the summary below USING NO MORE THAN TWO WORDS OR A NUMBER.",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.559Z",
+      "updated_at": "2025-07-11T01:26:57.559Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 274,
+    "fields": {
+      "part": 13,
+      "question_type": "multiple_choice",
+      "question_text": "Lyn is having difficulty completing her project because",
+      "extra_data": {
+        "answer": "B",
+        "options": [
+          {
+            "id": "A",
+            "text": "she doesnТt have enough information",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "she canТt organise her presentation",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "she doesnТt have enough time",
+            "image": "",
+            "label": "C"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "Questions 21-25",
+      "instruction": "Circle the correct letter AЦC.",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.573Z",
+      "updated_at": "2025-07-11T01:26:57.573Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 275,
+    "fields": {
+      "part": 13,
+      "question_type": "multiple_choice",
+      "question_text": "Her presentation is going to focus on",
+      "extra_data": {
+        "answer": "B",
+        "options": [
+          {
+            "id": "A",
+            "text": "solar power in America",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "solar-powered water heaters",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "alternative energy technology",
+            "image": "",
+            "label": "C"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.580Z",
+      "updated_at": "2025-07-11T01:26:57.580Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 276,
+    "fields": {
+      "part": 13,
+      "question_type": "multiple_choice",
+      "question_text": "Why does Lyn think we should be looking for alternative sources of energy?",
+      "extra_data": {
+        "answer": "C",
+        "options": [
+          {
+            "id": "A",
+            "text": "Fossil fuels are expensive",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Fossil fuels have an impact on the environment",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Fossil fuels are limited",
+            "image": "",
+            "label": "C"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.589Z",
+      "updated_at": "2025-07-11T01:26:57.589Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 277,
+    "fields": {
+      "part": 13,
+      "question_type": "multiple_choice",
+      "question_text": "Solar power is a good form of alternative energy because",
+      "extra_data": {
+        "answer": "A",
+        "options": [
+          {
+            "id": "A",
+            "text": "it can be harnessed with simple technology",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "it is infinite",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "it can be applied equally well in any country",
+            "image": "",
+            "label": "C"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.595Z",
+      "updated_at": "2025-07-11T01:26:57.595Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 278,
+    "fields": {
+      "part": 13,
+      "question_type": "multiple_choice",
+      "question_text": "Which graph best indicates what Lyn is describing?",
+      "extra_data": {
+        "answer": "A",
+        "options": [
+          {
+            "id": "A",
+            "text": "A",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "B",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "C",
+            "image": "",
+            "label": "C"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "https://i.yapx.ru/Z2Da0.png",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.604Z",
+      "updated_at": "2025-07-11T01:26:57.604Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 279,
+    "fields": {
+      "part": 13,
+      "question_type": "gap_fill",
+      "question_text": "[[26]]\n[[27]]\n[[28]]\n[[29]]\n[[30]]",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "40 litres",
+            "number": 26
+          },
+          {
+            "answer": "Solar coil",
+            "number": 27
+          },
+          {
+            "answer": "20",
+            "number": 28
+          },
+          {
+            "answer": "65",
+            "number": 29
+          },
+          {
+            "answer": "Rigid foam",
+            "number": 30
+          }
+        ]
+      },
+      "correct_answers": [
+        "40 litres",
+        "Solar coil",
+        "20",
+        "65",
+        "Rigid foam"
+      ],
+      "header": "Questions 26-30",
+      "instruction": "Label the following diagram USING NO MORE THAN TWO WORDS AND / OR A NUMBER",
+      "image": "https://i.yapx.ru/Z2LnL.png",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.610Z",
+      "updated_at": "2025-07-11T01:26:57.610Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 280,
+    "fields": {
+      "part": 14,
+      "question_type": "gap_fill",
+      "question_text": "Lecture on [[31]]\nExamples: tourism and [[32]]\nCommon misconception is that marketing points to [[33]] in what is being provided.\nMarketing is actually essential in maintaining [[34]]\nSelling a product is easier because it is [[35]] and customers do not have such different [[36]]\nAim: offer service beyond hopes of [[37]]\nImportant to: (a) keep informed & (b) [[38]]\nOne way to achieve this: [[39]]\n[[40]] must always be available for any queries or problems.",
+      "extra_data": {
+        "gaps": [
+          {
+            "answer": "Services marketing",
+            "number": 31
+          },
+          {
+            "answer": "Legal advice",
+            "number": 32
+          },
+          {
+            "answer": "Weakness",
+            "number": 33
+          },
+          {
+            "answer": "Customer numbers",
+            "number": 34
+          },
+          {
+            "answer": "Tangible",
+            "number": 35
+          },
+          {
+            "answer": "Expectations",
+            "number": 36
+          },
+          {
+            "answer": "Clients",
+            "number": 37
+          },
+          {
+            "answer": "Constantly improve",
+            "number": 38
+          },
+          {
+            "answer": "surveys",
+            "number": 39
+          },
+          {
+            "answer": "A representative",
+            "number": 40
+          }
+        ]
+      },
+      "correct_answers": [
+        "Services marketing",
+        "Legal advice",
+        "Weakness",
+        "Customer numbers",
+        "Tangible",
+        "Expectations",
+        "Clients",
+        "Constantly improve",
+        "surveys",
+        "A representative"
+      ],
+      "header": "Questions 31-40",
+      "instruction": "Complete the sentences below using NO MORE THAN TWO WORDS OR A NUMBER",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-11T01:26:57.626Z",
+      "updated_at": "2025-07-11T01:26:57.626Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 281,
+    "fields": {
+      "part": 15,
+      "question_type": "multiple_choice",
+      "question_text": "What is the main topic of the conversation?",
+      "extra_data": {
+        "answer": 2,
+        "options": [
+          {
+            "id": "A",
+            "text": "Weather",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Transportation",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Shopping",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Entertainment",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "C"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-14T16:53:33.598Z",
+      "updated_at": "2025-07-14T16:53:33.598Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 282,
+    "fields": {
+      "part": 16,
+      "question_type": "multiple_choice",
+      "question_text": "What is the main topic of the conversation?",
+      "extra_data": {
+        "answer": "A",
+        "options": [
+          {
+            "id": "A",
+            "text": "Weather",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Transportation",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Shopping",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Entertainment",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-14T16:53:55.709Z",
+      "updated_at": "2025-07-14T16:53:55.709Z"
+    }
+  },
+  {
+    "model": "core.listeningquestion",
+    "pk": 283,
+    "fields": {
+      "part": 17,
+      "question_type": "multiple_choice",
+      "question_text": "What is the main topic of the conversation?",
+      "extra_data": {
+        "answer": "A",
+        "options": [
+          {
+            "id": "A",
+            "text": "Weather",
+            "image": "",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "text": "Transportation",
+            "image": "",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "text": "Shopping",
+            "image": "",
+            "label": "C"
+          },
+          {
+            "id": "D",
+            "text": "Entertainment",
+            "image": "",
+            "label": "D"
+          }
+        ]
+      },
+      "correct_answers": [
+        "A"
+      ],
+      "header": "",
+      "instruction": "",
+      "image": "",
+      "points": 1,
+      "created_at": "2025-07-14T16:55:48.651Z",
+      "updated_at": "2025-07-14T16:55:48.651Z"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 1,
+    "fields": {
+      "question": 1,
+      "label": "A",
+      "text": "Weather"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 2,
+    "fields": {
+      "question": 1,
+      "label": "B",
+      "text": "Transportation"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 3,
+    "fields": {
+      "question": 1,
+      "label": "C",
+      "text": "Shopping"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 4,
+    "fields": {
+      "question": 1,
+      "label": "D",
+      "text": "Entertainment"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 31,
+    "fields": {
+      "question": 11,
+      "label": "A",
+      "text": "Books"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 32,
+    "fields": {
+      "question": 11,
+      "label": "B",
+      "text": "Study materials"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 33,
+    "fields": {
+      "question": 11,
+      "label": "C",
+      "text": "Foods"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 34,
+    "fields": {
+      "question": 11,
+      "label": "D",
+      "text": "Trousers"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 35,
+    "fields": {
+      "question": 11,
+      "label": "E",
+      "text": "Shoes"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 36,
+    "fields": {
+      "question": 11,
+      "label": "F",
+      "text": "Sportswear"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 41,
+    "fields": {
+      "question": 12,
+      "label": "A",
+      "text": "team projects."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 42,
+    "fields": {
+      "question": 12,
+      "label": "B",
+      "text": "final term examinations."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 43,
+    "fields": {
+      "question": 12,
+      "label": "C",
+      "text": "essays."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 44,
+    "fields": {
+      "question": 12,
+      "label": "D",
+      "text": "time management courses."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 45,
+    "fields": {
+      "question": 13,
+      "label": "A",
+      "text": "Free glasses."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 46,
+    "fields": {
+      "question": 13,
+      "label": "B",
+      "text": "Personal consultation sessions."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 47,
+    "fields": {
+      "question": 13,
+      "label": "C",
+      "text": "Extra materials, such as a booklist."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 48,
+    "fields": {
+      "question": 13,
+      "label": "D",
+      "text": "Mid-term examination."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 49,
+    "fields": {
+      "question": 14,
+      "label": "A",
+      "text": "students get angry for no reason."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 50,
+    "fields": {
+      "question": 14,
+      "label": "B",
+      "text": "lower class attendance rates."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 51,
+    "fields": {
+      "question": 14,
+      "label": "C",
+      "text": "trouble at the library."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 52,
+    "fields": {
+      "question": 14,
+      "label": "D",
+      "text": "library books go missing."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 53,
+    "fields": {
+      "question": 15,
+      "label": "A",
+      "text": "reduce your stress."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 54,
+    "fields": {
+      "question": 15,
+      "label": "B",
+      "text": "plan for every hour of the week."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 55,
+    "fields": {
+      "question": 15,
+      "label": "C",
+      "text": "own a good watch."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 56,
+    "fields": {
+      "question": 15,
+      "label": "D",
+      "text": "set goals and try to achieve these goals."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 57,
+    "fields": {
+      "question": 16,
+      "label": "A",
+      "text": "set goals and work in a systematic way."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 58,
+    "fields": {
+      "question": 16,
+      "label": "B",
+      "text": "work faster."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 59,
+    "fields": {
+      "question": 16,
+      "label": "C",
+      "text": "set an overview of your assignment."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 60,
+    "fields": {
+      "question": 16,
+      "label": "D",
+      "text": "make a list, plan for everything and try to stick to this plan."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 65,
+    "fields": {
+      "question": 17,
+      "label": "A",
+      "text": "Making a very detailed plan of their daily activities."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 66,
+    "fields": {
+      "question": 17,
+      "label": "B",
+      "text": "Not being so stressed just because there is an assignment."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 67,
+    "fields": {
+      "question": 17,
+      "label": "C",
+      "text": "A regular one-hour session in their personal timetables."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 68,
+    "fields": {
+      "question": 17,
+      "label": "D",
+      "text": "Wearing comfortable shoes."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 69,
+    "fields": {
+      "question": 18,
+      "label": "A",
+      "text": "one weekly planner, one daily planner and one hour planner."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 70,
+    "fields": {
+      "question": 18,
+      "label": "B",
+      "text": "one yearly planner, one weekly planner and one daily planner."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 71,
+    "fields": {
+      "question": 18,
+      "label": "C",
+      "text": "one term planner, one monthly planner and one weekly planner."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 72,
+    "fields": {
+      "question": 18,
+      "label": "D",
+      "text": "one term planner, one weekly and one daily planner."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 73,
+    "fields": {
+      "question": 19,
+      "label": "A",
+      "text": "one week."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 74,
+    "fields": {
+      "question": 19,
+      "label": "B",
+      "text": "half a week."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 75,
+    "fields": {
+      "question": 19,
+      "label": "C",
+      "text": "one month."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 76,
+    "fields": {
+      "question": 19,
+      "label": "D",
+      "text": "one term."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 77,
+    "fields": {
+      "question": 20,
+      "label": "A",
+      "text": "the detailed planning."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 78,
+    "fields": {
+      "question": 20,
+      "label": "B",
+      "text": "how to plan all available time."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 79,
+    "fields": {
+      "question": 20,
+      "label": "C",
+      "text": "TV schedules."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 80,
+    "fields": {
+      "question": 20,
+      "label": "D",
+      "text": "an overview of everything you need to do for several days."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 81,
+    "fields": {
+      "question": 21,
+      "label": "A",
+      "text": "improving your performance in the final term assignment."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 82,
+    "fields": {
+      "question": 21,
+      "label": "B",
+      "text": "helping you write better essays."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 83,
+    "fields": {
+      "question": 21,
+      "label": "C",
+      "text": "improving your memory."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 84,
+    "fields": {
+      "question": 21,
+      "label": "D",
+      "text": "having more time to spend on relaxation and other activities."
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 89,
+    "fields": {
+      "question": 2,
+      "label": "A",
+      "text": "A big family with many young children"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 90,
+    "fields": {
+      "question": 2,
+      "label": "B",
+      "text": "A family without smoker or drinkers"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 91,
+    "fields": {
+      "question": 2,
+      "label": "C",
+      "text": "A family without any pets"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 92,
+    "fields": {
+      "question": 2,
+      "label": "D",
+      "text": "A family with many animals or pets"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 327,
+    "fields": {
+      "question": 274,
+      "label": "A",
+      "text": "she doesnТt have enough information"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 328,
+    "fields": {
+      "question": 274,
+      "label": "B",
+      "text": "she canТt organise her presentation"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 329,
+    "fields": {
+      "question": 274,
+      "label": "C",
+      "text": "she doesnТt have enough time"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 330,
+    "fields": {
+      "question": 275,
+      "label": "A",
+      "text": "solar power in America"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 331,
+    "fields": {
+      "question": 275,
+      "label": "B",
+      "text": "solar-powered water heaters"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 332,
+    "fields": {
+      "question": 275,
+      "label": "C",
+      "text": "alternative energy technology"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 333,
+    "fields": {
+      "question": 276,
+      "label": "A",
+      "text": "Fossil fuels are expensive"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 334,
+    "fields": {
+      "question": 276,
+      "label": "B",
+      "text": "Fossil fuels have an impact on the environment"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 335,
+    "fields": {
+      "question": 276,
+      "label": "C",
+      "text": "Fossil fuels are limited"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 336,
+    "fields": {
+      "question": 277,
+      "label": "A",
+      "text": "it can be harnessed with simple technology"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 337,
+    "fields": {
+      "question": 277,
+      "label": "B",
+      "text": "it is infinite"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 338,
+    "fields": {
+      "question": 277,
+      "label": "C",
+      "text": "it can be applied equally well in any country"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 339,
+    "fields": {
+      "question": 278,
+      "label": "A",
+      "text": "A"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 340,
+    "fields": {
+      "question": 278,
+      "label": "B",
+      "text": "B"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 341,
+    "fields": {
+      "question": 278,
+      "label": "C",
+      "text": "C"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 342,
+    "fields": {
+      "question": 281,
+      "label": "A",
+      "text": "Weather"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 343,
+    "fields": {
+      "question": 281,
+      "label": "B",
+      "text": "Transportation"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 344,
+    "fields": {
+      "question": 281,
+      "label": "C",
+      "text": "Shopping"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 345,
+    "fields": {
+      "question": 281,
+      "label": "D",
+      "text": "Entertainment"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 346,
+    "fields": {
+      "question": 282,
+      "label": "A",
+      "text": "Weather"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 347,
+    "fields": {
+      "question": 282,
+      "label": "B",
+      "text": "Transportation"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 348,
+    "fields": {
+      "question": 282,
+      "label": "C",
+      "text": "Shopping"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 349,
+    "fields": {
+      "question": 282,
+      "label": "D",
+      "text": "Entertainment"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 350,
+    "fields": {
+      "question": 283,
+      "label": "A",
+      "text": "Weather"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 351,
+    "fields": {
+      "question": 283,
+      "label": "B",
+      "text": "Transportation"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 352,
+    "fields": {
+      "question": 283,
+      "label": "C",
+      "text": "Shopping"
+    }
+  },
+  {
+    "model": "core.listeningansweroption",
+    "pk": 353,
+    "fields": {
+      "question": 283,
+      "label": "D",
+      "text": "Entertainment"
+    }
+  }
+]

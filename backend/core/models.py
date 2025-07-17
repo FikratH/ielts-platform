@@ -188,7 +188,6 @@ class ReadingPart(models.Model):
 class ReadingQuestion(models.Model):
     part = models.ForeignKey(ReadingPart, related_name='questions', on_delete=models.CASCADE)
     order = models.PositiveIntegerField()
-    group_number = models.CharField(max_length=32, blank=True, default='')  # Например, '1-4', '5-8', ''
     question_type = models.CharField(max_length=32, blank=True, null=True, default=None)
     header = models.CharField(max_length=255, blank=True, default='')
     instruction = models.TextField(blank=True, default='')

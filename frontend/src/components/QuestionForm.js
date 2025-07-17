@@ -217,7 +217,7 @@ export function QuestionReview({ question }) {
                     {!cell.is_correct && <div className="text-xs text-blue-700">Correct: {cell.correct_answer}</div>}
                   </td>
                 ) : (
-                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">{cell.text}</td>
+                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">{typeof cell.text === 'string' ? cell.text : JSON.stringify(cell.text)}</td>
                 ))}
               </tr>
             ))}
@@ -245,7 +245,7 @@ export function QuestionReview({ question }) {
           return (
             <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: bg, borderRadius: 6, padding: '2px 8px'}}>
               <input type="checkbox" checked={opt.student_selected} disabled className="accent-blue-600" />
-              <span className="font-medium" style={{color}}>{opt.label}. {opt.text}</span>
+              <span className="font-medium" style={{color}}>{opt.label}. {typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
               {note && <span className="text-xs ml-2" style={{color}}>{note}</span>}
             </label>
           );
@@ -263,7 +263,7 @@ export function QuestionReview({ question }) {
         {question.options.map(opt => (
           <label key={opt.label} className="flex items-center mb-1 gap-2" style={{background: opt.is_correct ? '#dcfce7' : opt.student_selected ? '#fee2e2' : '#f3f4f6', borderRadius: 6, padding: '2px 8px'}}>
             <input type="radio" checked={opt.student_selected} disabled className="accent-blue-600" />
-            <span className="font-medium" style={{color: opt.is_correct ? '#166534' : opt.student_selected ? '#991b1b' : '#6b7280'}}>{opt.label}. {opt.text}</span>
+            <span className="font-medium" style={{color: opt.is_correct ? '#166534' : opt.student_selected ? '#991b1b' : '#6b7280'}}>{opt.label}. {typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
             {!opt.is_correct && opt.should_be_selected && <span className="text-xs text-blue-700 ml-2">Correct answer</span>}
           </label>
         ))}
@@ -272,5 +272,5 @@ export function QuestionReview({ question }) {
   }
 
   // Просто текст, если ничего не подошло
-  return <div className="mb-4 text-gray-700 whitespace-pre-line">{question.text}</div>;
+  return <div className="mb-4 text-gray-700 whitespace-pre-line">{typeof question.text === 'string' ? question.text : JSON.stringify(question.text)}</div>;
 } 

@@ -20,25 +20,48 @@ const ReadingResultPage = () => {
 
     const fetchResult = async () => {
         setIsLoading(true);
+        console.log("🔥 FETCHING RESULT for session:", sessionId);
         try {
             const response = await axios.get(`/api/reading-sessions/${sessionId}/result/`);
+            console.log("🔥 RESULT DATA:", response.data);
+            console.log("🔥 BREAKDOWN EXISTS:", !!response.data.breakdown);
+            if (response.data.breakdown) {
+                console.log("🔥 BREAKDOWN KEYS:", Object.keys(response.data.breakdown));
+            }
             setResult(response.data);
         } catch (err) {
-            console.error("Error fetching result:", err.response?.data || err);
+            console.error("🔥 ERROR fetching result:", err.response?.data || err);
             setError('Failed to load test results. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
+    const getBandScoreColor = (score) => {
+        if (score >= 7.0) return 'text-green-600';
+        if (score >= 6.0) return 'text-blue-600';
+        if (score >= 5.0) return 'text-yellow-600';
+        return 'text-red-600';
+    };
+
+    const getBandScoreLabel = (score) => {
+        if (score >= 8.5) return 'Excellent';
+        if (score >= 7.0) return 'Good';
+        if (score >= 6.0) return 'Competent';
+        if (score >= 5.0) return 'Modest';
+        return 'Basic';
+    };
+
+
+
     const renderBreakdown = () => {
         if (!result || !result.breakdown) {
-            return <p>No detailed breakdown available.</p>;
+            return <p className="text-gray-600">No detailed breakdown available.</p>;
         }
-    
+        
         return Object.entries(result.breakdown).map(([questionId, data]) => (
-            <div key={questionId} className="mb-8 p-4 border rounded-lg bg-white shadow-sm">
-                <h3 className="text-lg font-bold mb-3 text-gray-800">
+            <div key={questionId} className="mb-8 p-6 border border-blue-100 rounded-2xl bg-gradient-to-br from-blue-50/30 to-white shadow-md">
+                <h3 className="text-xl font-bold mb-4 text-blue-700">
                     {data.header || `Question ${questionId}`}
                 </h3>
                 {data.sub_questions.map((sub, index) => {
@@ -47,15 +70,93 @@ const ReadingResultPage = () => {
                     const borderColor = isCorrect ? 'border-green-300' : 'border-red-300';
                     
                     return (
-                        <div key={sub.id || index} className={`p-3 border rounded-md mb-2 ${bgColor} ${borderColor}`}>
-                            <p className="font-semibold text-gray-600 mb-1">{sub.text}</p>
-                            <p><strong>Your Answer:</strong> <span className="font-mono">{sub.user_answer || 'No answer'}</span></p>
-                            {!isCorrect && (
-                                <p><strong>Correct Answer:</strong> <span className="font-mono">{sub.correct_answer}</span></p>
+                        <div key={sub.id || index} className={`p-4 border-l-4 rounded-r-xl mb-3 ${bgColor} ${borderColor} shadow-sm`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-semibold text-gray-800">
+                                    {sub.question_text || `Sub-question ${index + 1}`}
+                                </h4>
+                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                    isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                    {isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                </span>
+                            </div>
+                            
+                            {/* Multiple Choice Question */}
+                            {sub.type === 'mcq_single' && sub.options ? (
+                                <div className="text-sm space-y-2">
+                                    <p className="font-medium text-gray-600 mb-2">Answer options:</p>
+                                    <div className="space-y-1">
+                                        {sub.options.map(opt => (
+                                            <div key={opt.label} className={`p-2 border rounded-md text-sm ${
+                                                opt.label === sub.correct_answer ? 'border-green-400 bg-green-50' : 
+                                                opt.label === sub.student_answer && !isCorrect ? 'border-red-400 bg-red-50' : 
+                                                'border-gray-300'
+                                            }`}>
+                                                <span className={`font-bold mr-2 ${opt.label === sub.correct_answer ? 'text-green-700' : ''}`}>
+                                                    {opt.label}.
+                                                </span>
+                                                <span>{typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
+                                                {opt.label === sub.correct_answer && (
+                                                    <span className="text-green-600 font-semibold ml-2">(Correct)</span>
+                                                )}
+                                                {opt.label === sub.student_answer && !isCorrect && (
+                                                    <span className="text-red-600 font-semibold ml-2">(Your Answer)</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : sub.type === 'multiple_response' && sub.options ? (
+                                /* Multiple Response Question */
+                                <div className="text-sm space-y-2">
+                                    <p className="font-medium text-gray-600 mb-2">Answer options:</p>
+                                    <div className="space-y-1">
+                                        {sub.options.map(opt => (
+                                            <div key={opt.label} className={`p-2 border rounded-md text-sm ${
+                                                opt.is_correct_option ? 'border-green-400 bg-green-50' : 
+                                                opt.student_selected && !opt.is_correct_option ? 'border-red-400 bg-red-50' : 
+                                                'border-gray-300'
+                                            }`}>
+                                                <span className={`font-bold mr-2 ${opt.is_correct_option ? 'text-green-700' : ''}`}>
+                                                    {opt.label}.
+                                                </span>
+                                                <span>{typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
+                                                {opt.is_correct_option && (
+                                                    <span className="text-green-600 font-semibold ml-2">(Correct)</span>
+                                                )}
+                                                {opt.student_selected && (
+                                                    <span className="text-blue-600 font-semibold ml-2">(Selected)</span>
+                                                )}
+                                                {opt.student_selected && !opt.is_correct_option && (
+                                                    <span className="text-red-600 font-semibold ml-2">(Incorrect Selection)</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Default text-based answers */
+                                <div className="text-sm space-y-1">
+                                    <p>
+                                        <span className="font-medium text-gray-600">Your answer:</span> 
+                                        <span className={`ml-2 font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
+                                            {sub.student_answer || "(empty)"}
+                                        </span>
+                                    </p>
+                                    {!isCorrect && (
+                                        <p>
+                                            <span className="font-medium text-gray-600">Correct answer:</span> 
+                                            <span className="ml-2 font-semibold text-blue-700">{sub.correct_answer}</span>
+                                        </p>
+                                    )}
+                                    {sub.explanation && (
+                                        <p className="mt-2 text-gray-700 italic">
+                                            <span className="font-medium">Explanation:</span> {sub.explanation}
+                                        </p>
+                                    )}
+                                </div>
                             )}
-                            <p className={`font-bold mt-1 ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                                {isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                            </p>
                         </div>
                     );
                 })}
@@ -63,45 +164,84 @@ const ReadingResultPage = () => {
         ));
     };
 
-    if (isLoading) return <div className="text-center p-8">Loading results...</div>;
-    if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
-    if (!result) return <div className="text-center p-8">No results found.</div>;
+    if (loading || isLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+                <div className="text-xl font-semibold text-gray-600">Loading result...</div>
+            </div>
+        );
+    }
 
-    // Directly use the time_taken string from the server
-    const timeTaken = result.time_taken || 'N/A';
-    
-    return (
-        <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen">
-            <div className="bg-white p-8 rounded-xl shadow-lg mb-8">
-                <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">Reading Test Result</h1>
-                <p className="text-center text-gray-600 mb-6">Session ID: {sessionId}</p>
-
-                <div className="grid grid-cols-3 text-center divide-x divide-gray-200">
-                    <div className="p-4">
-                        <p className="text-sm text-gray-500">Band Score</p>
-                        <p className="text-4xl font-bold text-blue-600">{result.band_score.toFixed(1)}</p>
-                    </div>
-                    <div className="p-4">
-                        <p className="text-sm text-gray-500">Raw Score</p>
-                        <p className="text-4xl font-bold text-gray-700">{result.raw_score} / {result.total_score}</p>
-                    </div>
-                    <div className="p-4">
-                        <p className="text-sm text-gray-500">Time Taken</p>
-                        <p className="text-4xl font-bold text-gray-700">{timeTaken}</p>
-                    </div>
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+                <div className="p-8 bg-red-100 text-red-700 rounded-2xl shadow-lg border border-red-200">
+                    Error: {error}
                 </div>
             </div>
+        );
+    }
 
-            <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Answer Breakdown</h2>
-            {renderBreakdown()}
-            
-            <div className="text-center mt-8">
-                <button
-                    onClick={() => navigate('/reading')}
-                    className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    Back to Tests
-                </button>
+    if (!result) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+                <div className="text-xl font-semibold text-gray-600">Result not found</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-8">
+            <div className="max-w-4xl mx-auto px-4">
+                {/* Header */}
+                <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-blue-100">
+                    <h1 className="text-3xl font-bold text-center mb-4 text-blue-700">Test Results</h1>
+                    <h2 className="text-xl text-center text-gray-600 mb-6">{result.test_title || 'IELTS Reading Test'}</h2>
+                    
+                    {/* Score Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200">
+                            <div className={`text-3xl font-bold mb-2 ${getBandScoreColor(result.band_score)}`}>
+                                {result.band_score}
+                            </div>
+                            <div className="text-sm text-blue-700 font-medium">Band Score</div>
+                            <div className="text-xs text-gray-600 mt-1">{getBandScoreLabel(result.band_score)}</div>
+                        </div>
+                        <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl border border-green-200">
+                            <div className="text-3xl font-bold text-green-600 mb-2">
+                                {result.correct_answers_text || `${Math.floor(result.correct_answers_count || 0)} / ${Math.floor(result.total_questions_count || 0)}`}
+                            </div>
+                            <div className="text-sm text-green-700 font-medium">Correct Answers</div>
+                        </div>
+
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <button
+                            onClick={() => navigate('/reading')}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300"
+                        >
+                            Take Another Test
+                        </button>
+                        <button
+                            onClick={() => navigate('/dashboard')}
+                            className="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold rounded-xl shadow-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300"
+                        >
+                            Back to Dashboard
+                        </button>
+                    </div>
+                </div>
+
+                {/* Detailed Breakdown */}
+                <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100">
+                    <h3 className="text-2xl font-bold mb-6 text-blue-700 border-b border-blue-100 pb-4">
+                        Detailed Analysis
+                    </h3>
+                    <div className="space-y-6">
+                        {renderBreakdown()}
+                    </div>
+                </div>
             </div>
         </div>
     );

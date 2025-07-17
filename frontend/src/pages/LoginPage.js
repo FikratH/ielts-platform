@@ -11,9 +11,13 @@ const LoginPage = () => {
   const [role, setRole] = useState('');
 
   const handleLogin = async () => {
-    const email = `${sid}@ielts.local`;
-
     try {
+      // 1. Получить email по SID
+      const emailRes = await axios.get('/api/get-email-by-sid/', { params: { student_id: sid } });
+      const email = emailRes.data.email;
+      if (!email) throw new Error('Email not found');
+
+      // 2. Вход через Firebase по email и паролю
       const result = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await result.user.getIdToken();
 
@@ -26,7 +30,7 @@ const LoginPage = () => {
 
       localStorage.setItem('uid', response.data.uid);
       localStorage.setItem('role', response.data.role);
-      localStorage.setItem("student_id", response.data.student_id);
+      localStorage.setItem('student_id', response.data.student_id);
       setRole(response.data.role);
 
       window.dispatchEvent(new Event('local-storage'));
@@ -36,10 +40,15 @@ const LoginPage = () => {
       } else {
         navigate('/dashboard');
       }
-
     } catch (error) {
       console.error('Login error:', error);
-      alert('Login failed. Check SID and password.');
+      if (error.response && error.response.status === 404) {
+        alert('SID не найден. Проверьте правильность Student ID.');
+      } else if (error.code === 'auth/wrong-password') {
+        alert('Неверный пароль.');
+      } else {
+        alert('Login failed. Проверьте SID и пароль.');
+      }
     }
   };
 

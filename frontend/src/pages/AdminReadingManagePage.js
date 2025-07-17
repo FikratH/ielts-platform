@@ -7,6 +7,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 
 const AdminReadingManagePage = () => {
   const [tests, setTests] = useState([]);
@@ -68,6 +69,34 @@ const AdminReadingManagePage = () => {
       }
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to delete test', severity: 'error' });
+    }
+  };
+
+  const downloadCSV = async (testId, testTitle) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/admin/reading-test/${testId}/export-csv/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `reading_test_${testId}_results.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        setSnackbar({ open: true, message: 'CSV downloaded successfully', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: 'Failed to download CSV', severity: 'error' });
+      }
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to download CSV', severity: 'error' });
     }
   };
 
@@ -141,8 +170,17 @@ const AdminReadingManagePage = () => {
                     />
                     <IconButton
                       size="small"
+                      color="success"
+                      onClick={() => downloadCSV(test.id, test.title)}
+                      title="Download CSV"
+                    >
+                      <DownloadIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
                       color="primary"
                       onClick={() => navigate(`/admin/reading/builder/${test.id}`)}
+                      title="Edit Test"
                     >
                       <EditIcon />
                     </IconButton>
@@ -150,6 +188,7 @@ const AdminReadingManagePage = () => {
                       size="small"
                       color="error"
                       onClick={() => deleteTest(test.id)}
+                      title="Delete Test"
                     >
                       <DeleteIcon />
                     </IconButton>

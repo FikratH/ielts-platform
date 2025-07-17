@@ -1,8 +1,10 @@
 from openai import OpenAI
 import os
+import csv
 from dotenv import load_dotenv
 load_dotenv()
 from .utils import CsrfExemptAPIView
+from django.http import HttpResponse
 from .firebase_config import verify_firebase_token
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
@@ -10,7 +12,7 @@ from .models import ListeningTest, ListeningTestSession
 from .serializers import (
     EssaySerializer, WritingPromptSerializer,
     ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer,
-    ListeningTestSessionHistorySerializer
+    ListeningTestSessionHistorySerializer, ReadingTestSessionHistorySerializer
 )
 from .models import WritingTestSession
 from rest_framework import serializers
@@ -1146,6 +1148,89 @@ class ListeningTestExportCSVView(APIView):
             ])
         return response
 
+# --- Reading Test CSV Export для админов ---
+class ReadingTestExportCSVView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, test_id):
+        # Проверяем права админа
+        try:
+            user = User.objects.get(uid=request.user.uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+        try:
+            test = ReadingTest.objects.get(id=test_id)
+        except ReadingTest.DoesNotExist:
+            return Response({'error': 'Test not found'}, status=404)
+
+        # Получаем все завершенные сессии по этому тесту
+        sessions = ReadingTestSession.objects.filter(
+            test=test, 
+            completed=True
+        ).select_related('user', 'result').order_by('-end_time')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="reading_test_{test_id}_results.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Student ID', 'First Name', 'Last Name', 'Group', 'Teacher',
+            'Raw Score', 'Total Score', 'Band Score', 
+            'Correct Questions', 'Incorrect Questions', 'Date Submitted'
+        ])
+
+        for session in sessions:
+            result = getattr(session, 'result', None)
+            if not result:
+                continue
+                
+            user = session.user
+            
+            # Извлекаем правильные и неправильные вопросы из breakdown
+            correct_questions = []
+            incorrect_questions = []
+            
+            # Упрощенная логика: просто нумеруем подвопросы по порядку
+            question_counter = 1
+            
+            if result.breakdown:
+                for question_id, data in result.breakdown.items():
+                    sub_questions = data.get('sub_questions', [])
+                    if sub_questions:
+                        # Для вопросов с подвопросами - нумеруем каждый отдельно
+                        for sub in sub_questions:
+                            if sub.get('is_correct'):
+                                correct_questions.append(str(question_counter))
+                            else:
+                                incorrect_questions.append(str(question_counter))
+                            question_counter += 1
+                    else:
+                        # Для простых вопросов - один номер на вопрос
+                        if data.get('is_correct'):
+                            correct_questions.append(str(question_counter))
+                        else:
+                            incorrect_questions.append(str(question_counter))
+                        question_counter += 1
+            
+            writer.writerow([
+                user.student_id or '',
+                user.first_name or '',
+                user.last_name or '',
+                user.group or '',
+                user.teacher or '',
+                result.raw_score,
+                result.total_score,
+                result.band_score,
+                ';'.join(correct_questions),
+                ';'.join(incorrect_questions),
+                session.end_time.strftime('%Y-%m-%d %H:%M:%S') if session.end_time else ''
+            ])
+
+        return response
+
 class AdminCreateStudentView(APIView):
     permission_classes = [IsAdmin]
 
@@ -1294,15 +1379,8 @@ class ReadingTestSessionView(APIView):
         """
         test = get_object_or_404(ReadingTest, pk=test_id)
         
-        # Instead of get_or_create, fetch the latest incomplete session or create a new one
-        session = ReadingTestSession.objects.filter(
-            user=request.user,
-            test=test,
-            completed=False
-        ).order_by('-start_time').first()
-
-        if not session:
-            session = ReadingTestSession.objects.create(user=request.user, test=test)
+        # Всегда создаем новую сессию для IELTS (каждый тест - отдельная попытка)
+        session = ReadingTestSession.objects.create(user=request.user, test=test)
             
         serializer = ReadingTestSessionSerializer(session)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1311,18 +1389,23 @@ class ReadingTestSessionView(APIView):
         """
         Submit answers for a session (finish test).
         """
+        print(f"🔥 SUBMIT: Session {session_id}, User: {request.user}")
         session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
         if session.completed:
             return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         answers_data = request.data.get('answers', {})
+        print(f"🔥 ANSWERS: {len(answers_data)} answers received")
+        print(f"🔥 DETAILED ANSWERS: {answers_data}")
         session.answers = answers_data
         session.end_time = timezone.now()
         session.completed = True
         session.save()
+        print(f"🔥 SESSION SAVED: completed={session.completed}")
         
         # Trigger result calculation
         result = self._calculate_and_save_results(session)
+        print(f"🔥 RESULT CREATED: raw_score={result.raw_score}, breakdown_questions={len(result.breakdown)}")
 
         return Response(ReadingTestResultSerializer(result).data, status=status.HTTP_200_OK)
 
@@ -1345,131 +1428,60 @@ class ReadingTestSessionView(APIView):
         return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
 
     def _calculate_and_save_results(self, session):
-        user_answers = session.answers
-        test = session.test
-        raw_score = 0
-        total_possible_score = 0
-        full_breakdown = {}
-
-        def normalize_answer(answer):
-            if not answer:
-                return ""
-            return re.sub(r'[^\w\s]', '', answer.strip().lower())
-
-        all_questions = [q for part in test.parts.all() for q in part.questions.all()]
+        # Используем новую универсальную функцию формирования breakdown
+        from .serializers import get_test_render_structure, count_correct_subanswers
         
-        for question in all_questions:
-            user_q_answers = user_answers.get(str(question.id))
-            correct_answers = question.correct_answers or []
-            question_breakdown = []
+        # Получаем структуру теста с правильными типами и опциями
+        test_structure = get_test_render_structure(None, session)
+        
+        raw_score = 0
+        full_breakdown = {}
+        
+        # Преобразуем структуру в breakdown формат и считаем очки
+        for part in test_structure:
+            for question_data in part['questions']:
+                question_id = question_data['id']
+                sub_questions = question_data['sub_questions']
+                
+                # Считаем правильные ответы для этого вопроса
+                correct_count = sum(1 for sub in sub_questions if sub.get('is_correct', False))
+                raw_score += correct_count
+                
+                full_breakdown[question_id] = {
+                    'question_text': question_data['question_text'],
+                    'question_type': question_data['type'], 
+                    'header': question_data['header'],
+                    'instruction': question_data['instruction'],
+                    'sub_questions': sub_questions,
+                }
 
-            # Multiple Choice
-            if question.question_type in ['multiple_choice', 'multiplechoice']:
-                total_possible_score += question.points
-                correct_answer = (correct_answers[0] if correct_answers and len(correct_answers) > 0 else {}).get('text')
-                user_answer = user_q_answers.get('text') if user_q_answers else None
-                is_correct = user_answer is not None and normalize_answer(user_answer) == normalize_answer(correct_answer)
-                if is_correct:
-                    raw_score += question.points
-                question_breakdown.append({
-                    'text': question.question_text, 'user_answer': user_answer,
-                    'correct_answer': correct_answer, 'is_correct': is_correct
-                })
+        # Подсчитываем total_possible_score как общее количество подвопросов
+        total_possible_score = sum(len(data['sub_questions']) for data in full_breakdown.values())
 
-            # Multiple Response
-            elif question.question_type == 'multiple_response':
-                total_possible_score += question.points
-                correct_set = {normalize_answer(ans.get('text')) for ans in (correct_answers or [])}
-                user_set = {normalize_answer(ans) for ans in (user_q_answers or [])} if user_q_answers else set()
-                correctly_selected = len(user_set.intersection(correct_set))
-                incorrectly_selected = len(user_set.difference(correct_set))
-                score_for_q = max(0, (correctly_selected - incorrectly_selected) / len(correct_set)) if len(correct_set) > 0 else 0
-                q_score = score_for_q * question.points
-                raw_score += q_score
-                question_breakdown.append({
-                    'text': question.question_text, 'user_answer': list(user_set),
-                    'correct_answer': list(correct_set), 'is_correct': q_score > 0, 'score': q_score,
-                })
-
-            # Gap Fill
-            elif question.question_type in ['gap_fill', 'summary_completion', 'sentence_completion', 'note_completion']:
-                total_possible_score += len(correct_answers)
-                correct_map = {item['number']: item['answer'] for item in (correct_answers or [])}
-                for gap_num, correct_ans_text in correct_map.items():
-                    user_ans_text = user_q_answers.get(f'gap{gap_num}') if user_q_answers else None
-                    is_correct = user_ans_text is not None and normalize_answer(user_ans_text) == normalize_answer(correct_ans_text)
-                    if is_correct:
-                        raw_score += 1
-                    question_breakdown.append({
-                        'text': f"Gap {gap_num}", 'user_answer': user_ans_text,
-                        'correct_answer': correct_ans_text, 'is_correct': is_correct
-                    })
-
-            # Table Completion
-            elif question.question_type == 'table':
-                total_possible_score += len(correct_answers)
-                for correct_ans_item in (correct_answers or []):
-                    row, col, correct_text = correct_ans_item['row'], correct_ans_item['col'], correct_ans_item['answer']
-                    user_text = user_q_answers.get(f'cell_{row}_{col}') if user_q_answers else None
-                    is_correct = user_text is not None and normalize_answer(user_text) == normalize_answer(correct_text)
-                    if is_correct:
-                        raw_score += 1
-                    question_breakdown.append({
-                        'text': f"Table Cell ({row+1}, {col+1})", 'user_answer': user_text,
-                        'correct_answer': correct_text, 'is_correct': is_correct
-                    })
-
-            # True/False/Not Given
-            elif question.question_type == 'true_false_not_given':
-                total_possible_score += len(correct_answers)
-                statements = question.extra_data.get('statements', [])
-                for idx, correct_ans_text in enumerate(correct_answers or []):
-                    user_ans_text = user_q_answers.get(f'statement_{idx}') if user_q_answers else None
-                    is_correct = user_ans_text is not None and (user_ans_text or '').lower() == (correct_ans_text or '').lower()
-                    if is_correct:
-                        raw_score += 1
-                    question_breakdown.append({
-                        'text': statements[idx] if idx < len(statements) else f"Statement {idx+1}",
-                        'user_answer': user_ans_text, 'correct_answer': correct_ans_text, 'is_correct': is_correct
-                    })
-
-            # Matching
-            elif question.question_type == 'matching':
-                total_possible_score += len(correct_answers)
-                correct_map = correct_answers or {}
-                for item_text, correct_opt_text in correct_map.items():
-                    user_opt_text = user_q_answers.get(item_text) if user_q_answers else None
-                    is_correct = user_opt_text is not None and normalize_answer(user_opt_text) == normalize_answer(correct_opt_text)
-                    if is_correct:
-                        raw_score += 1
-                    question_breakdown.append({
-                        'text': item_text, 'user_answer': user_opt_text,
-                        'correct_answer': correct_opt_text, 'is_correct': is_correct
-                    })
-
-            full_breakdown[question.id] = {
-                'question_text': question.question_text, 'question_type': question.question_type,
-                'header': question.header, 'instruction': question.instruction,
-                'sub_questions': question_breakdown,
-            }
-
-        def get_reading_band_score(rs, tq=40):
-            if tq != 40 and tq > 0:
-                rs = (rs / tq) * 40
-            if rs >= 39: return 9.0
-            if rs >= 37: return 8.5
-            if rs >= 35: return 8.0
-            if rs >= 33: return 7.5
-            if rs >= 30: return 7.0
-            if rs >= 27: return 6.5
-            if rs >= 23: return 6.0
-            if rs >= 19: return 5.5
-            if rs >= 15: return 5.0
-            if rs >= 13: return 4.5
-            if rs >= 10: return 4.0
-            if rs >= 6: return 3.5
-            if rs >= 4: return 3.0
-            return 2.5
+        def get_reading_band_score(raw_score, total_score=40):
+            # Официальная таблица IELTS Reading band score
+            # Приводим к стандартной шкале из 40 вопросов
+            if total_score != 40 and total_score > 0:
+                normalized_score = (raw_score / total_score) * 40
+            else:
+                normalized_score = raw_score
+            
+            # Официальная таблица IELTS Reading
+            if normalized_score >= 39: return 9.0
+            if normalized_score >= 37: return 8.5
+            if normalized_score >= 35: return 8.0
+            if normalized_score >= 33: return 7.5
+            if normalized_score >= 30: return 7.0
+            if normalized_score >= 27: return 6.5
+            if normalized_score >= 23: return 6.0
+            if normalized_score >= 19: return 5.5
+            if normalized_score >= 15: return 5.0
+            if normalized_score >= 13: return 4.5
+            if normalized_score >= 10: return 4.0
+            if normalized_score >= 8: return 3.5
+            if normalized_score >= 6: return 3.0
+            if normalized_score >= 4: return 2.5
+            return 2.0  # Минимальный band score
 
         result, created = ReadingTestResult.objects.update_or_create(
             session=session,
@@ -1477,8 +1489,7 @@ class ReadingTestSessionView(APIView):
                 'raw_score': raw_score,
                 'total_score': total_possible_score,
                 'band_score': get_reading_band_score(raw_score, total_possible_score),
-                'breakdown': full_breakdown,
-                'time_taken': session.end_time - session.start_time
+                'breakdown': full_breakdown
             }
         )
         return result
@@ -1488,13 +1499,52 @@ class ReadingTestResultView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, session_id):
+        print(f"🔥 GET RESULT: Session {session_id}, User: {request.user}")
         try:
             session = ReadingTestSession.objects.get(
                 id=session_id, 
                 user=request.user,
                 completed=True
             )
+            print(f"🔥 SESSION FOUND: completed={session.completed}")
+            print(f"🔥 RESULT EXISTS: {hasattr(session, 'result')}")
+            if hasattr(session, 'result'):
+                print(f"🔥 RESULT DATA: raw_score={session.result.raw_score}, breakdown_questions={len(session.result.breakdown)}")
             serializer = ReadingTestResultSerializer(session.result)
             return Response(serializer.data)
         except ReadingTestSession.DoesNotExist:
+            print(f"🔥 SESSION NOT FOUND or NOT COMPLETED")
             return Response({'error': 'Result not found or test not completed.'}, status=404)
+        except Exception as e:
+            print(f"🔥 ERROR: {e}")
+            return Response({'error': str(e)}, status=500)
+
+class GetEmailBySIDView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        sid = request.query_params.get('student_id')
+        if not sid:
+            return Response({'error': 'student_id required'}, status=400)
+        try:
+            user = User.objects.get(student_id=sid)
+            if not user.email:
+                return Response({'error': 'Email not set for this user'}, status=404)
+            return Response({'email': user.email})
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+# --- Reading Test Session List для Dashboard ---
+class ReadingTestSessionListView(ListAPIView):
+    serializer_class = ReadingTestSessionHistorySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        try:
+            user = User.objects.get(uid=self.request.user.uid)
+            return ReadingTestSession.objects.filter(
+                user=user, 
+                completed=True
+            ).select_related('test', 'result').order_by('-end_time')
+        except User.DoesNotExist:
+            return ReadingTestSession.objects.none()

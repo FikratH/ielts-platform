@@ -36,7 +36,10 @@ from .views import (
     ReadingTestSessionViewSet,
     ReadingTestResultViewSet,
     ReadingTestSessionView,
-    ReadingTestResultView
+    ReadingTestResultView,
+    ReadingTestSessionListView,
+    ReadingTestExportCSVView,
+    GetEmailBySIDView
 )
 
 router = DefaultRouter()
@@ -91,10 +94,13 @@ urlpatterns = router.urls + [
 
 urlpatterns += [
     path('admin/listening-test/<int:test_id>/export-csv/', ListeningTestExportCSVView.as_view(), name='listening-test-export-csv'),
+    path('admin/reading-test/<int:test_id>/export-csv/', ReadingTestExportCSVView.as_view(), name='reading-test-export-csv'),
     
     # Reading test session endpoints
     path('reading-tests/<int:test_id>/start/', ReadingTestSessionView.as_view(), name='reading-session-start'),
     path('reading-sessions/<int:session_id>/sync/', ReadingTestSessionView.as_view(), name='reading-session-sync'),
     path('reading-sessions/<int:session_id>/submit/', ReadingTestSessionView.as_view(), name='reading-session-submit'),
     path('reading-sessions/<int:session_id>/result/', ReadingTestResultView.as_view(), name='reading-session-result'),
+    path('reading/sessions/', ReadingTestSessionListView.as_view(), name='reading-session-list'),
+    path('get-email-by-sid/', GetEmailBySIDView.as_view(), name='get-email-by-sid'),
 ]

@@ -614,24 +614,24 @@ const ListeningTestPlayer = () => {
       );
     }
 
-    // Multiple Choice (single answer)
+    // Multiple Choice
     if (["multiple_choice", "multiplechoice", "single_choice", "singlechoice"].includes(type) && Array.isArray(question.options)) {
       return (
-        <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+        <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
           {headerBlock}
           {questionHeader}
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-3">
             {question.options.map((option, idx) => {
               const subKey = `${question.id}__${option.label}`;
               return (
-              <label key={option.id || idx} className="flex items-center space-x-3 cursor-pointer text-lg">
+              <label key={option.id || idx} className="flex items-center space-x-3 lg:space-x-4 cursor-pointer text-base lg:text-lg p-2 lg:p-3 rounded-xl hover:bg-blue-50 transition-colors duration-200">
                 <input
                   type="radio"
                   name={`question-${question.id}`}
                   value={option.label}
                     checked={!!answers[subKey]}
                     onChange={e => handleAnswerChange(subKey, e.target.checked ? option.label : '')}
-                  className="accent-blue-600 w-5 h-5"
+                  className="accent-blue-600 w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0"
                 />
                 <span className="font-medium">{option.label}. {option.text}</span>
               </label>
@@ -644,14 +644,14 @@ const ListeningTestPlayer = () => {
 
     // Default fallback (text input)
     return (
-      <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow focus-within:ring-2 focus-within:ring-blue-300 bg-blue-50/30">
+      <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow focus-within:ring-2 focus-within:ring-blue-300 bg-blue-50/30">
         {headerBlock}
         {questionHeader}
         <input
           type="text"
           value={value}
           onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-          className="w-full p-4 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-400 text-lg transition placeholder-gray-400 bg-white shadow-sm"
+          className="w-full p-3 lg:p-4 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-400 text-base lg:text-lg transition placeholder-gray-400 bg-white shadow-sm"
           placeholder="Your answer..."
         />
       </div>
@@ -734,10 +734,10 @@ const ListeningTestPlayer = () => {
       </div>
 
       <div className="w-full px-2 py-8">
-        <div className="grid grid-cols-4 gap-8 justify-center items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8 justify-center items-start">
           {/* Audio Player */}
-          <div className="col-span-1">
-            <div className="bg-white rounded-2xl shadow-xl p-8 sticky top-24 border border-blue-100">
+          <div className="lg:col-span-1 order-2 lg:order-1">
+            <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
               <h2 className="text-lg font-bold text-blue-700 mb-4">Audio Player</h2>
               {currentPartData?.audio && (
                 <audio
@@ -760,7 +760,7 @@ const ListeningTestPlayer = () => {
                   <button
                     onClick={() => audioRef.current?.play()}
                     disabled={!currentPartData?.audio || isPlaying || audioEnded}
-                    className="bg-blue-100 text-blue-700 font-semibold px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-lg"
+                    className="bg-blue-100 text-blue-700 font-semibold px-6 lg:px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-base lg:text-lg"
                   >
                     {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
                   </button>
@@ -773,11 +773,11 @@ const ListeningTestPlayer = () => {
                           type="button"
                         >
                           {volume === 0 ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 lg:w-6 lg:h-6 text-blue-700">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l6 6m0-6l-6 6M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
                             </svg>
                           ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 lg:w-6 lg:h-6 text-blue-700">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.386-.564-2.636-1.464-3.536m0 7.072A4.978 4.978 0 0019.5 12z" />
                             </svg>
@@ -790,17 +790,17 @@ const ListeningTestPlayer = () => {
                           step={0.01}
                           value={volume}
                           onChange={e => setVolume(parseFloat(e.target.value))}
-                          className="w-24 accent-blue-600"
+                          className="w-20 lg:w-24 accent-blue-600"
                           aria-label="Volume"
                         />
-                        <span className="text-sm text-gray-500 font-mono w-8 text-right">{Math.round(volume * 100)}</span>
+                        <span className="text-xs lg:text-sm text-gray-500 font-mono w-8 text-right">{Math.round(volume * 100)}</span>
                       </div>
                       <div className="flex flex-row items-center gap-3 justify-center w-full text-xs text-gray-600">
                         <span>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></span>
                         <span>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></span>
                 </div>
                   {audioEnded && (
-                    <div className="text-green-600 font-medium mt-1">✓ Audio completed</div>
+                    <div className="text-green-600 font-medium mt-1 text-sm lg:text-base">✓ Audio completed</div>
                   )}
                 {audioPlayed && !audioEnded && (
                   <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
@@ -812,14 +812,14 @@ const ListeningTestPlayer = () => {
                 )}
               </div>
               {/* Part Navigation */}
-              <div className="mt-8">
+              <div className="mt-6 lg:mt-8">
                 <h3 className="font-medium text-blue-700 mb-3">Parts</h3>
-                <div className="space-y-2">
+                <div className="flex flex-wrap lg:flex-col lg:space-y-2 gap-2 lg:gap-0">
                   {test.parts?.map((part, index) => (
                     <button
                       key={part.id}
                       onClick={() => setCurrentPart(index)}
-                      className={`w-full text-left p-3 rounded-xl font-semibold transition text-base ${
+                      className={`text-left p-2 lg:p-3 rounded-xl font-semibold transition text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
                         currentPart === index
                           ? 'bg-blue-100 text-blue-700 shadow'
                           : 'hover:bg-blue-50 text-gray-700'
@@ -833,17 +833,17 @@ const ListeningTestPlayer = () => {
             </div>
           </div>
           {/* Questions */}
-          <div className="col-span-3 flex justify-center">
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100 w-full">
+          <div className="lg:col-span-3 order-1 lg:order-2 flex justify-center">
+            <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-blue-100 w-full">
               {currentPartData && (
                 <>
                   <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-blue-700 mb-2">Part {currentPart + 1}</h2>
+                    <h2 className="text-xl lg:text-2xl font-bold text-blue-700 mb-2">Part {currentPart + 1}</h2>
                     {currentPartData.instructions && (
-                      <p className="text-gray-500 mb-4 text-base">{currentPartData.instructions}</p>
+                      <p className="text-gray-500 mb-4 text-sm lg:text-base bg-blue-50/30 p-3 lg:p-4 rounded-lg">{currentPartData.instructions}</p>
                     )}
                   </div>
-                  <div className="space-y-8">
+                  <div className="space-y-6 lg:space-y-8">
                     {currentPartData.questions?.map(renderQuestion)}
                   </div>
                 </>
@@ -854,11 +854,11 @@ const ListeningTestPlayer = () => {
       </div>
 
       {/* Submit Button */}
-      <div className="max-w-3xl mx-auto px-2 pb-[60px]">
+      <div className="max-w-3xl mx-auto px-4 lg:px-2 pb-16 lg:pb-[60px]">
         <button
           onClick={submitTest}
           disabled={isSubmitted}
-          className="w-full mt-10 bg-blue-100 text-blue-700 font-bold text-xl py-4 rounded-2xl shadow hover:bg-blue-200 transition disabled:opacity-50 border border-blue-200"
+          className="w-full mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-lg lg:text-xl py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
         >
           Submit Test
         </button>

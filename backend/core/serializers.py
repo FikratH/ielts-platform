@@ -260,13 +260,10 @@ def create_detailed_breakdown(session):
                     # Обрабатываем разные типы вопросов
                     if question.question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
                         # Gap fill вопросы
-                        gaps = []
                         if question.extra_data and 'gaps' in question.extra_data:
                             gaps = question.extra_data['gaps']
-                        elif isinstance(question.correct_answers, list) and all(isinstance(x, dict) and 'number' in x for x in question.correct_answers):
-                            gaps = question.correct_answers
                         else:
-                            gaps = [{'number': i+1, 'answer': ca} for i, ca in enumerate(question.correct_answers)]
+                            gaps = normalize_correct_answers_for_gaps(question.correct_answers, question.question_type)
                         
                         for gap in gaps:
                             gap_num = gap.get('number')
@@ -381,20 +378,74 @@ def create_detailed_breakdown(session):
         print(f"[ERROR] Creating detailed breakdown: {str(e)}")
         return []
 
-def get_test_render_structure(self, obj):
+def normalize_correct_answers_for_gaps(correct_answers, question_type):
     """
-    Возвращает структуру для рендера теста (как на тесте) для вкладки "Подробнее"
-    Это универсальная функция для Listening и Reading.
+    Нормализует correct_answers для gap_fill типов вопросов.
+    Всегда возвращает список словарей вида [{'number': 1, 'answer': 'text'}, ...]
+    
+    Args:
+        correct_answers: может быть списком строк ['text1', 'text2'] или списком словарей [{'number': 1, 'answer': 'text1'}]
+        question_type: тип вопроса
+    
+    Returns:
+        list: список словарей с ключами 'number' и 'answer'
+    """
+    if question_type not in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
+        return correct_answers
+    
+    if not isinstance(correct_answers, list):
+        return []
+    
+    # Если уже правильный формат (список словарей с нужными ключами)
+    if correct_answers and all(isinstance(item, dict) and 'number' in item and 'answer' in item for item in correct_answers):
+        return correct_answers
+    
+    # Если список строк или список словарей без нужной структуры - конвертируем
+    normalized = []
+    for idx, item in enumerate(correct_answers):
+        if isinstance(item, str):
+            # Простая строка - делаем словарь
+            normalized.append({
+                'number': idx + 1,
+                'answer': item
+            })
+        elif isinstance(item, dict):
+            # Словарь, но возможно в неправильном формате
+            if 'number' in item and 'answer' in item:
+                normalized.append(item)
+            elif 'answer' in item:
+                # Есть answer, но нет number
+                normalized.append({
+                    'number': item.get('number', idx + 1),
+                    'answer': item['answer']
+                })
+            else:
+                # Неизвестный формат - пытаемся извлечь как строку
+                answer_text = str(item) if item else ''
+                normalized.append({
+                    'number': idx + 1,
+                    'answer': answer_text
+                })
+        else:
+            # Не строка и не словарь - конвертируем в строку
+            normalized.append({
+                'number': idx + 1,
+                'answer': str(item) if item is not None else ''
+            })
+    
+    return normalized
+
+def get_test_render_structure(serializer_instance, obj):
+    """
+    Универсальная функция для рендера теста (Listening/Reading).
+    Для Reading сортирует вопросы по order, для Listening — по id.
     """
     result = []
     session = obj
     answers = session.answers or {}
     test = session.test
-    
-    module = 'listening' if hasattr(test, 'listeningpart_set') or isinstance(test, ListeningTest) else 'reading'
-
+    module = 'listening' if hasattr(test, 'listeningpart_set') or test.__class__.__name__ == 'ListeningTest' else 'reading'
     parts_query = test.parts.all().order_by('part_number')
-
     for part in parts_query:
         part_data = {
             'part_number': part.part_number,
@@ -403,8 +454,11 @@ def get_test_render_structure(self, obj):
             'instructions': part.instructions if module == 'listening' else getattr(part, 'instructions', ''),
             'questions': []
         }
-
-        for q in part.questions.all().order_by('order'):
+        if module == 'reading':
+            questions = part.questions.all().order_by('order')
+        else:
+            questions = part.questions.all().order_by('id')
+        for q in questions:
             q_data = {
                 'id': q.id,
                 'type': q.question_type,
@@ -417,15 +471,33 @@ def get_test_render_structure(self, obj):
             
             # --- Multiple Choice ---
             if q.question_type in ['multiple_choice', 'multiplechoice']:
-                user_answer = answers.get(str(q.id))
+                # Multiple choice может приходить в разных форматах
+                user_answer = ''
+                question_answers = answers.get(str(q.id))
+                if isinstance(question_answers, dict) and 'text' in question_answers:
+                    # Формат: answers[questionId] = { text: "value" }
+                    user_answer = question_answers['text']
+                elif isinstance(question_answers, str):
+                    # Старый формат: answers[questionId] = "value"
+                    user_answer = question_answers
+                
                 correct_option = None
                 options = []
 
-                # Reading has answer_options, Listening has options
-                options_qs = q.answer_options.all() if hasattr(q, 'answer_options') else q.options.all()
+                # Reading has answer_options, Listening has options  
+                if hasattr(q, 'answer_options'):
+                    options_qs = q.answer_options.all()
+                else:
+                    options_qs = q.options.all()
 
                 for opt in options_qs:
-                    is_correct = opt.is_correct if hasattr(opt, 'is_correct') else (q.correct_answers and str(opt.id) in q.correct_answers)
+                    # Reading has is_correct field, Listening determines from correct_answers
+                    if hasattr(opt, 'is_correct'):
+                        is_correct = opt.is_correct
+                    else:
+                        # For Listening: check if this option label or text is in correct_answers
+                        is_correct = (q.correct_answers and (opt.label in q.correct_answers or opt.text in q.correct_answers))
+                    
                     if is_correct:
                         correct_option = opt.label
                     options.append({
@@ -445,14 +517,36 @@ def get_test_render_structure(self, obj):
             
             # --- Multiple Response ---
             elif q.question_type == 'multiple_response':
-                user_answers = answers.get(str(q.id), {}) # e.g., {'A': true, 'C': true}
+                user_answers_raw = answers.get(str(q.id), {})
+                # Ensure user_answers is a dictionary, handle cases where it might be a list
+                if isinstance(user_answers_raw, list):
+                    # Convert list to dict if needed (fallback)
+                    user_answers = {}
+                    for item in user_answers_raw:
+                        if isinstance(item, str):
+                            user_answers[item] = True
+                elif isinstance(user_answers_raw, dict):
+                    user_answers = user_answers_raw
+                else:
+                    user_answers = {}
+                    
                 sub_questions = []
                 
-                options_qs = q.answer_options.all()
+                # Reading has answer_options, Listening has options
+                if hasattr(q, 'answer_options'):
+                    options_qs = q.answer_options.all()
+                else:
+                    options_qs = q.options.all()
                 all_correct = True
                 
                 for opt in options_qs:
-                    is_correct_option = opt.is_correct
+                    # Reading has is_correct field, Listening determines from correct_answers
+                    if hasattr(opt, 'is_correct'):
+                        is_correct_option = opt.is_correct
+                    else:
+                        # For Listening: check if this option is in correct_answers
+                        is_correct_option = (q.correct_answers and opt.label in q.correct_answers) or (q.correct_answers and opt.text in q.correct_answers)
+                    
                     was_selected_by_user = user_answers.get(opt.label, False)
                     
                     if is_correct_option != was_selected_by_user:
@@ -476,17 +570,28 @@ def get_test_render_structure(self, obj):
                 text = q.question_text or ''
                 gap_matches = list(re.finditer(r'\[\[(\d+)\]\]', text))
                 
+                # Нормализуем correct_answers для gap_fill
+                normalized_correct_answers = normalize_correct_answers_for_gaps(q.correct_answers, q.question_type)
+                
                 for match in gap_matches:
                     gap_num = match.group(1)
-                    answer_key = f"{q.id}__gap{gap_num}"
-                    user_val = answers.get(answer_key, '')
+                    
+                    # Проверяем разные возможные форматы ключей
+                    user_val = ''
+                    question_answers = answers.get(str(q.id), {})
+                    if isinstance(question_answers, dict):
+                        # Формат: answers[questionId] = { "gap1": "value", "gap2": "value" }
+                        user_val = question_answers.get(f"gap{gap_num}", '')
+                    else:
+                        # Старый формат: answers["questionId__gap1"] = "value" 
+                        answer_key = f"{q.id}__gap{gap_num}"
+                        user_val = answers.get(answer_key, '')
 
                     correct_val = ''
-                    if isinstance(q.correct_answers, list):
-                        # Ищем в списке словарей [{number: '1', answer: '...'}, ...]
-                        correct_entry = next((item for item in q.correct_answers if str(item.get('number')) == str(gap_num)), None)
-                        if correct_entry:
-                            correct_val = correct_entry.get('answer', '')
+                    # Ищем в нормализованном списке словарей [{number: '1', answer: '...'}, ...]
+                    correct_entry = next((item for item in normalized_correct_answers if str(item.get('number')) == str(gap_num)), None)
+                    if correct_entry:
+                        correct_val = correct_entry.get('answer', '')
 
                     is_correct = (normalize_answer(user_val) == normalize_answer(correct_val))
                     
@@ -504,8 +609,16 @@ def get_test_render_structure(self, obj):
                     for r_idx, row in enumerate(q.extra_data['rows']):
                         for c_idx, cell in enumerate(row):
                             if isinstance(cell, dict) and cell.get('type') == 'gap':
-                                answer_key = f"{q.id}__gap{r_idx}-{c_idx}"
-                                user_val = answers.get(answer_key, '')
+                                # Проверяем разные возможные форматы ключей
+                                user_val = ''
+                                question_answers = answers.get(str(q.id), {})
+                                if isinstance(question_answers, dict):
+                                    # Формат: answers[questionId] = { "r0c1": "value" }
+                                    user_val = question_answers.get(f"r{r_idx}c{c_idx}", '')
+                                else:
+                                    # Старый формат: answers["questionId__gap0-1"] = "value"
+                                    answer_key = f"{q.id}__gap{r_idx}-{c_idx}"
+                                    user_val = answers.get(answer_key, '')
                                 
                                 correct_val = cell.get('answer', '')
                                 is_correct = (normalize_answer(user_val) == normalize_answer(correct_val))
@@ -517,6 +630,171 @@ def get_test_render_structure(self, obj):
                                     'correct_answer': correct_val,
                                     'is_correct': is_correct
                                 })
+            
+            # --- True/False/Not Given ---
+            elif q.question_type in ['true_false', 'TRUE_FALSE', 'TRUE_FALSE_NOT_GIVEN', 'true_false_not_given', 'yes_no_not_given']:
+                # True/False questions can have multiple statements
+                statements = []
+                correct_answers_list = []
+                
+                # Try to get statements from extra_data
+                if q.extra_data and 'statements' in q.extra_data:
+                    statements = q.extra_data['statements']
+                
+                # Get correct answers
+                if q.correct_answers:
+                    correct_answers_list = q.correct_answers
+                
+                # If we have statements, create one sub-question per statement
+                if statements and correct_answers_list:
+                    for idx, statement in enumerate(statements):
+                        correct_answer = correct_answers_list[idx] if idx < len(correct_answers_list) else ''
+                        
+                        # Проверяем разные возможные форматы ключей для ответов
+                        user_answer = ''
+                        question_answers = answers.get(str(q.id), {})
+                        if isinstance(question_answers, dict):
+                            # Формат: answers[questionId] = { "stmt0": "True", "stmt1": "False" }
+                            user_answer = question_answers.get(f"stmt{idx}", '')
+                        else:
+                            # Старый формат: answers["questionId__idx"] = "True"
+                            user_answer = answers.get(f"{q.id}__{idx}", '')
+                        
+                        is_correct = normalize_answer(user_answer) == normalize_answer(correct_answer)
+                        
+                        q_data['sub_questions'].append({
+                            'type': 'true_false',
+                            'statement': statement,
+                            'student_answer': user_answer,
+                            'correct_answer': correct_answer,
+                            'is_correct': is_correct,
+                        })
+                else:
+                    # Fallback: single true/false question
+                    user_answer = answers.get(str(q.id), '')
+                    correct_answer = correct_answers_list[0] if correct_answers_list else ''
+                    
+                    is_correct = normalize_answer(user_answer) == normalize_answer(correct_answer)
+                    
+                    q_data['sub_questions'].append({
+                        'type': 'true_false',
+                        'student_answer': user_answer,
+                        'correct_answer': correct_answer,
+                        'is_correct': is_correct,
+                    })
+            
+            # --- Matching ---
+            elif q.question_type in ['matching', 'match']:
+                # For matching questions, get items from extra_data
+                items = []
+                if q.extra_data and 'items' in q.extra_data:
+                    items = q.extra_data['items']
+                elif q.extra_data and 'questions' in q.extra_data:
+                    # Alternative: use questions as items to match
+                    items = [{'text': qtext} for qtext in q.extra_data['questions']]
+                
+                # Get correct answers (can be dict or list)
+                correct_answers_dict = {}
+                if q.correct_answers:
+                    if isinstance(q.correct_answers, dict):
+                        correct_answers_dict = q.correct_answers
+                    elif isinstance(q.correct_answers, list):
+                        # Convert list to dict if needed
+                        for idx, ans in enumerate(q.correct_answers):
+                            if isinstance(ans, dict) and 'label' in ans:
+                                correct_answers_dict[ans['label']] = ans.get('answer', '')
+                            else:
+                                correct_answers_dict[str(idx)] = ans
+                
+                # Create sub-questions for each item to match
+                for idx, item in enumerate(items):
+                    item_text = item.get('text', item) if isinstance(item, dict) else str(item)
+                    item_key = str(idx)
+                    
+                    # Try different possible keys for the correct answer
+                    correct_answer = ''
+                    for possible_key in [item_key, item_text, f"Item {idx+1}", f"New Item {idx+1}"]:
+                        if possible_key in correct_answers_dict:
+                            correct_answer = correct_answers_dict[possible_key]
+                            break
+                    
+                    # Проверяем разные возможные форматы ключей для ответов
+                    user_answer = ''
+                    question_answers = answers.get(str(q.id), {})
+                    if isinstance(question_answers, dict):
+                        # Формат: answers[questionId] = { "Item 1": "option", "Item 2": "option" }
+                        user_answer = question_answers.get(item_text, '')
+                    else:
+                        # Старый формат: answers["questionId__item"] = "option"
+                        user_answer = answers.get(f"{q.id}__{item_key}", '') or answers.get(f"{q.id}__{item_text}", '')
+                    
+                    is_correct = normalize_answer(user_answer) == normalize_answer(correct_answer)
+                    
+                    q_data['sub_questions'].append({
+                        'type': 'matching',
+                        'item': item_text,
+                        'student_answer': user_answer,
+                        'correct_answer': correct_answer,
+                        'is_correct': is_correct,
+                    })
+            
+            # --- Short Answer ---
+            elif q.question_type in ['short_answer', 'shortanswer', 'short_response']:
+                # Short answer может приходить в разных форматах
+                user_answer = ''
+                question_answers = answers.get(str(q.id))
+                if isinstance(question_answers, dict):
+                    # Может быть в subKey или в основном ключе
+                    user_answer = question_answers.get('answer', '') or list(question_answers.values())[0] if question_answers else ''
+                elif isinstance(question_answers, str):
+                    user_answer = question_answers
+                else:
+                    user_answer = str(question_answers) if question_answers else ''
+                
+                correct_answer = ''
+                if q.correct_answers and len(q.correct_answers) > 0:
+                    correct_answer = q.correct_answers[0]
+                
+                is_correct = normalize_answer(user_answer) == normalize_answer(correct_answer)
+                
+                q_data['sub_questions'].append({
+                    'type': 'short_answer',
+                    'student_answer': user_answer,
+                    'correct_answer': correct_answer,
+                    'is_correct': is_correct,
+                })
+            
+            # --- Неизвестный тип вопроса ---
+            else:
+                print(f"⚠️  UNKNOWN QUESTION TYPE: {q.question_type} for question {q.id}")
+                print(f"⚠️  Available answers for Q{q.id}: {answers.get(str(q.id))}")
+                
+                # Пытаемся универсально обработать любой неизвестный тип
+                user_answer = ''
+                question_answers = answers.get(str(q.id))
+                if isinstance(question_answers, dict):
+                    # Берем первое значение из словаря или все значения
+                    values = list(question_answers.values())
+                    user_answer = ', '.join(str(v) for v in values if v) if values else ''
+                elif isinstance(question_answers, list):
+                    user_answer = ', '.join(str(v) for v in question_answers if v)
+                else:
+                    user_answer = str(question_answers) if question_answers else ''
+                
+                correct_answer = ''
+                if q.correct_answers:
+                    if isinstance(q.correct_answers, list):
+                        correct_answer = ', '.join(str(a) for a in q.correct_answers)
+                    else:
+                        correct_answer = str(q.correct_answers)
+                
+                q_data['sub_questions'].append({
+                    'type': 'unknown',
+                    'student_answer': user_answer,
+                    'correct_answer': correct_answer,
+                    'is_correct': False,  # По умолчанию неправильно для неизвестных типов
+                    'error': f'Unsupported question type: {q.question_type}'
+                })
 
             part_data['questions'].append(q_data)
         result.append(part_data)
@@ -615,13 +893,12 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
     num_total = 0
     # GAP FILL
     if question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
-        gaps = []
+        # Используем новую функцию нормализации
         if extra_data and 'gaps' in extra_data:
             gaps = extra_data['gaps']
-        elif isinstance(correct_answers, list) and all(isinstance(x, dict) and 'number' in x for x in correct_answers):
-            gaps = correct_answers
         else:
-            gaps = [{'number': i+1, 'answer': ca} for i, ca in enumerate(correct_answers)]
+            gaps = normalize_correct_answers_for_gaps(correct_answers, question_type)
+        
         num_total = len(gaps)
         for gap in gaps:
             gap_num = gap.get('number')
@@ -675,12 +952,9 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
                 if sub not in correct_labels:
                     extra_selected.add(sub)
         print(f"[DEBUG] multiple_response: user_selected={user_selected}, correct_labels={correct_labels}, extra_selected={extra_selected}, points={points}")
-        if points == 1:
-            num_total = 1
-            num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
-        else:
-            num_total = len(correct_labels)
-            num_correct = len(user_selected & correct_labels)
+        # ПРИНУДИТЕЛЬНО: Multiple Response всегда считается как один вопрос = один балл
+        num_total = 1
+        num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
         return num_correct, num_total
     # MULTIPLE CHOICE / SINGLE CHOICE
     if question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer']:
@@ -729,6 +1003,39 @@ class ListeningTestSessionHistorySerializer(serializers.ModelSerializer):
         if result and getattr(result, 'band_score', None) is not None:
             return result.band_score
         return None
+
+# --- Reading Session History Serializer для Dashboard ---
+class ReadingTestSessionHistorySerializer(serializers.ModelSerializer):
+    test_title = serializers.CharField(source='test.title', read_only=True)
+    correct_answers_count = serializers.SerializerMethodField()
+    total_questions_count = serializers.SerializerMethodField()
+    band_score = serializers.SerializerMethodField()
+    submitted_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReadingTestSession
+        fields = [
+            'id', 'test_title', 'band_score', 'correct_answers_count', 'total_questions_count',
+            'completed', 'submitted_at'
+        ]
+
+    def get_correct_answers_count(self, obj):
+        result = getattr(obj, 'result', None)
+        return result.raw_score if result else 0
+
+    def get_total_questions_count(self, obj):
+        result = getattr(obj, 'result', None)
+        return result.total_score if result else 0
+
+
+
+    def get_band_score(self, obj):
+        result = getattr(obj, 'result', None)
+        return result.band_score if result else None
+
+    def get_submitted_at(self, obj):
+        # Используем end_time как дату сабмита
+        return obj.end_time.isoformat() if obj.end_time else obj.start_time.isoformat()
 
 # --- Вложенные сериализаторы для ListeningTest ---
 class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
@@ -971,7 +1278,7 @@ class ReadingQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingQuestion
         fields = [
-            'id', 'order', 'group_number', 'question_type', 'header', 'instruction',
+            'id', 'order', 'question_type', 'header', 'instruction',
             'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options'
         ]
 
@@ -1002,7 +1309,7 @@ class ReadingQuestionWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingQuestion
         fields = [
-            'id', 'order', 'group_number', 'question_type', 'header', 'instruction',
+            'id', 'order', 'question_type', 'header', 'instruction',
             'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options'
         ]
         extra_kwargs = {
@@ -1129,11 +1436,13 @@ class ReadingTestSessionSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'test', 'start_time', 'end_time', 'completed']
 
 class ReadingTestResultSerializer(serializers.ModelSerializer):
+    correct_answers_text = serializers.SerializerMethodField()
+    
     class Meta:
         model = ReadingTestResult
         fields = [
             'id', 'session', 'raw_score', 'total_score', 'band_score', 
-            'breakdown', 'calculated_at', 'time_taken'
+            'breakdown', 'calculated_at', 'correct_answers_text'
         ]
         extra_kwargs = {
             'session': {'read_only': True},
@@ -1142,16 +1451,12 @@ class ReadingTestResultSerializer(serializers.ModelSerializer):
             'band_score': {'read_only': True},
             'breakdown': {'read_only': True},
             'calculated_at': {'read_only': True},
-            'time_taken': {'read_only': True},
         }
+
+    def get_correct_answers_text(self, instance):
+        """Возвращает текст типа '1 / 12'"""
+        return f"{int(instance.raw_score)} / {int(instance.total_score)}"
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        # Форматируем time_taken для удобного отображения
-        if instance.time_taken:
-            total_seconds = int(instance.time_taken.total_seconds())
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            representation['time_taken'] = f'{hours:02}:{minutes:02}:{seconds:02}'
         return representation

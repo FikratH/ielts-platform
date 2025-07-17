@@ -152,6 +152,7 @@ const AdminReadingTestBuilder = () => {
             instruction: '',
             question_text: 'New Question',
             points: 1,
+    
             extra_data: getDefaultExtraData('multiple_choice')
         };
 
@@ -267,7 +268,8 @@ const AdminReadingTestBuilder = () => {
             return;
         }
         // Deep copy to prevent direct state mutation
-        setEditingQuestion({ partIdx, qIdx: -1, question: JSON.parse(JSON.stringify(questionToEdit)) }); // qIdx is not reliable here
+        const questionCopy = JSON.parse(JSON.stringify(questionToEdit));
+        setEditingQuestion({ partIdx, qIdx: -1, question: questionCopy }); // qIdx is not reliable here
     };
 
     const closeQuestionEditor = () => {
@@ -866,6 +868,12 @@ const AdminReadingTestBuilder = () => {
                                 label={`Statement ${idx + 1}`}
                                 value={stmt}
                                 onChange={(e) => handleStatementChange(idx, e.target.value)}
+                                helperText="Enter the statement that students will evaluate as True/False/Not Given"
+                                sx={{
+                                    '& .MuiInputBase-input': {
+                                        lineHeight: '1.4'
+                                    }
+                                }}
                             />
                             <FormControl>
                                 <RadioGroup
@@ -881,7 +889,9 @@ const AdminReadingTestBuilder = () => {
                             <IconButton onClick={() => removeStatement(idx)}><DeleteIcon /></IconButton>
                         </Box>
                     ))}
-                    <Button onClick={addStatement}>Add Statement</Button>
+                    <Button onClick={addStatement} variant="outlined" size="small">
+                        + Add Statement
+                    </Button>
                 </Box>
             );
         };
@@ -934,6 +944,8 @@ const AdminReadingTestBuilder = () => {
                             />
                         </Grid>
 
+
+
                         <Grid item xs={12}>
                             <TextField
                                 label="Question Text / Content"
@@ -945,10 +957,20 @@ const AdminReadingTestBuilder = () => {
                                 value={question_text}
                                 onChange={(e) => handleEditingQuestionChange('question_text', e.target.value)}
                                 helperText={
-                                    question_type === 'table' 
-                                    ? "Main instructions for the table completion task." 
-                                    : "For Gap-Fill, use [[1]], [[2]] for gaps. For other types, this is the main question body."
+                                    question_type === 'gap_fill' 
+                                    ? "Use [[1]], [[2]], [[3]] etc. to mark gaps. Students will see these as blank spaces to fill."
+                                    : question_type === 'table'
+                                    ? "Main instructions for the table completion task."
+                                    : question_type === 'matching'
+                                    ? "Instructions for matching questions. This text will be shown to students before the matching items."
+                                    : "Main question text or instructions for this question type."
                                 }
+                                sx={{
+                                    '& .MuiInputBase-input': {
+                                        lineHeight: '1.6',
+                                        whiteSpace: 'pre-wrap'
+                                    }
+                                }}
                             />
                         </Grid>
                         

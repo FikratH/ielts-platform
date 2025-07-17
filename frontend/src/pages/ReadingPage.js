@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ReadingTestPlayer from '../components/ReadingTestPlayer';
 // import './ReadingPage.css';
 
 const ReadingPage = () => {
+    const navigate = useNavigate();
     const [tests, setTests] = useState([]);
     const [selectedTest, setSelectedTest] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -30,9 +32,9 @@ const ReadingPage = () => {
     };
 
     const handleTestComplete = (sessionId) => {
-        // Redirect to results or show completion message
-        alert('Test completed! Check your results.');
-        setSelectedTest(null);
+        // Redirect to results page
+        console.log("🔥 TEST COMPLETED, redirecting to result:", sessionId);
+        navigate(`/reading-result/${sessionId}`);
     };
 
     if (isLoading) {
