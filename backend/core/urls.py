@@ -24,6 +24,7 @@ from .views import (
     ListeningTestSessionListView,
     ListeningTestSessionDetailView,
     ListeningTestExportCSVView,
+    WritingTestExportCSVView,
     AdminCreateStudentView,
     AdminStudentListView,
     AdminStudentDetailView,
@@ -95,6 +96,7 @@ urlpatterns = router.urls + [
 urlpatterns += [
     path('admin/listening-test/<int:test_id>/export-csv/', ListeningTestExportCSVView.as_view(), name='listening-test-export-csv'),
     path('admin/reading-test/<int:test_id>/export-csv/', ReadingTestExportCSVView.as_view(), name='reading-test-export-csv'),
+    path('admin/writing/export-csv/', WritingTestExportCSVView.as_view(), name='writing-export-csv'),
     
     # Reading test session endpoints
     path('reading-tests/<int:test_id>/start/', ReadingTestSessionView.as_view(), name='reading-session-start'),

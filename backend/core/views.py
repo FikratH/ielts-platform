@@ -1,4 +1,5 @@
-from openai import OpenAI
+# ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
+# from openai import OpenAI
 import os
 import csv
 from dotenv import load_dotenv
@@ -56,7 +57,8 @@ from firebase_admin import auth as firebase_auth
 from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
 from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 class FirebaseLoginView(APIView):
     permission_classes = [AllowAny]
@@ -108,53 +110,56 @@ class EssaySubmissionView(CsrfExemptAPIView):
         if serializer.is_valid():
             essay = serializer.save(user=user)
 
-            prompt = f"""
-                        You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
-                        Score each from 0 to 9 and return the result in plain text format like:
-                        
-                        Task Response: 8.5
-                        Coherence and Cohesion: 8
-                        Lexical Resource: 8
-                        Grammatical Range and Accuracy: 9
-                        
-                        Feedback: <full feedback here>
-                        
-                        Essay:
-                        {essay.submitted_text}
-                        """
+            # ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
+            # Просто сохраняем эссе без AI оценок
+            
+            # prompt = f"""
+            #             You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
+            #             Score each from 0 to 9 and return the result in plain text format like:
+            #             
+            #             Task Response: 8.5
+            #             Coherence and Cohesion: 8
+            #             Lexical Resource: 8
+            #             Grammatical Range and Accuracy: 9
+            #             
+            #             Feedback: <full feedback here>
+            #             
+            #             Essay:
+            #             {essay.submitted_text}
+            #             """
 
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an IELTS writing examiner."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
+            # response = client.chat.completions.create(
+            #     model="gpt-4",
+            #     messages=[
+            #         {"role": "system", "content": "You are an IELTS writing examiner."},
+            #         {"role": "user", "content": prompt}
+            #     ]
+            # )
 
-            content = response.choices[0].message.content.strip()
+            # content = response.choices[0].message.content.strip()
 
-            def extract_score(label):
-                match = re.search(rf"{label}[:：]?\s*(\d+(\.\d+)?)", content, re.IGNORECASE)
-                return float(match.group(1)) if match else 0
+            # def extract_score(label):
+            #     match = re.search(rf"{label}[:：]?\s*(\d+(\.\d+)?)", content, re.IGNORECASE)
+            #     return float(match.group(1)) if match else 0
 
-            def round_ielts_band(score):
-                decimal = score - int(score)
-                if decimal < 0.25:
-                    return float(int(score))
-                elif decimal < 0.75:
-                    return float(int(score)) + 0.5
-                else:
-                    return float(int(score)) + 1.0
+            # def round_ielts_band(score):
+            #     decimal = score - int(score)
+            #     if decimal < 0.25:
+            #         return float(int(score))
+            #     elif decimal < 0.75:
+            #         return float(int(score)) + 0.5
+            #     else:
+            #         return float(int(score)) + 1.0
 
-            essay.score_task = extract_score("Task Response")
-            essay.score_coherence = extract_score("Coherence and Cohesion")
-            essay.score_lexical = extract_score("Lexical Resource")
-            essay.score_grammar = extract_score("Grammatical Range and Accuracy")
-            essay.overall_band = round_ielts_band((
-                essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
-            ) / 4)
-            essay.feedback = content
-            essay.save()
+            # essay.score_task = extract_score("Task Response")
+            # essay.score_coherence = extract_score("Coherence and Cohesion")
+            # essay.score_lexical = extract_score("Lexical Resource")
+            # essay.score_grammar = extract_score("Grammatical Range and Accuracy")
+            # essay.overall_band = round_ielts_band((
+            #     essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
+            # ) / 4)
+            # essay.feedback = content
+            # essay.save()
 
             return Response(EssaySerializer(essay).data)
 
@@ -306,53 +311,56 @@ class SubmitTaskView(APIView):
             prompt=prompt
         )
 
-        prompt_str = f"""
-You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
-Score each from 0 to 9 and return the result in plain text format like:
+        # ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
+        # Просто сохраняем эссе без AI оценок
 
-Task Response: 8.5
-Coherence and Cohesion: 8
-Lexical Resource: 8
-Grammatical Range and Accuracy: 9
+        # prompt_str = f"""
+        # You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
+        # Score each from 0 to 9 and return the result in plain text format like:
+        #
+        # Task Response: 8.5
+        # Coherence and Cohesion: 8
+        # Lexical Resource: 8
+        # Grammatical Range and Accuracy: 9
+        #
+        # Feedback: <full feedback here>
+        #
+        # Essay:
+        # {essay.submitted_text}
+        # """
 
-Feedback: <full feedback here>
+        # response = client.chat.completions.create(
+        #     model="gpt-4",
+        #     messages=[
+        #         {"role": "system", "content": "You are an IELTS writing examiner."},
+        #         {"role": "user", "content": prompt_str}
+        #     ]
+        # )
 
-Essay:
-{essay.submitted_text}
-"""
+        # content = response.choices[0].message.content.strip()
 
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an IELTS writing examiner."},
-                {"role": "user", "content": prompt_str}
-            ]
-        )
+        # def extract_score(label):
+        #     match = re.search(rf"{label}[:：]?\\s*(\\d+(\\.\\d+)?)", content, re.IGNORECASE)
+        #     return float(match.group(1)) if match else 0
 
-        content = response.choices[0].message.content.strip()
+        # def round_ielts_band(score):
+        #     decimal = score - int(score)
+        #     if decimal < 0.25:
+        #         return float(int(score))
+        #     elif decimal < 0.75:
+        #         return float(int(score)) + 0.5
+        #     else:
+        #         return float(int(score)) + 1.0
 
-        def extract_score(label):
-            match = re.search(rf"{label}[:：]?\\s*(\\d+(\\.\\d+)?)", content, re.IGNORECASE)
-            return float(match.group(1)) if match else 0
-
-        def round_ielts_band(score):
-            decimal = score - int(score)
-            if decimal < 0.25:
-                return float(int(score))
-            elif decimal < 0.75:
-                return float(int(score)) + 0.5
-            else:
-                return float(int(score)) + 1.0
-
-        essay.score_task = extract_score("Task Response")
-        essay.score_coherence = extract_score("Coherence and Cohesion")
-        essay.score_lexical = extract_score("Lexical Resource")
-        essay.score_grammar = extract_score("Grammatical Range and Accuracy")
-        essay.overall_band = round_ielts_band((
-            essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
-        ) / 4)
-        essay.feedback = content
-        essay.save()
+        # essay.score_task = extract_score("Task Response")
+        # essay.score_coherence = extract_score("Coherence and Cohesion")
+        # essay.score_lexical = extract_score("Lexical Resource")
+        # essay.score_grammar = extract_score("Grammatical Range and Accuracy")
+        # essay.overall_band = round_ielts_band((
+        #     essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
+        # ) / 4)
+        # essay.feedback = content
+        # essay.save()
 
         return Response(EssaySerializer(essay).data)
 
@@ -1054,7 +1062,7 @@ class ListeningTestExportCSVView(APIView):
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         test = get_object_or_404(ListeningTest, pk=test_id)
-        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user', 'listeningtestresult').order_by('user__student_id')
+        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user').order_by('user__student_id')
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="listening_test_{test_id}_results.csv"'
@@ -1062,75 +1070,72 @@ class ListeningTestExportCSVView(APIView):
         
         writer = csv.writer(response)
 
-        test_questions = ListeningQuestion.objects.filter(part__test=test).order_by('part__part_number', 'order')
-        max_questions = 40 
-
         header = [
-            'student_id', 'email', 'first_name', 'last_name', 
-            'band_score', 'raw_score', 'start_time', 'finish_time', 'total_time_spent_min'
+            'Student ID', 'First Name', 'Last Name', 'Group', 'Teacher',
+            'Raw Score', 'Total Score', 'Band Score',
+            'Correct Questions', 'Incorrect Questions', 'Date Submitted'
         ]
-        for i in range(max_questions):
-            header.extend([
-                f'question_{i+1}_text',
-                f'question_{i+1}_student_answer',
-                f'question_{i+1}_correct_answer',
-                f'question_{i+1}_is_correct'
-            ])
         writer.writerow(header)
 
         for session in sessions:
-            row = [
-                getattr(session.user, 'student_id', 'N/A'),
-                getattr(session.user, 'email', 'N/A'),
-                getattr(session.user, 'first_name', ''),
-                getattr(session.user, 'last_name', ''),
-                getattr(session.listeningtestresult, 'band_score', 'N/A'),
-                getattr(session.listeningtestresult, 'raw_score', 'N/A'),
-            ]
-
-            start_time = session.started_at.strftime('%Y-%m-%d %H:%M:%S') if session.started_at else ''
-            finish_time_val = getattr(session, 'submitted_at', None)
-            finish_time = finish_time_val.strftime('%Y-%m-%d %H:%M:%S') if finish_time_val else ''
+            user = session.user
             
-            time_spent_min = 'N/A'
-            if session.started_at and finish_time_val:
-                time_spent = finish_time_val - session.started_at
-                time_spent_min = round(time_spent.total_seconds() / 60, 2)
-
-            row.extend([start_time, finish_time, time_spent_min])
+            # Получаем breakdown через ту же функцию что используется в результатах
+            from .serializers import create_listening_detailed_breakdown
+            results = create_listening_detailed_breakdown(session)
             
-            # Используем breakdown из результата для получения ответов
-            breakdown = getattr(session.listeningtestresult, 'breakdown', {})
-            session_answers_map = {}
-            if 'parts' in breakdown:
-                for part in breakdown['parts']:
-                    for question_group in part.get('questions', []):
-                        for sub_question in question_group.get('sub_questions', []):
-                            session_answers_map[sub_question['sub_question_id']] = sub_question
+            raw_score = results.get('raw_score', 0)
+            total_score = results.get('total_score', 0)
+            band_score = results.get('band_score', 0)
+            detailed_breakdown = results.get('detailed_breakdown', [])
             
-            question_details = []
-            for i, question in enumerate(test_questions):
-                if i < max_questions:
-                    # В Listening у нас sub_questions, а не questions
-                    for sq in question.sub_questions.all().order_by('id'):
-                        answer_info = session_answers_map.get(sq.id, {})
+            # Извлекаем правильные и неправильные вопросы из breakdown
+            correct_questions = []
+            incorrect_questions = []
+            
+            # Используем смешанную логику: total_sub_questions для multiple_response, иначе sub_questions
+            question_counter = 1
+            
+            if detailed_breakdown:
+                for part in detailed_breakdown:
+                    for question in part.get('questions', []):
+                        question_type = question.get('question_type', '')
                         
-                        question_text = f"{question.question_text or ''} - {sq.question_text or ''}".strip()
-                        student_answer = answer_info.get('student_answer', 'N/A')
-                        correct_answer = answer_info.get('correct_answer', 'N/A')
-                        is_correct = answer_info.get('is_correct', 'N/A')
-
-                        question_details.extend([
-                            question_text,
-                            student_answer,
-                            correct_answer,
-                            is_correct
-                        ])
-
-            row.extend(question_details)
-            # Дополняем пустыми значениями, если вопросов меньше максимума
-            row.extend([''] * ( (max_questions * 4) - len(question_details) ) )
-            writer.writerow(row)
+                        if question_type in ['multiple_response', 'checkbox', 'multi_select', 'multipleresponse']:
+                            # Для multiple response: используем total_sub_questions (всегда 1)
+                            total_sub_questions = question.get('total_sub_questions', 1)
+                            correct_sub_questions = question.get('correct_sub_questions', 0)
+                            
+                            for i in range(total_sub_questions):
+                                if correct_sub_questions > 0:
+                                    correct_questions.append(str(question_counter))
+                                else:
+                                    incorrect_questions.append(str(question_counter))
+                                question_counter += 1
+                        else:
+                            # Для остальных типов: используем sub_questions
+                            sub_questions = question.get('sub_questions', [])
+                            
+                            for sub_question in sub_questions:
+                                if sub_question.get('is_correct', False):
+                                    correct_questions.append(str(question_counter))
+                                else:
+                                    incorrect_questions.append(str(question_counter))
+                                question_counter += 1
+            
+            writer.writerow([
+                user.student_id or '',
+                user.first_name or '',
+                user.last_name or '',
+                user.group or '',
+                user.teacher or '',
+                raw_score,
+                total_score,
+                band_score,
+                ';'.join(correct_questions),
+                ';'.join(incorrect_questions),
+                session.completed_at.strftime('%Y-%m-%d %H:%M:%S') if session.completed_at else ''
+            ])
 
         return response
 
@@ -1534,3 +1539,60 @@ class ReadingTestSessionListView(ListAPIView):
             ).select_related('test', 'result').order_by('-end_time')
         except User.DoesNotExist:
             return ReadingTestSession.objects.none()
+
+# Добавляем в конец файла
+
+class WritingTestExportCSVView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            user = User.objects.get(uid=request.user.uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Получаем все эссе
+        essays = Essay.objects.all().select_related('user', 'test_session').order_by('user__student_id', '-submitted_at')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="writing_essays.csv"'
+        response.write(u'\ufeff'.encode('utf8'))
+        
+        writer = csv.writer(response)
+
+        header = [
+            'Student ID', 'First Name', 'Last Name', 'Group', 'Teacher',
+            'Task Type', 'Essay Text', 'Question Text', 'Word Count',
+            'Task Response Score', 'Coherence Score', 'Lexical Score', 'Grammar Score',
+            'Overall Band', 'AI Feedback', 'Date Submitted'
+        ]
+        writer.writerow(header)
+
+        for essay in essays:
+            user = essay.user
+            
+            # Подсчитываем слова в эссе
+            word_count = len(essay.submitted_text.split()) if essay.submitted_text else 0
+            
+            writer.writerow([
+                user.student_id or '',
+                user.first_name or '',
+                user.last_name or '',
+                user.group or '',
+                user.teacher or '',
+                essay.task_type.upper() if essay.task_type else '',
+                essay.submitted_text or '',
+                essay.question_text or '',
+                word_count,
+                essay.score_task or 'Not scored',
+                essay.score_coherence or 'Not scored',
+                essay.score_lexical or 'Not scored',
+                essay.score_grammar or 'Not scored',
+                essay.overall_band or 'Not scored',
+                essay.feedback or 'No feedback available',
+                essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else ''
+            ])
+
+        return response

@@ -282,8 +282,9 @@ def create_detailed_breakdown(session, test_type='reading'):
                         # Ищем ответы пользователя по ключам {question.id}__{option.label}
                         for option in options:
                             key = f"{question.id}__{option.label}"
-                            # Ответ может быть `true` или просто наличием ключа
-                            if all_user_answers.get(key) or str(all_user_answers.get(str(question.id))) == option.label:
+                            option_value = all_user_answers.get(key)
+                            # Проверяем если опция выбрана (значение True, 'true', или равно label)
+                            if option_value is True or str(option_value).lower() == 'true' or option_value == option.label:
                                 user_selected_labels.add(option.label)
                         
                         is_question_correct = (user_selected_labels == correct_labels)
@@ -316,7 +317,9 @@ def create_detailed_breakdown(session, test_type='reading'):
                             options = list(question.options.all())
                             for option in options:
                                 key = f"{question.id}__{option.label}"
-                                if all_user_answers.get(key) is True:
+                                option_value = all_user_answers.get(key)
+                                # Проверяем если опция выбрана (значение True или равно label)
+                                if option_value is True or option_value == option.label:
                                     user_answer_label = option.label
                                     break
                         
@@ -334,21 +337,35 @@ def create_detailed_breakdown(session, test_type='reading'):
 
                     # --- Gap Fill и его варианты ---
                     elif question.question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart', 'short_answer', 'shortanswer']:
-                        correct_answers_map = {str(item['number']): item['answer'] for item in normalize_correct_answers_for_gaps(question.correct_answers, question.question_type)}
+                        correct_answers_list = normalize_correct_answers_for_gaps(question.correct_answers, question.question_type)
                         
-                        if not correct_answers_map and question.question_type in ['short_answer', 'shortanswer']:
-                             correct_answers_map = {'1': str(question.correct_answers[0]) if question.correct_answers else ''}
+                        if not correct_answers_list and question.question_type in ['short_answer', 'shortanswer']:
+                             correct_answers_list = [{'number': 1, 'answer': str(question.correct_answers[0]) if question.correct_answers else ''}]
                         
-                        # Определяем, сколько у нас полей для заполнения
-                        gap_numbers = list(correct_answers_map.keys())
-                        total_sub_questions = len(gap_numbers)
+                        total_sub_questions = len(correct_answers_list)
 
-                        for num in gap_numbers:
-                            correct_val = correct_answers_map[num]
+                        # Найдем все gap ключи для этого вопроса и отсортируем их
+                        gap_keys = []
+                        for key in all_user_answers.keys():
+                            if key.startswith(f"{question.id}__gap"):
+                                gap_number = key.replace(f"{question.id}__gap", "")
+                                try:
+                                    gap_keys.append((int(gap_number), key))
+                                except ValueError:
+                                    gap_keys.append((0, key))  # fallback
+                        gap_keys.sort()  # Сортируем по номеру gap
+
+                        # Сопоставляем правильные ответы с ответами пользователя по порядку
+                        for idx, correct_answer_item in enumerate(correct_answers_list):
+                            correct_val = correct_answer_item['answer']
                             
-                            # Ищем ответ пользователя по ключу {question.id}__gap{num} или просто {question.id} для short_answer
-                            key = f"{question.id}__gap{num}"
-                            user_val = all_user_answers.get(key)
+                            # Берем ответ пользователя по порядку
+                            user_val = None
+                            if idx < len(gap_keys):
+                                _, user_key = gap_keys[idx]
+                                user_val = all_user_answers.get(user_key)
+                            
+                            # Fallback для short_answer с одним ответом
                             if user_val is None and total_sub_questions == 1:
                                 user_val = all_user_answers.get(str(question.id))
 
@@ -357,8 +374,8 @@ def create_detailed_breakdown(session, test_type='reading'):
                                 correct_sub_questions += 1
                             
                             sub_questions_data.append({
-                                'sub_id': f"gap{num}",
-                                'label': f"Answer {num}",
+                                'sub_id': f"gap{correct_answer_item['number']}",
+                                'label': f"Answer {correct_answer_item['number']}",
                                 'user_answer': user_val or '(empty)',
                                 'correct_answer': correct_val,
                                 'is_correct': is_sub_correct,
