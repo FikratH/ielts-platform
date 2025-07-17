@@ -21,7 +21,18 @@ const AdminListeningManagePage = () => {
 
   const loadTests = async () => {
     try {
-      const response = await fetch('/api/listening-tests/');
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (!user) {
+            setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
+            setLoading(false);
+            return;
+        }
+        const token = await user.getIdToken();
+        const response = await fetch('http://localhost:8000/api/listening-tests/', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
       if (response.ok) {
         const data = await response.json();
         setTests(data);
@@ -35,10 +46,16 @@ const AdminListeningManagePage = () => {
   
   const toggleTestStatus = async (testId, isActive) => {
     try {
-      const response = await fetch(`/api/listening-tests/${testId}/`, {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+
+        const response = await fetch(`http://localhost:8000/api/listening-tests/${testId}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ is_active: isActive }),
       });
@@ -62,8 +79,16 @@ const AdminListeningManagePage = () => {
     if (!window.confirm('Are you sure you want to delete this test?')) return;
 
     try {
-      const response = await fetch(`/api/listening-tests/${testId}/`, {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+
+        const response = await fetch(`http://localhost:8000/api/listening-tests/${testId}/`, {
         method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
       });
 
       if (response.ok) {
@@ -85,7 +110,7 @@ const AdminListeningManagePage = () => {
         return;
       }
       const token = await user.getIdToken();
-      const response = await fetch(`/api/admin/listening-test/${testId}/export-csv/`, {
+      const response = await fetch(`http://localhost:8000/api/admin/listening-test/${testId}/export-csv/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

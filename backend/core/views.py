@@ -787,111 +787,64 @@ class ListeningTestSessionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, test_id=None, session_id=None):
-        # Start or submit session
-        if test_id is not None:
-            # Start new session
-            test = get_object_or_404(ListeningTest, pk=test_id, is_active=True)
+        # Этот метод обрабатывает и старт, и сабмит сессии.
+        # Если test_id есть - это старт.
+        if test_id:
+            test = get_object_or_404(ListeningTest, pk=test_id)
             
-            # Check if user already has an active session for this test (IELTS rule: one sitting)
-            # existing_session = ListeningTestSession.objects.filter(
-            #     user=request.user, 
-            #     test=test, 
-            #     submitted=False
-            # ).first()
-            #
-            # if existing_session:
-            #     return Response({
-            #         'detail': 'You already have an active session for this test. Complete it first.',
-            #         'session_id': existing_session.id
-            #     }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Create new session with IELTS rules
-            session = ListeningTestSession.objects.create(
-                user=request.user, 
+            # Ищем последние незавершенные сессии
+            sessions = ListeningTestSession.objects.filter(
+                user=request.user,
                 test=test,
-                time_left=1800,  # 30 minutes for IELTS Listening
-                status='in_progress'
-            )
+                submitted=False
+            ).order_by('-started_at')
+
+            if sessions.exists():
+                # Берем самую последнюю сессию
+                session = sessions.first()
+                created = False
+            else:
+                # Если нет - создаем новую
+                session = ListeningTestSession.objects.create(
+                    user=request.user,
+                    test=test,
+                    time_left=2400 # 40 минут по стандарту
+                )
+                created = True
+
             serializer = ListeningTestSessionSerializer(session)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        elif session_id is not None:
-            # Submit session
+            return Response(serializer.data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
+
+        # Если session_id есть - это сабмит.
+        if session_id:
             session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
             if session.submitted:
-                return Response({'detail': 'Session already submitted'}, status=status.HTTP_400_BAD_REQUEST)
-            serializer = ListeningTestSessionSubmitSerializer(session, data=request.data)
-            serializer.is_valid(raise_exception=True)
-            session = serializer.save(submitted=True)
+                return Response({'detail': 'Session has already been submitted.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # --- Автопроверка и создание ListeningTestResult ---
-            from .serializers import count_correct_subanswers
-            raw_score = 0
-            total_questions = 0
-            breakdown = []
-            for part in session.test.parts.all():
-                for question in part.questions.all():
-                    correct_answers = question.correct_answers or []
-                    options = list(question.options.all()) if hasattr(question, 'options') else None
-                    qc, qt = count_correct_subanswers(
-                        '', correct_answers, question.question_type, getattr(question, 'extra_data', None),
-                        all_user_answers=session.answers, question_id=str(question.id), options=options, points=getattr(question, 'points', 1)
-                    )
-                    raw_score += qc
-                    total_questions += qt
-                    q_text = question.question_text or ''
-                    if isinstance(correct_answers, list) and len(correct_answers) == 1:
-                        c_answer = correct_answers[0]
-                    else:
-                        c_answer = correct_answers
-                    user_answer = session.answers.get(f"{question.id}", '')
-                    breakdown.append({
-                        'question_id': question.id,
-                        'question_text': q_text,
-                        'user_answer': user_answer,
-                        'correct_answer': c_answer,
-                        'is_correct': qc == qt if qt > 0 else False,
-                        'question_type': question.question_type,
-                    })
-            # IELTS band conversion (примерная шкала)
-            def convert_to_band(raw_score):
-                if raw_score >= 39: return 9.0
-                if raw_score >= 37: return 8.5
-                if raw_score >= 35: return 8.0
-                if raw_score >= 33: return 7.5
-                if raw_score >= 30: return 7.0
-                if raw_score >= 27: return 6.5
-                if raw_score >= 23: return 6.0
-                if raw_score >= 19: return 5.5
-                if raw_score >= 15: return 5.0
-                if raw_score >= 12: return 4.5
-                if raw_score <= 11: return 4.0
-                return 0.0
-            band_score = convert_to_band(raw_score)
-            # Сохраняем баллы в сессию
-            session.score = raw_score
-            session.correct_answers_count = raw_score
-            session.total_questions_count = total_questions
+            # Используем сериализатор для валидации и сохранения данных
+            submit_serializer = ListeningTestSessionSubmitSerializer(session, data=request.data, partial=True)
+            submit_serializer.is_valid(raise_exception=True)
+            
+            # Сохраняем ответы и время
+            session.answers = submit_serializer.validated_data.get('answers', session.answers)
+            session.time_left = submit_serializer.validated_data.get('time_left', session.time_left)
+            
+            # Помечаем сессию как завершенную
+            session.submitted = True
+            session.completed_at = timezone.now()
+            if session.started_at:
+                session.time_taken = (session.completed_at - session.started_at).total_seconds()
+            
             session.save()
-            print(f"[DEBUG] SUBMIT: raw_score={raw_score}, total_questions={total_questions}, band_score={band_score}")
-            print(f"[DEBUG] SUBMIT: answers={session.answers}")
-            session.score = raw_score
-            session.correct_answers_count = raw_score
-            session.total_questions_count = total_questions
-            session.save()
-            print(f"[DEBUG] SESSION SAVED: id={session.id}, score={session.score}, correct_answers_count={session.correct_answers_count}, total_questions_count={session.total_questions_count}, submitted={session.submitted}")
-            from .models import ListeningTestResult
-            ListeningTestResult.objects.update_or_create(
-                session=session,
-                defaults={
-                    'raw_score': raw_score,
-                    'band_score': band_score,
-                    'breakdown': breakdown
-                }
-            )
-            from .serializers import ListeningTestSessionResultSerializer
-            result_serializer = ListeningTestSessionResultSerializer(session)
+            
+            # Всю логику подсчета и формирования результата доверяем новому сериализатору
+            # Создаем контекст, чтобы сериализатор не пересчитывал данные, если они уже есть
+            context = {'request': request}
+            result_serializer = ListeningTestSessionResultSerializer(session, context=context)
+            
             return Response(result_serializer.data, status=status.HTTP_200_OK)
-        return Response({'detail': 'Invalid request'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'detail': 'Invalid request. Provide test_id to start or session_id to submit.'}, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, session_id=None):
         # Sync answers (save progress)
@@ -1093,62 +1046,95 @@ class ListeningTestExportCSVView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, test_id):
-        user = request.user
-        if not hasattr(user, 'role') or user.role != 'admin':
-            return Response({'detail': 'Only admin can export CSV'}, status=403)
         try:
-            test = ListeningTest.objects.get(id=test_id)
-        except ListeningTest.DoesNotExist:
-            return Response({'detail': 'Test not found'}, status=404)
-        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user').order_by('user__uid', 'started_at')
-        # Формируем CSV
+            user = User.objects.get(uid=request.user.uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        test = get_object_or_404(ListeningTest, pk=test_id)
+        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user', 'listeningtestresult').order_by('user__student_id')
+
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="listening_test_{test_id}_results.csv"'
+        response.write(u'\ufeff'.encode('utf8'))
+        
         writer = csv.writer(response)
-        # Заголовки
-        writer.writerow([
-            'test_id', 'test_title', 'student_uid', 'attempt_id', 'attempt_datetime',
-            'correct_count', 'incorrect_count', 'correct_questions', 'incorrect_questions'
-        ])
-        from .serializers import create_detailed_breakdown
-        for session in sessions:
-            user = session.user
-            attempt_id = session.id
-            attempt_datetime = session.started_at.strftime('%Y-%m-%d %H:%M:%S') if session.started_at else ''
-            breakdown = create_detailed_breakdown(session)
-            correct_count = 0
-            incorrect_count = 0
-            correct_questions = []
-            incorrect_questions = []
-            question_number = 1
-            for part in breakdown:
-                for q in part['questions']:
-                    # Вопрос считается правильным, если все sub_answers правильные
-                    sub_answers = q.get('sub_answers', [])
-                    if not sub_answers:
-                        continue
-                    all_correct = all(sa.get('is_correct') for sa in sub_answers)
-                    if all_correct:
-                        correct_count += 1
-                        correct_questions.append(str(question_number))
-                    else:
-                        incorrect_count += 1
-                        incorrect_questions.append(str(question_number))
-                    question_number += 1
-            writer.writerow([
-                test.id,
-                test.title,
-                user.uid,
-                attempt_id,
-                attempt_datetime,
-                correct_count,
-                incorrect_count,
-                ';'.join(correct_questions),
-                ';'.join(incorrect_questions)
+
+        test_questions = ListeningQuestion.objects.filter(part__test=test).order_by('part__part_number', 'order')
+        max_questions = 40 
+
+        header = [
+            'student_id', 'email', 'first_name', 'last_name', 
+            'band_score', 'raw_score', 'start_time', 'finish_time', 'total_time_spent_min'
+        ]
+        for i in range(max_questions):
+            header.extend([
+                f'question_{i+1}_text',
+                f'question_{i+1}_student_answer',
+                f'question_{i+1}_correct_answer',
+                f'question_{i+1}_is_correct'
             ])
+        writer.writerow(header)
+
+        for session in sessions:
+            row = [
+                getattr(session.user, 'student_id', 'N/A'),
+                getattr(session.user, 'email', 'N/A'),
+                getattr(session.user, 'first_name', ''),
+                getattr(session.user, 'last_name', ''),
+                getattr(session.listeningtestresult, 'band_score', 'N/A'),
+                getattr(session.listeningtestresult, 'raw_score', 'N/A'),
+            ]
+
+            start_time = session.started_at.strftime('%Y-%m-%d %H:%M:%S') if session.started_at else ''
+            finish_time_val = getattr(session, 'submitted_at', None)
+            finish_time = finish_time_val.strftime('%Y-%m-%d %H:%M:%S') if finish_time_val else ''
+            
+            time_spent_min = 'N/A'
+            if session.started_at and finish_time_val:
+                time_spent = finish_time_val - session.started_at
+                time_spent_min = round(time_spent.total_seconds() / 60, 2)
+
+            row.extend([start_time, finish_time, time_spent_min])
+            
+            # Используем breakdown из результата для получения ответов
+            breakdown = getattr(session.listeningtestresult, 'breakdown', {})
+            session_answers_map = {}
+            if 'parts' in breakdown:
+                for part in breakdown['parts']:
+                    for question_group in part.get('questions', []):
+                        for sub_question in question_group.get('sub_questions', []):
+                            session_answers_map[sub_question['sub_question_id']] = sub_question
+            
+            question_details = []
+            for i, question in enumerate(test_questions):
+                if i < max_questions:
+                    # В Listening у нас sub_questions, а не questions
+                    for sq in question.sub_questions.all().order_by('id'):
+                        answer_info = session_answers_map.get(sq.id, {})
+                        
+                        question_text = f"{question.question_text or ''} - {sq.question_text or ''}".strip()
+                        student_answer = answer_info.get('student_answer', 'N/A')
+                        correct_answer = answer_info.get('correct_answer', 'N/A')
+                        is_correct = answer_info.get('is_correct', 'N/A')
+
+                        question_details.extend([
+                            question_text,
+                            student_answer,
+                            correct_answer,
+                            is_correct
+                        ])
+
+            row.extend(question_details)
+            # Дополняем пустыми значениями, если вопросов меньше максимума
+            row.extend([''] * ( (max_questions * 4) - len(question_details) ) )
+            writer.writerow(row)
+
         return response
 
-# --- Reading Test CSV Export для админов ---
+
 class ReadingTestExportCSVView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -229,154 +229,265 @@ class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
-def create_detailed_breakdown(session):
+def create_detailed_breakdown(session, test_type='reading'):
     """
-    Создает детальный breakdown для всех подвопросов в сессии
+    Создает детальный breakdown для всех подвопросов в сессии.
+    Может работать как с Reading, так и с Listening тестами.
+    Эта версия полностью переработана для надежной обработки разных форматов ответов.
     """
     try:
         detailed_breakdown = []
         
-        for part in session.test.parts.all():
+        # Определяем модели на основе типа теста
+        PartModel = ReadingPart if test_type == 'reading' else ListeningPart
+        
+        for part in session.test.parts.all().order_by('part_number'):
             part_data = {
                 'part_number': part.part_number,
-                'instructions': part.instructions,
+                'instructions': getattr(part, 'instructions', ''),
+                'passage_text': getattr(part, 'passage_text', ''),
                 'questions': []
             }
-            
-            for question in part.questions.all():
+
+            questions_query = part.questions.all().order_by('order') if test_type == 'reading' else part.questions.all().order_by('order')
+
+            for question in questions_query:
                 try:
                     question_data = {
                         'question_id': question.id,
                         'question_text': question.question_text or '',
                         'question_type': question.question_type,
-                        'header': question.header or '',
-                        'instruction': question.instruction or '',
-                        'sub_answers': []
+                        'header': getattr(question, 'header', ''),
+                        'instruction': getattr(question, 'instruction', ''),
+                        'image_url': getattr(question, 'image_url', getattr(question, 'image', None)),
+                        'sub_questions': [],
+                        'correct_sub_questions': 0,
+                        'total_sub_questions': 0,
+                        'points': getattr(question, 'points', 1)
                     }
                     
-                    # Получаем options как список
-                    options = list(question.options.all()) if hasattr(question, 'options') else []
+                    sub_questions_data = []
+                    correct_sub_questions = 0
+                    total_sub_questions = 0
+                    all_user_answers = session.answers or {}
+
+                    # --- Multiple Response (оценивается как единое целое) ---
+                    if question.question_type in ['multiple_response', 'checkbox', 'multi_select', 'multipleresponse']:
+                        options = list(question.options.all())
+                        correct_labels = set(q.strip() for q in (question.correct_answers or []))
+                        
+                        total_sub_questions = 1 # Всегда 1 оцениваемый юнит
+                        user_selected_labels = set()
+
+                        # Ищем ответы пользователя по ключам {question.id}__{option.label}
+                        for option in options:
+                            key = f"{question.id}__{option.label}"
+                            # Ответ может быть `true` или просто наличием ключа
+                            if all_user_answers.get(key) or str(all_user_answers.get(str(question.id))) == option.label:
+                                user_selected_labels.add(option.label)
+                        
+                        is_question_correct = (user_selected_labels == correct_labels)
+                        if is_question_correct:
+                            correct_sub_questions = 1
+
+                        # Формируем sub_questions для отображения фронтенду
+                        for option in options:
+                            was_selected = option.label in user_selected_labels
+                            should_be_selected = option.label in correct_labels
+                            
+                            # Правильность определяется только как "выбранная правильная опция"
+                            is_choice_correct = was_selected and should_be_selected
+
+                            sub_questions_data.append({
+                                'sub_id': option.label,
+                                'label': option.text,
+                                'user_answer': 'Selected' if was_selected else '(not selected)',
+                                'correct_answer': 'Should be selected' if should_be_selected else 'Should not be selected',
+                                'is_correct': is_choice_correct
+                            })
                     
-                    # Обрабатываем разные типы вопросов
-                    if question.question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart']:
-                        # Gap fill вопросы
-                        if question.extra_data and 'gaps' in question.extra_data:
-                            gaps = question.extra_data['gaps']
-                        else:
-                            gaps = normalize_correct_answers_for_gaps(question.correct_answers, question.question_type)
+                    # --- Multiple Choice (один ответ) / True-False ---
+                    elif question.question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false_not_given', 'true_false', 'yes_no_not_given']:
+                        total_sub_questions = 1
+                        correct_answer_label = str(question.correct_answers[0]).strip() if (isinstance(question.correct_answers, list) and question.correct_answers) else str(question.correct_answers).strip()
+
+                        user_answer_label = all_user_answers.get(str(question.id))
+                        if user_answer_label is None:
+                            options = list(question.options.all())
+                            for option in options:
+                                key = f"{question.id}__{option.label}"
+                                if all_user_answers.get(key) is True:
+                                    user_answer_label = option.label
+                                    break
                         
-                        for gap in gaps:
-                            gap_num = gap.get('number')
-                            correct_val = gap.get('answer', '')
-                            key = f"{question.id}__gap{gap_num}"
-                            user_val = session.answers.get(key, '')
-                            
-                            question_data['sub_answers'].append({
-                                'sub_id': f"gap{gap_num}",
-                                'label': f"Пропуск {gap_num}",
-                                'user_answer': user_val,
-                                'correct_answer': correct_val,
-                                'is_correct': normalize_answer(user_val) == normalize_answer(correct_val),
-                                'is_answered': bool(user_val and user_val.strip())
-                            })
-                            
-                    elif question.question_type in ['table', 'table_completion', 'tablecompletion', 'form', 'form_completion']:
-                        # Table вопросы
-                        cells = []
-                        if question.extra_data and 'table' in question.extra_data and 'cells' in question.extra_data['table']:
-                            cells = question.extra_data['table']['cells']
-                        
-                        for row_idx, row in enumerate(cells):
-                            for col_idx, cell in enumerate(row):
-                                if cell.get('isAnswer'):
-                                    correct_val = cell.get('answer', '')
-                                    key = f"{question.id}__r{row_idx}c{col_idx}"
-                                    user_val = session.answers.get(key, '')
-                                    
-                                    question_data['sub_answers'].append({
-                                        'sub_id': f"r{row_idx}c{col_idx}",
-                                        'label': f"Ячейка {row_idx + 1}-{col_idx + 1}",
-                                        'user_answer': user_val,
-                                        'correct_answer': correct_val,
-                                        'is_correct': normalize_answer(user_val) == normalize_answer(correct_val),
-                                        'is_answered': bool(user_val and user_val.strip())
-                                    })
-                                    
-                    elif question.question_type in ['multiple_response', 'checkbox', 'multi_select']:
-                        # Multiple response вопросы
-                        correct_labels = set()
-                        if options:
-                            for o in options:
-                                label = getattr(o, 'label', None)
-                                text = getattr(o, 'text', None)
-                                # Проверяем, является ли эта опция правильной
-                                if isinstance(question.correct_answers, list) and (text in question.correct_answers or label in question.correct_answers):
-                                    correct_labels.add(normalize_answer(label))
-                        elif isinstance(question.correct_answers, list):
-                            for label in question.correct_answers:
-                                correct_labels.add(normalize_answer(label))
-                        
-                        # Проверяем все возможные ответы
-                        all_labels = set()
-                        if options:
-                            for o in options:
-                                all_labels.add(normalize_answer(getattr(o, 'label', '')))
-                        else:
-                            all_labels = correct_labels
-                        
-                        for label in all_labels:
-                            key = f"{question.id}__{label}"
-                            user_val = session.answers.get(key, False)
-                            is_selected = user_val is True or user_val == "true" or user_val == label
-                            is_correct_option = label in correct_labels
-                            
-                            question_data['sub_answers'].append({
-                                'sub_id': label,
-                                'label': f"Опция {label}",
-                                'user_answer': is_selected,
-                                'correct_answer': is_correct_option,
-                                'is_correct': (is_selected == is_correct_option),
-                                'is_answered': is_selected
-                            })
-                            
-                    elif question.question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false', 'short_answer', 'TRUE_FALSE_NOT_GIVEN', 'shortanswer']:
-                        # Single choice вопросы
-                        correct_label = ''
-                        if isinstance(question.correct_answers, list) and question.correct_answers:
-                            correct_label = question.correct_answers[0]
-                        elif isinstance(question.correct_answers, str):
-                            correct_label = question.correct_answers
-                        
-                        key = f"{question.id}__{correct_label}"
-                        user_val = session.answers.get(key, '')
-                        is_correct = user_val is True or user_val == 'true' or user_val == correct_label
-                        
-                        question_data['sub_answers'].append({
-                            'sub_id': 'answer',
-                            'label': 'Ответ',
-                            'user_answer': user_val if user_val else 'Нет ответа',
-                            'correct_answer': correct_label,
-                            'is_correct': is_correct,
-                            'is_answered': bool(user_val)
+                        is_correct = normalize_answer(user_answer_label) == normalize_answer(correct_answer_label)
+                        if is_correct:
+                            correct_sub_questions = 1
+
+                        sub_questions_data.append({
+                            'sub_id': question.id,
+                            'label': question.header or question.question_text,
+                            'user_answer': user_answer_label or '(empty)',
+                            'correct_answer': correct_answer_label,
+                            'is_correct': is_correct
                         })
+
+                    # --- Gap Fill и его варианты ---
+                    elif question.question_type in ['gap_fill', 'gapfill', 'sentence_completion', 'summary_completion', 'note_completion', 'flow_chart', 'short_answer', 'shortanswer']:
+                        correct_answers_map = {str(item['number']): item['answer'] for item in normalize_correct_answers_for_gaps(question.correct_answers, question.question_type)}
+                        
+                        if not correct_answers_map and question.question_type in ['short_answer', 'shortanswer']:
+                             correct_answers_map = {'1': str(question.correct_answers[0]) if question.correct_answers else ''}
+                        
+                        # Определяем, сколько у нас полей для заполнения
+                        gap_numbers = list(correct_answers_map.keys())
+                        total_sub_questions = len(gap_numbers)
+
+                        for num in gap_numbers:
+                            correct_val = correct_answers_map[num]
+                            
+                            # Ищем ответ пользователя по ключу {question.id}__gap{num} или просто {question.id} для short_answer
+                            key = f"{question.id}__gap{num}"
+                            user_val = all_user_answers.get(key)
+                            if user_val is None and total_sub_questions == 1:
+                                user_val = all_user_answers.get(str(question.id))
+
+                            is_sub_correct = normalize_answer(user_val) == normalize_answer(correct_val)
+                            if is_sub_correct:
+                                correct_sub_questions += 1
+                            
+                            sub_questions_data.append({
+                                'sub_id': f"gap{num}",
+                                'label': f"Answer {num}",
+                                'user_answer': user_val or '(empty)',
+                                'correct_answer': correct_val,
+                                'is_correct': is_sub_correct,
+                            })
+
+                    # --- Table & Form (каждая ячейка - отдельный балл) ---
+                    elif question.question_type in ['table', 'table_completion', 'tablecompletion', 'form', 'form_completion']:
+                        # Эта логика предполагает, что correct_answers хранит ответы в виде словаря
+                        # e.g., {"r0c1": "answer1", "r2c3": "answer2"}
+                        correct_answers_map = {}
+                        if isinstance(question.correct_answers, list) and question.correct_answers and isinstance(question.correct_answers[0], dict):
+                             correct_answers_map = {item['id']: item['answer'] for item in question.correct_answers}
+                        
+                        # Если карта пуста, пытаемся построить из extra_data
+                        if not correct_answers_map and question.extra_data:
+                            if 'cells' in question.extra_data.get('table', {}): # Table
+                                for r, row in enumerate(question.extra_data['table']['cells']):
+                                    for c, cell in enumerate(row):
+                                        if cell.get('isAnswer'):
+                                            correct_answers_map[f"r{r}c{c}"] = cell.get('answer', '')
+                            elif 'fields' in question.extra_data: # Form
+                                 for i, field in enumerate(question.extra_data['fields']):
+                                     if field.get('isAnswer'):
+                                         correct_answers_map[f"field{i}"] = field.get('answer', '')
+                        
+                        total_sub_questions = len(correct_answers_map)
+                        
+                        for sub_id, correct_val in correct_answers_map.items():
+                            key = f"{question.id}__{sub_id}"
+                            user_val = all_user_answers.get(key)
+                            
+                            is_sub_correct = normalize_answer(user_val) == normalize_answer(correct_val)
+                            if is_sub_correct:
+                                correct_sub_questions += 1
+                                
+                            sub_questions_data.append({
+                                'sub_id': sub_id,
+                                'label': f"Entry for {sub_id}",
+                                'user_answer': user_val or '(empty)',
+                                'correct_answer': correct_val,
+                                'is_correct': is_sub_correct,
+                            })
+
+                    # --- Неизвестный тип вопроса (Fallback) ---
+                    else:
+                        sub_questions_data.append({
+                            'sub_id': 'unknown', 'label': 'Unknown question type', 'user_answer': '',
+                            'correct_answer': '', 'is_correct': False,
+                            'error': f'Unsupported question type: {question.question_type}'
+                        })
+
+                    question_data['sub_questions'] = sub_questions_data
+                    question_data['correct_sub_questions'] = correct_sub_questions
+                    question_data['total_sub_questions'] = total_sub_questions
                     
                     part_data['questions'].append(question_data)
+
                 except Exception as e:
-                    print(f"[ERROR] Processing question {question.id}: {str(e)}")
-                    # Добавляем пустой вопрос с ошибкой
+                    import traceback
+                    print(f"[ERROR] Processing question {question.id} ({question.question_type}): {str(e)}")
+                    traceback.print_exc()
                     part_data['questions'].append({
-                        'question_id': question.id,
-                        'question_text': f"Ошибка обработки вопроса: {str(e)}",
-                        'question_type': question.question_type,
-                        'sub_answers': []
+                        'question_id': question.id, 'question_text': f"Ошибка обработки вопроса: {str(e)}",
+                        'question_type': question.question_type, 'sub_questions': [],
+                        'error': traceback.format_exc()
                     })
             
             detailed_breakdown.append(part_data)
         
         return detailed_breakdown
     except Exception as e:
-        print(f"[ERROR] Creating detailed breakdown: {str(e)}")
-        return []
+        import traceback
+        print(f"[ERROR] Top-level error in create_detailed_breakdown for {test_type}: {str(e)}")
+        traceback.print_exc()
+        return [{'error': traceback.format_exc()}]
+
+def create_listening_detailed_breakdown(session):
+    """
+    Обертка для create_detailed_breakdown специально для Listening тестов.
+    Возвращает полный объект с результатами.
+    """
+    
+    print("--- Starting create_listening_detailed_breakdown ---")
+    print(f"Session ID: {session.id}")
+    print(f"User Answers: {session.answers}")
+
+    # Конвертация в IELTS Band
+    def convert_to_band(score, total):
+        # Эта шкала примерная и должна быть уточнена
+        if score >= 39: return 9.0
+        if score >= 37: return 8.5
+        if score >= 35: return 8.0
+        if score >= 32: return 7.5
+        if score >= 30: return 7.0
+        if score >= 27: return 6.5
+        if score >= 23: return 6.0
+        if score >= 19: return 5.5
+        if score >= 15: return 5.0
+        if score >= 12: return 4.5
+        if score >= 10: return 4.0
+        if score >= 8: return 3.5
+        if score >= 6: return 3.0
+        return 2.5
+
+    # 1. Считаем детальный breakdown
+    breakdown_data = create_detailed_breakdown(session, test_type='listening')
+
+    # 2. Считаем баллы на основе breakdown
+    raw_score = 0
+    total_score = 0
+    for part in breakdown_data:
+        for question in part['questions']:
+            # Важно: используем points вопроса. Если multiple_response, то это 1 * points.
+            # Если gap_fill, то это (кол-во правильных / кол-во всего) * points.
+            # Но для простоты IELTS, обычно 1 sub_question = 1 point.
+            points_per_sub = question.get('points', 1)
+            total_score += question.get('total_sub_questions', 0) * points_per_sub
+            raw_score += question.get('correct_sub_questions', 0) * points_per_sub
+            
+    # 3. Конвертируем в band
+    band_score = convert_to_band(raw_score, 40) # В IELTS Listening всегда 40 вопросов
+    
+    # 4. Возвращаем все данные
+    return {
+        'detailed_breakdown': breakdown_data,
+        'raw_score': raw_score,
+        'total_score': total_score,
+        'band_score': band_score,
+    }
 
 def normalize_correct_answers_for_gaps(correct_answers, question_type):
     """
@@ -806,64 +917,47 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='test.title', read_only=True)
     student_id = serializers.CharField(source='user.student_id', read_only=True)
     time_taken = serializers.SerializerMethodField()
-    band_score = serializers.SerializerMethodField()
-    raw_score = serializers.SerializerMethodField()
-    question_feedback = serializers.SerializerMethodField()
-    detailed_breakdown = serializers.SerializerMethodField()
-    total_questions = serializers.SerializerMethodField()
-    submitted = serializers.BooleanField(read_only=True)
-    score = serializers.IntegerField(read_only=True)
-    correct_answers_count = serializers.IntegerField(read_only=True)
-    total_questions_count = serializers.IntegerField(read_only=True)
-    test_render_structure = serializers.SerializerMethodField()
+    
+    # Новые поля, которые будут заполняться из to_representation
+    band_score = serializers.FloatField(read_only=True)
+    raw_score = serializers.IntegerField(read_only=True)
+    total_score = serializers.IntegerField(read_only=True)
+    detailed_breakdown = serializers.JSONField(read_only=True)
 
     class Meta:
         model = ListeningTestSession
         fields = [
             'id', 'test', 'test_title', 'student_id', 'started_at', 'completed_at',
-            'time_taken', 'band_score', 'score', 'raw_score', 'submitted', 'answers',
-            'total_questions', 'total_questions_count', 'correct_answers_count', 
-            'question_feedback', 'detailed_breakdown', 'test_render_structure'
+            'time_taken', 'band_score', 'raw_score', 'total_score', 'submitted', 'answers',
+            'detailed_breakdown'
         ]
-        read_only_fields = ['user', 'started_at', 'completed_at', 'band_score', 'raw_score', 'submitted', 'question_feedback', 'detailed_breakdown']
+        read_only_fields = fields
 
     def get_time_taken(self, obj):
+        if obj.completed_at and obj.started_at:
+            return (obj.completed_at - obj.started_at).total_seconds()
         return getattr(obj, 'time_taken', 0) or 0
 
-    def get_band_score(self, obj):
-        if getattr(obj, 'band_score', None) is not None:
-            return obj.band_score
-        result = getattr(obj, 'listeningtestresult', None)
-        if result and getattr(result, 'band_score', None) is not None:
-            return result.band_score
-        return None
+    def to_representation(self, instance):
+        # Если данные уже были посчитаны для этого экземпляра, используем их
+        if 'listening_results' in self.context:
+            results = self.context['listening_results']
+        else:
+            # Иначе, считаем их и сохраняем в контекст
+            results = create_listening_detailed_breakdown(instance)
+            self.context['listening_results'] = results
 
-    def get_raw_score(self, obj):
-        if getattr(obj, 'raw_score', None) is not None:
-            return obj.raw_score
-        result = getattr(obj, 'listeningtestresult', None)
-        if result and getattr(result, 'raw_score', None) is not None:
-            return result.raw_score
-        return None
-
-    def get_total_questions(self, obj):
-        if getattr(obj, 'total_questions_count', None) is not None:
-            return obj.total_questions_count
-        result = getattr(obj, 'listeningtestresult', None)
-        if result and result.breakdown:
-            return len(result.breakdown)
-        return 0
-
-    def get_question_feedback(self, obj):
-        result = getattr(obj, 'listeningtestresult', None)
-        return result.breakdown if result and result.breakdown else {}
-
-    def get_detailed_breakdown(self, obj):
-        # Эта функция теперь проксирует к универсальной
-        return get_test_render_structure(self, obj)
+        # Получаем базовое представление от ModelSerializer
+        representation = super().to_representation(instance)
         
-    def get_test_render_structure(self, obj):
-        return get_test_render_structure(self, obj)
+        # Добавляем или перезаписываем рассчитанные поля
+        representation['raw_score'] = results.get('raw_score')
+        representation['total_score'] = results.get('total_score')
+        representation['band_score'] = results.get('band_score')
+        representation['detailed_breakdown'] = results.get('detailed_breakdown')
+
+        return representation
+
 
 class ListeningTestCloneSerializer(serializers.ModelSerializer):
     class Meta:
@@ -975,34 +1069,38 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
 
 class ListeningTestSessionHistorySerializer(serializers.ModelSerializer):
     test_title = serializers.CharField(source='test.title', read_only=True)
-    correct_answers_count = serializers.SerializerMethodField()
-    total_questions_count = serializers.SerializerMethodField()
     time_taken = serializers.SerializerMethodField()
-    band_score = serializers.SerializerMethodField()
+
+    # Поля, которые будут заполняться централизованно
+    raw_score = serializers.IntegerField(read_only=True)
+    total_score = serializers.IntegerField(read_only=True)
+    band_score = serializers.FloatField(read_only=True)
 
     class Meta:
         model = ListeningTestSession
         fields = [
-            'id', 'test_title', 'score', 'band_score', 'correct_answers_count', 'total_questions_count',
-            'submitted', 'started_at', 'time_taken'
+            'id', 'test_title', 'band_score', 'raw_score', 'total_score',
+            'submitted', 'completed_at', 'time_taken'
         ]
 
-    def get_correct_answers_count(self, obj):
-        return getattr(obj, 'correct_answers_count', 0) or 0
-
-    def get_total_questions_count(self, obj):
-        return getattr(obj, 'total_questions_count', 0) or 0
-
     def get_time_taken(self, obj):
+        if obj.completed_at and obj.started_at:
+            return (obj.completed_at - obj.started_at).total_seconds()
         return getattr(obj, 'time_taken', 0) or 0
 
-    def get_band_score(self, obj):
-        if getattr(obj, 'band_score', None) is not None:
-            return obj.band_score
-        result = getattr(obj, 'listeningtestresult', None)
-        if result and getattr(result, 'band_score', None) is not None:
-            return result.band_score
-        return None
+    def to_representation(self, instance):
+        # Используем ту же логику, что и в основном сериализаторе результатов
+        # Это может быть не очень эффективно для списка, но гарантирует консистентность
+        results = create_listening_detailed_breakdown(instance)
+
+        representation = super().to_representation(instance)
+        
+        representation['raw_score'] = results.get('raw_score')
+        representation['total_score'] = results.get('total_score')
+        representation['band_score'] = results.get('band_score')
+        
+        return representation
+
 
 # --- Reading Session History Serializer для Dashboard ---
 class ReadingTestSessionHistorySerializer(serializers.ModelSerializer):
@@ -1061,17 +1159,13 @@ class ListeningQuestionSerializer(serializers.ModelSerializer):
         ]
 
 class ListeningPartSerializer(serializers.ModelSerializer):
-    questions = serializers.SerializerMethodField()
+    questions = ListeningQuestionSerializer(many=True, read_only=True, source='questions.all')
     audio = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     class Meta:
         model = ListeningPart
         fields = [
             'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
         ]
-
-    def get_questions(self, obj):
-        # Возвращаем все вопросы без сортировки по questions_order
-        return ListeningQuestionSerializer(obj.questions.all().order_by('id'), many=True).data
 
 # --- Вложенные сериализаторы для записи ListeningTest ---
 class ListeningQuestionWriteSerializer(serializers.ModelSerializer):

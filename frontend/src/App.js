@@ -12,11 +12,11 @@ import WritingPromptsAdminPage from './pages/WritingPromptsAdminPage';
 import Navbar from './components/Navbar';
 import AdminAllAssignmentsPage from './pages/AdminAllAssignmentsPage';
 
-// import AdminAssignmentsPage from './pages/AdminAssignmentsPage';
+import AdminAssignmentsPage from './pages/AdminAssignmentsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ListeningTestListPage from './pages/ListeningTestListPage';
 import ListeningTestPlayerPage from './pages/ListeningTestPlayerPage';
-// import ListeningResultPage from './pages/ListeningResultPage';
+import ListeningResultPage from './pages/ListeningResultPage';
 import AdminListeningManagePage from './pages/AdminListeningManagePage';
 import AdminListeningTestBuilderPage from './pages/AdminListeningTestBuilderPage';
 import StudentSubmissionView from './components/StudentSubmissionView';
@@ -85,17 +85,15 @@ function App() {
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/prompts" element={<WritingPromptsAdminPage />} />
           <Route path="/admin/assignments" element={<AdminAllAssignmentsPage />} />
-
+          <Route path="/admin/assignments/:studentId" element={<AdminAssignmentsPage />} />
+          
           <Route path="/listening" element={<ListeningTestListPage />} />
           <Route path="/listening-test/:id" element={<ListeningTestPlayerPage />} />
-          <Route path="/listening-result/:sessionId" element={<StudentSubmissionView />} />
+          <Route path="/listening-result/:sessionId" element={<ListeningResultPage />} />
           <Route path="/admin/listening" element={<AdminListeningManagePage />} />
           <Route path="/admin/listening/builder/new" element={<AdminListeningTestBuilderPage />} />
           <Route path="/admin/listening/builder/:testId" element={<AdminListeningTestBuilderPage />} />
-          <Route path="/admin/students" element={<AdminStudentsPage />} />
-          <Route path="/listening-sessions/:sessionId/result" element={<StudentSubmissionView />} />
-          
-          {/* Reading Routes */}
+
           <Route path="/reading" element={<ReadingPage />} />
           <Route path="/reading-test/:id" element={<ListeningTestPlayerPage />} />
           <Route path="/reading-result/:sessionId" element={<ReadingResultPage />} />

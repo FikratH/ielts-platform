@@ -107,11 +107,12 @@ class ListeningPart(models.Model):
 
 class ListeningQuestion(models.Model):
     part = models.ForeignKey(ListeningPart, related_name='questions', on_delete=models.CASCADE)
+    order = models.PositiveIntegerField(default=1)
     question_type = models.CharField(max_length=32, blank=True, null=True, default=None)
     question_text = models.TextField(blank=True, null=True, default=None)
     extra_data = JSONField(default=dict, blank=True, null=True)
     correct_answers = JSONField(default=list, blank=True, null=True)
-    header = models.TextField(blank=True, default='', null=True)
+    header = models.CharField(max_length=255, blank=True, default='')
     instruction = models.TextField(blank=True, default='', null=True)
     image = models.CharField(max_length=500, blank=True, null=True, default=None)
     points = models.PositiveIntegerField(default=1, blank=True, null=True)

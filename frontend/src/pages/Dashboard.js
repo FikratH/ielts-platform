@@ -90,40 +90,40 @@ export default function Dashboard() {
     setItemDetails(null);
   };
 
-  const allHistory = [
-    ...essays.map(e => ({
-      type: 'Writing',
-      date: e.submitted_at?.slice(0, 10),
-      task: e.task_type?.toUpperCase(),
-      score: e.overall_band || '-',
-      item: e,
+  const allSessions = [
+    ...listeningSessions.map(item => ({
+        type: 'Listening',
+        item,
+        date: item.completed_at || item.started_at,
+        raw_score: item.correct_answers_count,
+        total_score: item.total_questions_count,
+        band_score: item.band_score,
+        test_title: item.test_title,
     })),
-
-    ...listeningSessions.map(l => ({
-      type: 'Listening',
-      date: l.started_at ? l.started_at.slice(0, 10) : '-',
-      task: l.test_title || '-',
-      score: l.score ?? '-',
-      correct: l.correct_answers_count ?? '-',
-      total: l.total_questions_count ?? '-',
-      item: l,
+    ...readingSessions.map(item => ({
+        type: 'Reading',
+        item,
+        date: item.submitted_at || item.start_time,
+        raw_score: item.correct_answers_count,
+        total_score: item.total_questions_count,
+        band_score: item.band_score,
+        test_title: item.test_title,
     })),
-
-    ...readingSessions.map(r => ({
-      type: 'Reading',
-      date: r.submitted_at ? r.submitted_at.slice(0, 10) : (r.end_time ? r.end_time.slice(0, 10) : '-'),
-      task: r.test_title || '-',
-      score: r.band_score ?? '-',
-      correct: r.correct_answers_count ?? '-',
-      total: r.total_questions_count ?? '-',
-      item: r,
-    })),
+    ...essays.map(item => ({
+        type: 'Writing',
+        item,
+        date: item.submitted_at,
+        raw_score: null,
+        total_score: null,
+        band_score: item.overall_band,
+        test_title: 'Writing Task',
+    }))
   ].sort((a, b) => {
-    // Сортируем по датам, новые сверху
-    const dateA = a.item.submitted_at || a.item.end_time || a.item.started_at || '';
-    const dateB = b.item.submitted_at || b.item.end_time || b.item.started_at || '';
-    return dateB.localeCompare(dateA);
+    const dateA = a.date ? new Date(a.date) : new Date(0);
+    const dateB = b.date ? new Date(b.date) : new Date(0);
+    return dateB - dateA;
   });
+
 
   const getStats = () => {
     const scores = [
@@ -161,29 +161,27 @@ export default function Dashboard() {
             <th className="px-4 py-2 text-left">Date</th>
             <th className="px-4 py-2 text-left">Section</th>
             <th className="px-4 py-2 text-left">Test</th>
-            <th className="px-4 py-2 text-left">Score</th>
             <th className="px-4 py-2 text-left">Band Score</th>
             <th className="px-4 py-2 text-left"></th>
           </tr>
         </thead>
         <tbody>
-          {allHistory.map((h, idx) => (
+          {allSessions.map((item, idx) => (
             <tr key={idx} className="border-t">
-              <td className="px-4 py-2">{h.date}</td>
-              <td className="px-4 py-2">{h.type}</td>
-              <td className="px-4 py-2">{h.task}</td>
-              <td className="px-4 py-2 font-semibold">{h.score}</td>
-              <td className="px-4 py-2 font-semibold">
-                {h.type === 'Listening' ? (h.item.band_score ?? '-') : 
-                 h.type === 'Reading' ? (h.item.band_score ?? '-') : '-'}
-              </td>
-              <td className="px-4 py-2">
-                <button
-                  onClick={() => handleOpenDetails(h)}
-                  className="text-blue-600 hover:underline"
-                >
-                  Details
-                </button>
+              <td className="px-4 py-2">{item.date ? new Date(item.date).toLocaleString() : 'No date'}</td>
+              <td className="px-4 py-2">{item.type}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.test_title || 'Practice'}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.band_score || 'N/A'}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                {item.type === 'Reading' && item.item.id && (
+                  <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="text-indigo-600 hover:text-indigo-900">Details</button>
+                )}
+                {item.type === 'Listening' && item.item.id && (
+                  <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="text-indigo-600 hover:text-indigo-900">Details</button>
+                )}
+                {item.type === 'Writing' && (
+                  <button onClick={() => handleOpenDetails(item)} className="text-indigo-600 hover:text-indigo-900">Details</button>
+                )}
               </td>
             </tr>
           ))}
