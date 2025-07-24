@@ -8,11 +8,9 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(cred_path)
     firebase_admin.initialize_app(cred)
 
-def verify_firebase_token(id_token):
+def verify_firebase_token(token):
     try:
-        decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
-        print("✅ TOKEN OK:", decoded_token)
+        decoded_token = auth.verify_id_token(token)
         return decoded_token
-    except Exception as e:
-        print("❌ TOKEN ERROR:", e)
+    except auth.InvalidIdTokenError as e:
         return None

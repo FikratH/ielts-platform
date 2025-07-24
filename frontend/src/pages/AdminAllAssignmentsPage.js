@@ -19,10 +19,10 @@ export default function AdminAllAssignmentsPage() {
     try {
       const studentQuery = studentId ? `?student_id=${studentId}` : '';
       const [essaysRes, listeningRes] = await Promise.all([
-        axios.get(`http://localhost:8000/api/admin/essays/${studentQuery}`, {
+        axios.get(`/api/admin/essays/${studentQuery}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`http://localhost:8000/api/admin/listening-sessions/${studentQuery}`, {
+        axios.get(`/api/admin/listening-sessions/${studentQuery}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -51,7 +51,7 @@ export default function AdminAllAssignmentsPage() {
       setDetailsLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:8000/api/admin/listening-sessions/${assignment.item.id}/`, {
+                  const res = await axios.get(`/api/admin/listening-sessions/${assignment.item.id}/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setItemDetails(res.data);

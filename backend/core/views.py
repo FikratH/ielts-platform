@@ -1,5 +1,3 @@
-# ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
-# from openai import OpenAI
 import os
 import csv
 from dotenv import load_dotenv
@@ -56,114 +54,66 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth
 from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
 from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
-
-# ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
-# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from .utils import verify_token
 
 class FirebaseLoginView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        id_token = request.data.get('idToken')
-        decoded_token = verify_firebase_token(id_token)
-        if not decoded_token:
-            return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
+    def post(self, request, *args, **kwargs):
+        # 1. Забираем токен из body — либо под ключом 'token', либо 'idToken'
+        id_token = request.data.get('token') or request.data.get('idToken')
+        if not id_token:
+            return Response(
+                {"detail": "ID token is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        uid = decoded_token['uid']
-        email = decoded_token.get('email')
-        role = request.data.get('role')
+        # 2. Верифицируем через Firebase Admin SDK
+        try:
+            decoded = verify_token(id_token)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        uid = decoded.get('uid')
+        email = decoded.get('email')
         student_id = request.data.get('student_id')
+        role = request.data.get('role', 'student')
 
-        user, created = User.objects.get_or_create(
-            uid=uid,
-            defaults={'role': role, 'student_id': student_id, 'email': email}
-        )
-        if not user.student_id and student_id:
-            user.student_id = student_id
-            user.save()
-
-        return Response({
-            'message': 'Login successful',
-            'uid': uid,
-            'role': user.role,
-        })
-
-
-class EssaySubmissionView(CsrfExemptAPIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
+        # 3. Ищем пользователя по uid
         try:
             user = User.objects.get(uid=uid)
+            created = False
         except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
+            # 4. Если не нашли — ищем по email
+            try:
+                user = User.objects.get(email=email)
+                user.uid = uid
+                user.role = role
+                if student_id and user.student_id != student_id:
+                    user.student_id = student_id
+                user.save()
+                created = False
+            except User.DoesNotExist:
+                # 5. Если не нашли и по email — создаём нового
+                user = User.objects.create(
+                    uid=uid,
+                    email=email,
+                    role=role,
+                    student_id=student_id,
+                    username=email,
+                )
+                created = True
 
-        serializer = EssaySerializer(data=request.data)
-        if serializer.is_valid():
-            essay = serializer.save(user=user)
-
-            # ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
-            # Просто сохраняем эссе без AI оценок
-            
-            # prompt = f"""
-            #             You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
-            #             Score each from 0 to 9 and return the result in plain text format like:
-            #             
-            #             Task Response: 8.5
-            #             Coherence and Cohesion: 8
-            #             Lexical Resource: 8
-            #             Grammatical Range and Accuracy: 9
-            #             
-            #             Feedback: <full feedback here>
-            #             
-            #             Essay:
-            #             {essay.submitted_text}
-            #             """
-
-            # response = client.chat.completions.create(
-            #     model="gpt-4",
-            #     messages=[
-            #         {"role": "system", "content": "You are an IELTS writing examiner."},
-            #         {"role": "user", "content": prompt}
-            #     ]
-            # )
-
-            # content = response.choices[0].message.content.strip()
-
-            # def extract_score(label):
-            #     match = re.search(rf"{label}[:：]?\s*(\d+(\.\d+)?)", content, re.IGNORECASE)
-            #     return float(match.group(1)) if match else 0
-
-            # def round_ielts_band(score):
-            #     decimal = score - int(score)
-            #     if decimal < 0.25:
-            #         return float(int(score))
-            #     elif decimal < 0.75:
-            #         return float(int(score)) + 0.5
-            #     else:
-            #         return float(int(score)) + 1.0
-
-            # essay.score_task = extract_score("Task Response")
-            # essay.score_coherence = extract_score("Coherence and Cohesion")
-            # essay.score_lexical = extract_score("Lexical Resource")
-            # essay.score_grammar = extract_score("Grammatical Range and Accuracy")
-            # essay.overall_band = round_ielts_band((
-            #     essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
-            # ) / 4)
-            # essay.feedback = content
-            # essay.save()
-
-            return Response(EssaySerializer(essay).data)
-
-        return Response(serializer.errors, status=400)
+        # 6. Возвращаем ответ
+        return Response({
+            "message": "Login successful",
+            "uid": uid,
+            "role": user.role,
+            "created": created,
+        }, status=status.HTTP_200_OK)
 
 class AdminEssayListView(ListAPIView):
     serializer_class = EssaySerializer
@@ -311,56 +261,8 @@ class SubmitTaskView(APIView):
             prompt=prompt
         )
 
-        # ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТКЛЮЧЕНИЯ AI ПРОВЕРКИ
-        # Просто сохраняем эссе без AI оценок
-
-        # prompt_str = f"""
-        # You are an IELTS examiner. Evaluate the following essay using 4 IELTS Writing criteria.  
-        # Score each from 0 to 9 and return the result in plain text format like:
-        #
-        # Task Response: 8.5
-        # Coherence and Cohesion: 8
-        # Lexical Resource: 8
-        # Grammatical Range and Accuracy: 9
-        #
-        # Feedback: <full feedback here>
-        #
-        # Essay:
-        # {essay.submitted_text}
-        # """
-
-        # response = client.chat.completions.create(
-        #     model="gpt-4",
-        #     messages=[
-        #         {"role": "system", "content": "You are an IELTS writing examiner."},
-        #         {"role": "user", "content": prompt_str}
-        #     ]
-        # )
-
-        # content = response.choices[0].message.content.strip()
-
-        # def extract_score(label):
-        #     match = re.search(rf"{label}[:：]?\\s*(\\d+(\\.\\d+)?)", content, re.IGNORECASE)
-        #     return float(match.group(1)) if match else 0
-
-        # def round_ielts_band(score):
-        #     decimal = score - int(score)
-        #     if decimal < 0.25:
-        #         return float(int(score))
-        #     elif decimal < 0.75:
-        #         return float(int(score)) + 0.5
-        #     else:
-        #         return float(int(score)) + 1.0
-
-        # essay.score_task = extract_score("Task Response")
-        # essay.score_coherence = extract_score("Coherence and Cohesion")
-        # essay.score_lexical = extract_score("Lexical Resource")
-        # essay.score_grammar = extract_score("Grammatical Range and Accuracy")
-        # essay.overall_band = round_ielts_band((
-        #     essay.score_task + essay.score_coherence + essay.score_lexical + essay.score_grammar
-        # ) / 4)
-        # essay.feedback = content
-        # essay.save()
+        essay.submitted_at = timezone.now()
+        essay.save()
 
         return Response(EssaySerializer(essay).data)
 
@@ -613,13 +515,10 @@ class SubmitListeningTestView(APIView):
         session.raw_score = raw_score
         session.band_score = band_score
         session.save()
-        print(f"[DEBUG] SUBMIT: raw_score={raw_score}, total_questions={session.total_questions_count}, band_score={band_score}")
-        print(f"[DEBUG] SUBMIT: answers={session.answers}")
         session.score = raw_score
         session.correct_answers_count = raw_score
         session.total_questions_count = session.total_questions_count
         session.save()
-        print(f"[DEBUG] SESSION SAVED: id={session.id}, score={session.score}, correct_answers_count={session.correct_answers_count}, total_questions_count={session.total_questions_count}, submitted={session.submitted}")
         from .models import ListeningTestResult
         ListeningTestResult.objects.update_or_create(
             session=session,
@@ -683,7 +582,7 @@ class ListeningTestSessionDetailView(RetrieveAPIView):
 class ListeningTestViewSet(viewsets.ModelViewSet):
     queryset = ListeningTest.objects.all().order_by('-created_at')
     serializer_class = ListeningTestSerializer
-    permission_classes = [AllowAny]  # TODO: restrict to admin for write operations
+    permission_classes = [AllowAny]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -782,13 +681,13 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
 class ListeningPartViewSet(viewsets.ModelViewSet):
     queryset = ListeningPart.objects.all().order_by('test', 'part_number')
     serializer_class = ListeningPartSerializer
-    permission_classes = [AllowAny]  # TODO: restrict to admin for write
+    permission_classes = [AllowAny]
 
 # --- ListeningQuestion CRUD ---
 class ListeningQuestionViewSet(viewsets.ModelViewSet):
     queryset = ListeningQuestion.objects.all().order_by('part')
     serializer_class = ListeningQuestionSerializer
-    permission_classes = [AllowAny]  # TODO: restrict to admin for write
+    permission_classes = [AllowAny]
 
 # --- ListeningTestSession: start, sync, submit ---
 class ListeningTestSessionView(APIView):
@@ -879,7 +778,7 @@ class ListeningTestResultView(APIView):
 class ListeningTestCloneViewSet(viewsets.ModelViewSet):
     queryset = ListeningTestClone.objects.all().order_by('-cloned_at')
     serializer_class = ListeningTestCloneSerializer
-    permission_classes = [AllowAny]  # TODO: restrict to admin
+    permission_classes = [AllowAny]
 
     @action(detail=True, methods=['post'])
     def clone(self, request, pk=None):
@@ -1278,7 +1177,7 @@ class AdminStudentDetailView(RetrieveUpdateDestroyAPIView):
 class ReadingTestViewSet(viewsets.ModelViewSet):
     queryset = ReadingTest.objects.all().order_by('-created_at')
     serializer_class = ReadingTestSerializer
-    permission_classes = [AllowAny]  # TODO: restrict to admin for write operations
+    permission_classes = [AllowAny]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -1380,23 +1279,18 @@ class ReadingTestSessionView(APIView):
         """
         Submit answers for a session (finish test).
         """
-        print(f"🔥 SUBMIT: Session {session_id}, User: {request.user}")
         session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
         if session.completed:
             return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         answers_data = request.data.get('answers', {})
-        print(f"🔥 ANSWERS: {len(answers_data)} answers received")
-        print(f"🔥 DETAILED ANSWERS: {answers_data}")
         session.answers = answers_data
         session.end_time = timezone.now()
         session.completed = True
         session.save()
-        print(f"🔥 SESSION SAVED: completed={session.completed}")
         
         # Trigger result calculation
         result = self._calculate_and_save_results(session)
-        print(f"🔥 RESULT CREATED: raw_score={result.raw_score}, breakdown_questions={len(result.breakdown)}")
 
         return Response(ReadingTestResultSerializer(result).data, status=status.HTTP_200_OK)
 
@@ -1490,24 +1384,19 @@ class ReadingTestResultView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, session_id):
-        print(f"🔥 GET RESULT: Session {session_id}, User: {request.user}")
         try:
             session = ReadingTestSession.objects.get(
                 id=session_id, 
                 user=request.user,
                 completed=True
             )
-            print(f"🔥 SESSION FOUND: completed={session.completed}")
-            print(f"🔥 RESULT EXISTS: {hasattr(session, 'result')}")
             if hasattr(session, 'result'):
-                print(f"🔥 RESULT DATA: raw_score={session.result.raw_score}, breakdown_questions={len(session.result.breakdown)}")
+                pass
             serializer = ReadingTestResultSerializer(session.result)
             return Response(serializer.data)
         except ReadingTestSession.DoesNotExist:
-            print(f"🔥 SESSION NOT FOUND or NOT COMPLETED")
             return Response({'error': 'Result not found or test not completed.'}, status=404)
         except Exception as e:
-            print(f"🔥 ERROR: {e}")
             return Response({'error': str(e)}, status=500)
 
 class GetEmailBySIDView(APIView):
@@ -1596,3 +1485,31 @@ class WritingTestExportCSVView(APIView):
             ])
 
         return response
+
+class EssaySubmissionView(CsrfExemptAPIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        serializer = EssaySerializer(data=request.data)
+        if serializer.is_valid():
+            essay = serializer.save(user=user)
+            essay.submitted_at = timezone.now()
+            essay.save()
+            return Response({'message': 'Essay submitted successfully.'})
+        else:
+            return Response(serializer.errors, status=400)

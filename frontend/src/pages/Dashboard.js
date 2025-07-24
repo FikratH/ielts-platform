@@ -20,13 +20,13 @@ export default function Dashboard() {
       if (!token) return;
       try {
         const [essRes, listenRes, readingRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/essays/', {
+          axios.get('/api/essays/', {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get('http://localhost:8000/api/listening/sessions/', {
+          axios.get('/api/listening/sessions/', {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get('http://localhost:8000/api/reading/sessions/', {
+          axios.get('/api/reading/sessions/', {
             headers: { Authorization: `Bearer ${token}` },
           })
         ]);
@@ -56,7 +56,7 @@ export default function Dashboard() {
       setDetailsLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:8000/api/listening/sessions/${item.item.id}/`, {
+                  const res = await axios.get(`/api/listening/sessions/${item.item.id}/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setItemDetails(res.data);
@@ -70,7 +70,7 @@ export default function Dashboard() {
       setDetailsLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:8000/api/reading-sessions/${item.item.id}/result/`, {
+                  const res = await axios.get(`/api/reading-sessions/${item.item.id}/result/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setItemDetails(res.data);

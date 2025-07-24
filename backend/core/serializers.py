@@ -127,7 +127,6 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                 image = question_data.get('image', None)
                 if not image:
                     question_data['image'] = None
-                print('QUESTION DATA:', question_data)
                 question = ListeningQuestion.objects.create(part=part, **question_data)
                 for idx, option_data in enumerate(options_data):
                     label = chr(65 + idx)
@@ -136,12 +135,10 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                     option_data.pop('label', None)
                     option_data.pop('image', None)
                     option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
-                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    option_data.pop('isCorrect', None)
                     try:
                         ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
                     except Exception as e:
-                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
                         continue
         return test
 
@@ -172,7 +169,6 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                 image = question_data.get('image', None)
                 if not image:
                     question_data['image'] = None
-                print('QUESTION DATA:', question_data)
                 question, created = part.questions.get_or_create(order=order, defaults={**question_data, 'part': part})
                 if not created:
                     for attr, value in question_data.items():
@@ -188,8 +184,7 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                     option_data.pop('label', None)
                     option_data.pop('image', None)
                     option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
-                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    option_data.pop('isCorrect', None)
                     try:
                         option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
                         if not created:
@@ -197,7 +192,6 @@ class ListeningTestCreateSerializer(serializers.ModelSerializer):
                                 setattr(option, attr, value)
                             option.save()
                     except Exception as e:
-                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
                         continue
                 for label, option in existing_options.items():
                     if label not in sent_option_labels:
@@ -434,23 +428,19 @@ def create_detailed_breakdown(session, test_type='reading'):
                     part_data['questions'].append(question_data)
 
                 except Exception as e:
-                    import traceback
-                    print(f"[ERROR] Processing question {question.id} ({question.question_type}): {str(e)}")
-                    traceback.print_exc()
-                    part_data['questions'].append({
-                        'question_id': question.id, 'question_text': f"Ошибка обработки вопроса: {str(e)}",
-                        'question_type': question.question_type, 'sub_questions': [],
-                        'error': traceback.format_exc()
-                    })
+                    return {
+                        'question_id': question.id,
+                        'correct': False,
+                        'points': 0,
+                        'user_answer': 'Error processing question',
+                        'correct_answer': question.correct_answer if hasattr(question, 'correct_answer') else '',
+                    }
             
             detailed_breakdown.append(part_data)
         
         return detailed_breakdown
     except Exception as e:
-        import traceback
-        print(f"[ERROR] Top-level error in create_detailed_breakdown for {test_type}: {str(e)}")
-        traceback.print_exc()
-        return [{'error': traceback.format_exc()}]
+        return []
 
 def create_listening_detailed_breakdown(session):
     """
@@ -458,9 +448,7 @@ def create_listening_detailed_breakdown(session):
     Возвращает полный объект с результатами.
     """
     
-    print("--- Starting create_listening_detailed_breakdown ---")
-    print(f"Session ID: {session.id}")
-    print(f"User Answers: {session.answers}")
+    
 
     # Конвертация в IELTS Band
     def convert_to_band(score, total):
@@ -894,8 +882,7 @@ def get_test_render_structure(serializer_instance, obj):
             
             # --- Неизвестный тип вопроса ---
             else:
-                print(f"⚠️  UNKNOWN QUESTION TYPE: {q.question_type} for question {q.id}")
-                print(f"⚠️  Available answers for Q{q.id}: {answers.get(str(q.id))}")
+                pass
                 
                 # Пытаемся универсально обработать любой неизвестный тип
                 user_answer = ''
@@ -998,8 +985,6 @@ def normalize_answer(ans):
 # Все сравнения и подсчёты теперь по этим ключам.
 
 def count_correct_subanswers(user_answer, correct_answers, question_type, extra_data=None, all_user_answers=None, question_id=None, options=None, points=1):
-    print(f"[DEBUG] Checking question_type={question_type}")
-    print(f"[DEBUG] all_user_answers={all_user_answers}")
     num_correct = 0
     num_total = 0
     # GAP FILL
@@ -1016,7 +1001,6 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
             correct_val = gap.get('answer', '')
             key = f"{question_id}__gap{gap_num}"
             user_val = all_user_answers.get(key, '') if all_user_answers else ''
-            print(f"[DEBUG] gap: key={key}, user_val='{user_val}' vs correct_val='{correct_val}'")
             if normalize_answer(user_val) == normalize_answer(correct_val):
                 num_correct += 1
         return num_correct, num_total
@@ -1033,7 +1017,6 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
                     correct_val = cell.get('answer', '')
                     key = f"{question_id}__r{row_idx}c{col_idx}"
                     user_val = all_user_answers.get(key, '') if all_user_answers else ''
-                    print(f"[DEBUG] table: key={key}, user_val='{user_val}' vs correct_val='{correct_val}'")
                     if normalize_answer(user_val) == normalize_answer(correct_val):
                         num_correct += 1
         return num_correct, num_total
@@ -1062,7 +1045,6 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
                 sub = k.split("__", 1)[1]
                 if sub not in correct_labels:
                     extra_selected.add(sub)
-        print(f"[DEBUG] multiple_response: user_selected={user_selected}, correct_labels={correct_labels}, extra_selected={extra_selected}, points={points}")
         # ПРИНУДИТЕЛЬНО: Multiple Response всегда считается как один вопрос = один балл
         num_total = 1
         num_correct = 1 if user_selected == correct_labels and not extra_selected else 0
@@ -1076,7 +1058,6 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
             correct_label = correct_answers
         key = f"{question_id}__{correct_label}"
         user_val = all_user_answers.get(key, '') if all_user_answers else ''
-        print(f"[DEBUG] single_choice: key={key}, user_val='{user_val}' vs correct_label='{correct_label}'")
         if user_val is True or user_val == 'true' or user_val == correct_label:
             return 1, 1
         return 0, 1
@@ -1254,10 +1235,8 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                 question_data.pop('order', None)
                 question_data.pop('title', None)
                 try:
-                    print("CREATING QUESTION:", question_data)
                     question = ListeningQuestion.objects.create(part=part, **question_data)
                 except Exception as e:
-                    print("ERROR CREATING QUESTION:", e, question_data)
                     continue
                 for idx, option_data in enumerate(options_data):
                     label = chr(65 + idx)
@@ -1266,12 +1245,10 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                     option_data.pop('label', None)
                     option_data.pop('image', None)
                     option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
-                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    option_data.pop('isCorrect', None)
                     try:
                         ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
                     except Exception as e:
-                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
                         continue
         return test
 
@@ -1309,10 +1286,8 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                             setattr(question, attr, value)
                         question.save()
                     else:
-                        print("CREATING QUESTION:", question_data)
                         question = ListeningQuestion.objects.create(part=part, **question_data)
                 except Exception as e:
-                    print("ERROR CREATING QUESTION:", e, question_data)
                     continue
                 sent_question_ids.add(str(question.id))
                 # --- Обработка опций ---
@@ -1326,8 +1301,7 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                     option_data.pop('label', None)
                     option_data.pop('image', None)
                     option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)  # Убираем поле isCorrect, которого нет в модели
-                    print(f"CLEANED OPTION DATA for label {label}:", option_data)
+                    option_data.pop('isCorrect', None)
                     try:
                         option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
                         if not created:
@@ -1335,7 +1309,6 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                                 setattr(option, attr, value)
                             option.save()
                     except Exception as e:
-                        print(f"ERROR creating option {label}:", e, "option_data:", option_data)
                         continue
                 for label, option in existing_options.items():
                     if label not in sent_option_labels:

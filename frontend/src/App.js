@@ -22,6 +22,7 @@ import AdminListeningTestBuilderPage from './pages/AdminListeningTestBuilderPage
 import StudentSubmissionView from './components/StudentSubmissionView';
 import AdminStudentsPage from './pages/AdminStudentsPage';
 
+
 // Reading imports
 import ReadingPage from './pages/ReadingPage';
 import AdminReadingPage from './pages/AdminReadingPage';
@@ -86,6 +87,7 @@ function App() {
         <Route path="/admin/prompts" element={<WritingPromptsAdminPage />} />
           <Route path="/admin/assignments" element={<AdminAllAssignmentsPage />} />
           <Route path="/admin/assignments/:studentId" element={<AdminAssignmentsPage />} />
+          <Route path="/admin/students" element={<AdminStudentsPage />} />
           
           <Route path="/listening" element={<ListeningTestListPage />} />
           <Route path="/listening-test/:id" element={<ListeningTestPlayerPage />} />

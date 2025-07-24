@@ -29,7 +29,7 @@ const AdminListeningManagePage = () => {
             return;
         }
         const token = await user.getIdToken();
-        const response = await fetch('http://localhost:8000/api/listening-tests/', {
+        const response = await fetch('/api/listening-tests/', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -51,7 +51,7 @@ const AdminListeningManagePage = () => {
         if (!user) return;
         const token = await user.getIdToken();
 
-        const response = await fetch(`http://localhost:8000/api/listening-tests/${testId}/`, {
+        const response = await fetch(`/api/listening-tests/${testId}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ const AdminListeningManagePage = () => {
         if (!user) return;
         const token = await user.getIdToken();
 
-        const response = await fetch(`http://localhost:8000/api/listening-tests/${testId}/`, {
+        const response = await fetch(`/api/listening-tests/${testId}/`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`
@@ -110,7 +110,7 @@ const AdminListeningManagePage = () => {
         return;
       }
       const token = await user.getIdToken();
-      const response = await fetch(`http://localhost:8000/api/admin/listening-test/${testId}/export-csv/`, {
+              const response = await fetch(`/api/admin/listening-test/${testId}/export-csv/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

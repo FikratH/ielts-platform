@@ -35,7 +35,7 @@ const WritingTaskPage = () => {
         const res = await axios.get(`/api/prompts/active/?task_type=${taskType}`);
         setPromptText(res.data.prompt_text);
         if (res.data.image) {
-          setPromptImage(`http://localhost:8000${res.data.image}`);
+          setPromptImage(res.data.image);
         } else {
           setPromptImage("");
         }

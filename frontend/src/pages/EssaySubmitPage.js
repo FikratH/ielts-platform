@@ -19,7 +19,7 @@ const EssaySubmitPage = () => {
     const token = localStorage.getItem('token');
     try {
       const response = await axios.post(
-        'http://127.0.0.1:8000/api/essay/',
+        '/api/essay/',
         {
           task_type: taskType,
           question_text: '',

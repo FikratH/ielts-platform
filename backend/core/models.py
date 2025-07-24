@@ -56,12 +56,6 @@ class WritingPrompt(models.Model):
     is_active = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
-        print(">>> WritingPrompt.save() called")
-        if self.is_active:
-            WritingPrompt.objects.filter(
-                task_type=self.task_type,
-                is_active=True
-            ).exclude(pk=self.pk).update(is_active=False)
         super().save(*args, **kwargs)
 
     def __str__(self):

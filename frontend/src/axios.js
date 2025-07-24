@@ -3,7 +3,7 @@ import { auth } from './firebase-config';
 
 // Create an instance of axios
 const instance = axios.create({
-    baseURL: 'http://localhost:8000', // API server
+    baseURL: '', // Relative to current domain
 });
 
 // Add a request interceptor to include the Firebase auth token
