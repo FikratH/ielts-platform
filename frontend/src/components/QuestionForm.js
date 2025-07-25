@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import api from '../api';
 
 const QUESTION_TYPES = {
   MULTIPLE_CHOICE: 'Multiple Choice',

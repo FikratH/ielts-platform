@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth } from '../firebase-config';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import axios from '../axios';
+import api from '../api';
 
 
 const ReadingTimer = ({ timeLeft, color = 'text-blue-600' }) => {
@@ -62,8 +62,13 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const startSessionAndLoadTest = async () => {
         setIsLoading(true);
         setError(null);
+        if (!user) {
+            setError('Please login to start the test.');
+            setIsLoading(false);
+            return;
+        }
         try {
-            const sessionResponse = await axios.post(`/api/reading-tests/${testId}/start/`);
+            const sessionResponse = await api.post(`/reading-tests/${testId}/start/`);
             const newSession = sessionResponse.data;
             setSession(newSession);
             setTimeLeft(newSession.time_left_seconds || 3600);
@@ -75,11 +80,16 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 setAnswers({}); // Очищаем ответы для завершенных сессий
             }
 
-            const testResponse = await axios.get(`/api/reading-tests/${testId}/`);
+            const testResponse = await api.get(`/reading-tests/${testId}/`);
             setTest(testResponse.data);
 
         } catch (err) {
-            setError('Failed to load or start the test. Please try again.');
+            if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+                setError('Session expired, please login again.');
+                setTimeout(() => navigate('/login'), 1500);
+            } else {
+                setError('Failed to load or start the test. Please try again.');
+            }
             console.error(err);
         } finally {
             setIsLoading(false);
@@ -115,9 +125,14 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const submitTest = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
+        if (!user) {
+            setError('Please login to submit the test.');
+            setIsSubmitting(false);
+            return;
+        }
         console.log("🔥 SUBMITTING TEST:", session.id, "with answers:", answers);
         try {
-            const response = await axios.put(`/api/reading-sessions/${session.id}/submit/`, { answers });
+            const response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers });
             console.log("🔥 SUBMIT RESPONSE:", response.data);
             console.log("🔥 onComplete EXISTS:", !!onComplete, typeof onComplete);
             if (onComplete) {
@@ -128,8 +143,13 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 navigate(`/reading-result/${session.id}`);
             }
         } catch (err) {
-            console.error('🔥 ERROR submitting test:', err.response?.data || err);
-            alert('Failed to submit test. Please try again.');
+            if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+                setError('Session expired, please login again.');
+                setTimeout(() => navigate('/login'), 1500);
+            } else {
+                console.error('🔥 ERROR submitting test:', err.response?.data || err);
+                alert('Failed to submit test. Please try again.');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -373,10 +393,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
             {/* Header with timer */}
             <div className="bg-white shadow-md border-b sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col md:flex-row md:justify-between md:items-center">
+                <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-5 flex flex-col md:flex-row md:justify-between md:items-center">
                     <div>
-                        <h1 className="text-2xl font-bold text-blue-700 tracking-tight">{test?.title || 'Reading Test'}</h1>
-                        <p className="text-sm text-gray-500">Part {currentPartIndex + 1} of {test?.parts?.length || 0}</p>
+                        <h1 className="text-lg sm:text-2xl font-bold text-blue-700 tracking-tight">{test?.title || 'Reading Test'}</h1>
+                        <p className="text-xs sm:text-sm text-gray-500">Part {currentPartIndex + 1} of {test?.parts?.length || 0}</p>
                     </div>
                     <div className="flex items-center gap-2 mt-2 md:mt-0">
                         <ReadingTimer timeLeft={timeLeft} />
@@ -384,44 +404,39 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 </div>
             </div>
 
-            <div className="w-full px-2 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 justify-center items-start">
+            <div className="w-full px-1 sm:px-2 py-4 sm:py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 lg:gap-8 justify-center items-start">
                     {/* Left Panel: Passage + Navigation */}
                     <div className="lg:col-span-1 order-2 lg:order-1">
-                        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
-                            <h2 className="text-lg font-bold text-blue-700 mb-4">Passage</h2>
-                            
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
+                            <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Passage</h2>
                             {/* Passage content */}
-                            <div className="max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-6">
+                            <div className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6">
                                 {currentPart ? (
-                                    <div className="prose prose-base lg:prose-lg max-w-none text-black leading-relaxed text-base lg:text-lg whitespace-pre-wrap" style={{ lineHeight: '1.6' }}>
+                                    <div className="prose prose-base lg:prose-lg max-w-none text-black leading-relaxed text-sm sm:text-base lg:text-lg whitespace-pre-wrap" style={{ lineHeight: '1.6' }}>
                                     {currentPart.passage_text}
                                 </div>
                                 ) : (
                                     <div className="text-gray-400 text-center">Loading passage...</div>
                                 )}
                             </div>
-
-
                         </div>
                     </div>
-                    
                     {/* Right Panel: Questions */}
                     <div className="lg:col-span-1 order-1 lg:order-2 flex justify-center">
-                        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-blue-100 w-full">
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-blue-100 w-full">
                             {currentPart ? (
                                 <>
-                                    <div className="mb-6">
-                                        <h2 className="text-xl lg:text-2xl font-bold text-blue-700 mb-4">Part {currentPartIndex + 1}</h2>
-                                        
+                                    <div className="mb-4 sm:mb-6">
+                                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-700 mb-2 sm:mb-4">Part {currentPartIndex + 1}</h2>
                                         {/* Part Navigation */}
-                                        <div className="mb-4">
+                                        <div className="mb-3 sm:mb-4">
                                             <div className="flex flex-wrap gap-2">
                                                 {test?.parts?.map((part, index) => (
                                                     <button
                                                         key={part.id}
                                                         onClick={() => setCurrentPartIndex(index)}
-                                                        className={`px-3 py-2 rounded-lg font-semibold transition text-sm ${
+                                                        className={`px-2 sm:px-3 py-1 sm:py-2 rounded-lg font-semibold transition text-xs sm:text-sm ${
                                                             currentPartIndex === index
                                                                 ? 'bg-blue-100 text-blue-700 shadow border border-blue-200'
                                                                 : 'hover:bg-blue-50 text-gray-700 border border-gray-200'
@@ -432,12 +447,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                                 ))}
                                             </div>
                                         </div>
-                                        
                                         {currentPart.instructions && (
-                                            <p className="text-gray-500 mb-4 text-sm lg:text-base bg-blue-50/30 p-3 lg:p-4 rounded-lg whitespace-pre-wrap">{currentPart.instructions}</p>
+                                            <p className="text-xs sm:text-sm lg:text-base text-gray-500 mb-2 sm:mb-4 bg-blue-50/30 p-2 sm:p-3 lg:p-4 rounded-lg whitespace-pre-wrap">{currentPart.instructions}</p>
                                         )}
                                     </div>
-                                    <div className="space-y-6 lg:space-y-8">
+                                    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                                         {currentPart.questions?.map(renderQuestion)}
                                     </div>
                                 </>
@@ -450,11 +464,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             </div>
 
             {/* Submit Button */}
-            <div className="max-w-3xl mx-auto px-4 lg:px-2 pb-16 lg:pb-[60px]">
+            <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-2 pb-8 sm:pb-16 lg:pb-[60px]">
                 <button
                     onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
                     disabled={isSubmitting}
-                    className="w-full mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-lg lg:text-xl py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
+                    className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
                 >
                     {isSubmitting ? 'Submitting...' : 'Submit Test'}
                 </button>

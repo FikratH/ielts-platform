@@ -9,6 +9,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import { getAuth } from 'firebase/auth';
+import api from '../api';
+import { auth } from '../firebase';
 
 const AdminListeningManagePage = () => {
   const [tests, setTests] = useState([]);
@@ -29,14 +31,8 @@ const AdminListeningManagePage = () => {
             return;
         }
         const token = await user.getIdToken();
-        const response = await fetch('/api/listening-tests/', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTests(data);
-      }
+        const response = await api.get('/listening-tests/');
+        setTests(response.data);
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load tests', severity: 'error' });
     } finally {
@@ -51,16 +47,14 @@ const AdminListeningManagePage = () => {
         if (!user) return;
         const token = await user.getIdToken();
 
-        const response = await fetch(`/api/listening-tests/${testId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_active: isActive }),
-      });
-
-      if (response.ok) {
+        await api.patch(`/listening-tests/${testId}/`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_active: isActive }),
+        });
         setTests(tests.map(test => 
           test.id === testId ? { ...test, is_active: isActive } : test
         ));
@@ -69,7 +63,6 @@ const AdminListeningManagePage = () => {
           message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`, 
           severity: 'success' 
         });
-      }
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to update test status', severity: 'error' });
     }
@@ -84,23 +77,20 @@ const AdminListeningManagePage = () => {
         if (!user) return;
         const token = await user.getIdToken();
 
-        const response = await fetch(`/api/listening-tests/${testId}/`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
+        await api.delete(`/listening-tests/${testId}/`, {
+          method: 'DELETE',
+          headers: {
+              'Authorization': `Bearer ${token}`
+          }
+        });
         setTests(tests.filter(test => test.id !== testId));
         setSnackbar({ open: true, message: 'Test deleted successfully', severity: 'success' });
-      }
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to delete test', severity: 'error' });
     }
   };
 
-  // --- ДОБАВЛЕНО: экспорт CSV ---
+  // --- Экспорт CSV ---
   const handleExportCSV = async (testId, testTitle) => {
     try {
       const auth = getAuth();
@@ -110,17 +100,14 @@ const AdminListeningManagePage = () => {
         return;
       }
       const token = await user.getIdToken();
-              const response = await fetch(`/api/admin/listening-test/${testId}/export-csv/`, {
+      const response = await api.get(`/admin/listening-test/${testId}/export-csv/`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        responseType: 'blob',
       });
-      if (!response.ok) {
-        setSnackbar({ open: true, message: 'Failed to export CSV', severity: 'error' });
-        return;
-      }
-      const blob = await response.blob();
+      const blob = response.data;
       const filename = `listening_test_${testId}_results.csv`;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

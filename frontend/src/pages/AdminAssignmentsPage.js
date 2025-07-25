@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 const AdminAssignmentsPage = () => {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const AdminAssignmentsPage = () => {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Управление заданиями (Admin)</h2>
+      <h2 className="text-2xl font-bold mb-4">Assignments management (Admin)</h2>
       <div className="flex space-x-4">
         <button
           onClick={() => handleSelect('writing')}

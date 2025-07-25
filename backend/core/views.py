@@ -54,7 +54,7 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth
 from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
 from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
-from .utils import verify_token
+from .utils import ai_score_essay
 
 class FirebaseLoginView(APIView):
     permission_classes = [AllowAny]
@@ -70,7 +70,7 @@ class FirebaseLoginView(APIView):
 
         # 2. Верифицируем через Firebase Admin SDK
         try:
-            decoded = verify_token(id_token)
+            decoded = verify_firebase_token(id_token)
         except ValueError as e:
             return Response(
                 {"detail": str(e)},
@@ -166,6 +166,42 @@ class EssayListView(ListAPIView):
         except User.DoesNotExist:
             return Essay.objects.none()
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        essays = self.get_serializer(queryset, many=True).data
+        
+        # Рассчитываем общий overall_band для сессии
+        session_id = request.query_params.get("session_id")
+        if session_id and essays:
+            band1 = band2 = None
+            for essay in essays:
+                if essay['task_type'] == 'task1':
+                    band1 = essay['overall_band']
+                elif essay['task_type'] == 'task2':
+                    band2 = essay['overall_band']
+            
+            if band1 is not None and band2 is not None:
+                # Правильная формула IELTS: простое среднее арифметическое
+                raw_score = (band1 + band2) / 2
+                # IELTS округление: < 0.25 → вниз, ≥ 0.25 и < 0.75 → 0.5, ≥ 0.75 → вверх
+                decimal_part = raw_score - int(raw_score)
+                if decimal_part < 0.25:
+                    overall_band = int(raw_score)
+                elif decimal_part < 0.75:
+                    overall_band = int(raw_score) + 0.5
+                else:
+                    overall_band = int(raw_score) + 1.0
+                
+                return Response({
+                    'essays': essays,
+                    'overall_band': overall_band
+                })
+        
+        return Response({
+            'essays': essays,
+            'overall_band': None
+        })
+
 
 class EssayDetailView(RetrieveAPIView):
     serializer_class = EssaySerializer
@@ -242,7 +278,7 @@ class SubmitTaskView(APIView):
 
         session_id = request.data.get('session_id')
         task_type = request.data.get('task_type')
-        prompt_text = request.data.get('question_text')
+        question_text = request.data.get('question_text')
         submitted_text = request.data.get('submitted_text')
 
         try:
@@ -250,17 +286,22 @@ class SubmitTaskView(APIView):
         except WritingTestSession.DoesNotExist:
             return Response({'error': 'Session not found'}, status=404)
 
-        prompt = WritingPrompt.objects.filter(task_type=task_type, prompt_text=prompt_text).first()
-
+        prompt_id = request.data.get('prompt_id')
+        prompt = None
+        if prompt_id:
+            prompt = WritingPrompt.objects.filter(id=prompt_id).first()
+        print('SubmitTaskView:', 'task_type:', task_type, 'question_text:', question_text, 'prompt:', prompt)
+        if prompt and getattr(prompt, 'image', None):
+            print('Prompt image url:', prompt.image.url)
+        # SubmitTaskView: только сохраняем эссе, никаких AI, никаких image_url
         essay = Essay.objects.create(
             user=user,
             test_session=session,
             task_type=task_type,
-            question_text=prompt_text,
+            question_text=question_text,
             submitted_text=submitted_text,
             prompt=prompt
         )
-
         essay.submitted_at = timezone.now()
         essay.save()
 
@@ -297,24 +338,93 @@ class FinishWritingSessionView(APIView):
         if not essays.exists():
             return Response({'error': 'No essays found for this session'}, status=400)
 
-        total_score = 0
-        essay_count = 0
-
+        # AI-оценка для всех эссе, если ещё не оценены
+        from .utils import ai_score_essay
         for essay in essays:
-            if essay.overall_band:
-                total_score += essay.overall_band
-                essay_count += 1
+            if essay.overall_band is None or essay.feedback is None:
+                prompt = essay.prompt
+                image_url = None
+                if prompt and getattr(prompt, 'image', None):
+                    try:
+                        image_url = request.build_absolute_uri(prompt.image.url)
+                        if not image_url.startswith('http'):  # safety check
+                            image_url = None
+                    except Exception as e:
+                        image_url = None
+                print('AI image_url:', image_url)
+                try:
+                    ai_result = ai_score_essay(essay.question_text, essay.submitted_text, essay.task_type, image_url)
+                    
+                    # Обрабатываем разные поля для Task 1 и Task 2
+                    if essay.task_type == 'task1':
+                        essay.score_task = ai_result.get('task_achievement')  # Task 1 использует task_achievement
+                    else:
+                        essay.score_task = ai_result.get('task_response')     # Task 2 использует task_response
+                    
+                    essay.score_coherence = ai_result.get('coherence')
+                    essay.score_lexical = ai_result.get('lexical')
+                    essay.score_grammar = ai_result.get('grammar')
+                    # НЕ сохраняем overall_band от AI - будем рассчитывать сами
+                    essay.feedback = ai_result.get('feedback')
+                    
+                    # Рассчитываем individual band для этого эссе с правильным IELTS округлением
+                    individual_scores = [essay.score_task, essay.score_coherence, essay.score_lexical, essay.score_grammar]
+                    if all(score is not None for score in individual_scores):
+                        raw_individual = sum(individual_scores) / len(individual_scores)
+                        # IELTS округление: < 0.25 → вниз, ≥ 0.25 и < 0.75 → 0.5, ≥ 0.75 → вверх
+                        decimal_part = raw_individual - int(raw_individual)
+                        if decimal_part < 0.25:
+                            essay.overall_band = int(raw_individual)
+                        elif decimal_part < 0.75:
+                            essay.overall_band = int(raw_individual) + 0.5
+                        else:
+                            essay.overall_band = int(raw_individual) + 1.0
+                    
+                    essay.save()
+                except Exception as e:
+                    essay.feedback = f"AI scoring failed: {str(e)}"
+                    essay.save()
+                    return Response({'error': 'AI scoring failed', 'detail': str(e)}, status=500)
 
-        if essay_count > 0:
-            overall_band = total_score / essay_count
+        # Считаем общий band по формуле IELTS (простое среднее арифметическое)
+        band1 = band2 = None
+        for essay in essays:
+            if essay.task_type == 'task1':
+                band1 = essay.overall_band
+                print(f'DEBUG: Task 1 band = {band1}')
+            elif essay.task_type == 'task2':
+                band2 = essay.overall_band
+                print(f'DEBUG: Task 2 band = {band2}')
+        
+        print(f'DEBUG: band1 = {band1}, band2 = {band2}')
+        
+        if band1 is not None and band2 is not None:
+            # Правильная формула IELTS: простое среднее арифметическое
+            raw_score = (band1 + band2) / 2
+            print(f'DEBUG: raw_score = ({band1} + {band2}) / 2 = {raw_score}')
+            
+            # IELTS округление: < 0.25 → вниз, ≥ 0.25 и < 0.75 → 0.5, ≥ 0.75 → вверх
+            decimal_part = raw_score - int(raw_score)
+            print(f'DEBUG: decimal_part = {decimal_part}')
+            
+            if decimal_part < 0.25:
+                overall_band = int(raw_score)
+                print(f'DEBUG: decimal_part < 0.25, overall_band = {overall_band}')
+            elif decimal_part < 0.75:
+                overall_band = int(raw_score) + 0.5
+                print(f'DEBUG: 0.25 <= decimal_part < 0.75, overall_band = {overall_band}')
+            else:
+                overall_band = int(raw_score) + 1.0
+                print(f'DEBUG: decimal_part >= 0.75, overall_band = {overall_band}')
         else:
-            overall_band = 0
+            overall_band = None
+            print(f'DEBUG: One of bands is None, overall_band = None')
 
         return Response({
             'session_id': session.id,
-            'overall_band': round(overall_band, 1),
-            'essays_count': essay_count,
-            'message': 'Session completed successfully'
+            'overall_band': overall_band,
+            'essays': EssaySerializer(essays, many=True).data,
+            'message': 'Session completed and AI scored successfully'
         })
 
 
@@ -1484,6 +1594,52 @@ class WritingTestExportCSVView(APIView):
                 essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else ''
             ])
 
+        return response
+
+class WritingPromptExportCSVView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, prompt_id):
+        try:
+            user = User.objects.get(uid=request.user.uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        essays = Essay.objects.filter(prompt_id=prompt_id).select_related('user', 'prompt').order_by('user__student_id', '-submitted_at')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="writing_prompt_{prompt_id}_essays.csv"'
+        response.write(u'\ufeff'.encode('utf8'))
+        writer = csv.writer(response)
+        header = [
+            'Student ID', 'First Name', 'Last Name', 'Email', 'Group', 'Teacher',
+            'Task Type', 'Prompt Text', 'Essay Text',
+            'Task Response Score', 'Coherence Score', 'Lexical Score', 'Grammar Score',
+            'Overall Band', 'AI Feedback', 'Date Submitted'
+        ]
+        writer.writerow(header)
+        for essay in essays:
+            user = essay.user
+            writer.writerow([
+                user.student_id or '',
+                user.first_name or '',
+                user.last_name or '',
+                user.email or '',
+                user.group or '',
+                user.teacher or '',
+                essay.task_type.upper() if essay.task_type else '',
+                essay.prompt.prompt_text if essay.prompt else '',
+                essay.submitted_text or '',
+                essay.score_task or 'Not scored',
+                essay.score_coherence or 'Not scored',
+                essay.score_lexical or 'Not scored',
+                essay.score_grammar or 'Not scored',
+                essay.overall_band or 'Not scored',
+                essay.feedback or 'No feedback available',
+                essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else ''
+            ])
         return response
 
 class EssaySubmissionView(CsrfExemptAPIView):

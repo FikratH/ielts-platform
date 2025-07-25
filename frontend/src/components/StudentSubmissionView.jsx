@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { auth } from '../firebase-config';
+import { auth } from '../firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import api from '../api';
 
 const StudentSubmissionView = () => {
   const { sessionId } = useParams();
@@ -20,11 +21,7 @@ const StudentSubmissionView = () => {
     try {
       setIsLoading(true);
       const idToken = await user.getIdToken();
-      const response = await fetch(`/api/listening-sessions/${sessionId}/result/`, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
-      });
+      const response = await api.get(`/listening-sessions/${sessionId}/result/`);
       
       if (response.ok) {
         const resultData = await response.json();

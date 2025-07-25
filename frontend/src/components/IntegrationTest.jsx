@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase-config';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import api from '../api';
 
 const IntegrationTest = () => {
   const [user, loading] = useAuthState(auth);
@@ -18,9 +19,7 @@ const IntegrationTest = () => {
       
       // Test 1: Admin check
       try {
-        const response = await fetch('/api/admin/check/', {
-          headers: { 'Authorization': `Bearer ${idToken}` }
-        });
+        const response = await api.admin.check();
         results.adminCheck = response.ok ? 'PASS' : 'FAIL';
       } catch (err) {
         results.adminCheck = 'ERROR';
@@ -28,9 +27,7 @@ const IntegrationTest = () => {
       
       // Test 2: Get listening tests
       try {
-        const response = await fetch('/api/listening-tests/', {
-          headers: { 'Authorization': `Bearer ${idToken}` }
-        });
+        const response = await api.listeningTests.getAll();
         results.getTests = response.ok ? 'PASS' : 'FAIL';
       } catch (err) {
         results.getTests = 'ERROR';
@@ -38,10 +35,7 @@ const IntegrationTest = () => {
       
       // Test 3: Audio upload endpoint
       try {
-        const response = await fetch('/api/admin/audio/upload/', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${idToken}` }
-        });
+        const response = await api.admin.uploadAudio();
         results.audioUpload = response.status === 400 ? 'PASS (expected validation error)' : 'FAIL';
       } catch (err) {
         results.audioUpload = 'ERROR';

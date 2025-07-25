@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 export default function EssayDetail() {
   const { id } = useParams();
@@ -10,10 +10,7 @@ export default function EssayDetail() {
   useEffect(() => {
     const fetchEssay = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`/api/essays/${id}/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get(`/essays/${id}/`);
         setEssay(res.data);
       } catch (err) {
         console.error('Failed to fetch essay:', err);

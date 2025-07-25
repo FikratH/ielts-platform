@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 const initialForm = {
   student_id: '',
@@ -29,10 +29,7 @@ export default function AdminStudentsPage() {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('/api/admin/students/', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/admin/students/');
       setStudents(res.data);
     } catch (err) {
       setStudents([]);
@@ -50,17 +47,12 @@ export default function AdminStudentsPage() {
     setFormError('');
     setFormLoading(true);
     try {
-      const token = localStorage.getItem('token');
       if (editId) {
         // PATCH для редактирования
-        await axios.patch(`/api/admin/students/${editId}/`, form, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.patch(`/admin/students/${editId}/`, form);
       } else {
         // POST для создания
-        await axios.post('/api/admin/create-student/', { ...form, role: 'student' }, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.post('/admin/create-student/', { ...form, role: 'student' });
       }
       setShowForm(false);
       setForm(initialForm);
@@ -83,10 +75,7 @@ export default function AdminStudentsPage() {
     if (!deleteId) return;
     setFormLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`/api/admin/students/${deleteId}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/admin/students/${deleteId}/`);
       setShowDelete(false);
       setDeleteId(null);
       fetchStudents();

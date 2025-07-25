@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from '../axios'; // Assuming you have a configured axios instance
+import api from '../api';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase-config';
 
@@ -22,7 +22,7 @@ const ReadingResultPage = () => {
         setIsLoading(true);
         console.log("🔥 FETCHING RESULT for session:", sessionId);
         try {
-            const response = await axios.get(`/api/reading-sessions/${sessionId}/result/`);
+            const response = await api.get(`/reading-sessions/${sessionId}/result/`);
             console.log("🔥 RESULT DATA:", response.data);
             console.log("🔥 BREAKDOWN EXISTS:", !!response.data.breakdown);
             if (response.data.breakdown) {
@@ -191,42 +191,37 @@ const ReadingResultPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-8">
-            <div className="max-w-4xl mx-auto px-4">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-4 sm:py-8">
+            <div className="max-w-full md:max-w-4xl mx-auto px-2 sm:px-4">
                 {/* Header */}
-                <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-blue-100">
-                    <h1 className="text-3xl font-bold text-center mb-4 text-blue-700">Test Results</h1>
-                    <h2 className="text-xl text-center text-gray-600 mb-6">{result.test_title || 'IELTS Reading Test'}</h2>
+                <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 mb-6 sm:mb-8 border border-blue-100">
+                    <h1 className="text-xl sm:text-3xl font-bold text-center mb-2 sm:mb-4 text-blue-700">Test Results</h1>
+                    <h2 className="text-base sm:text-xl text-center text-gray-600 mb-4 sm:mb-6">{result.test_title || 'IELTS Reading Test'}</h2>
                     
                     {/* Score Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200">
-                            <div className={`text-3xl font-bold mb-2 ${getBandScoreColor(result.band_score)}`}>
-                                {result.band_score}
-                            </div>
-                            <div className="text-sm text-blue-700 font-medium">Band Score</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6">
+                        <div className="text-center p-3 sm:p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200">
+                            <div className={`text-lg sm:text-3xl font-bold mb-1 sm:mb-2 ${getBandScoreColor(result.band_score)}`}>{result.band_score}</div>
+                            <div className="text-xs sm:text-sm text-blue-700 font-medium">Band Score</div>
                             <div className="text-xs text-gray-600 mt-1">{getBandScoreLabel(result.band_score)}</div>
                         </div>
-                        <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl border border-green-200">
-                            <div className="text-3xl font-bold text-green-600 mb-2">
-                                {result.correct_answers_text || `${Math.floor(result.correct_answers_count || 0)} / ${Math.floor(result.total_questions_count || 0)}`}
-                            </div>
-                            <div className="text-sm text-green-700 font-medium">Correct Answers</div>
+                        <div className="text-center p-3 sm:p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl border border-green-200">
+                            <div className="text-lg sm:text-3xl font-bold text-green-600 mb-1 sm:mb-2">{result.correct_answers_text || `${Math.floor(result.correct_answers_count || 0)} / ${Math.floor(result.total_questions_count || 0)}`}</div>
+                            <div className="text-xs sm:text-sm text-green-700 font-medium">Correct Answers</div>
                         </div>
-
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">
                         <button
                             onClick={() => navigate('/reading')}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300"
+                            className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 text-xs sm:text-base"
                         >
                             Take Another Test
                         </button>
                         <button
                             onClick={() => navigate('/dashboard')}
-                            className="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold rounded-xl shadow-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300"
+                            className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold rounded-xl shadow-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 text-xs sm:text-base"
                         >
                             Back to Dashboard
                         </button>
@@ -234,11 +229,11 @@ const ReadingResultPage = () => {
                 </div>
 
                 {/* Detailed Breakdown */}
-                <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100">
-                    <h3 className="text-2xl font-bold mb-6 text-blue-700 border-b border-blue-100 pb-4">
+                <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 border border-blue-100">
+                    <h3 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 text-blue-700 border-b border-blue-100 pb-2 sm:pb-4">
                         Detailed Analysis
                     </h3>
-                    <div className="space-y-6">
+                    <div className="space-y-4 sm:space-y-6">
                         {renderBreakdown()}
                     </div>
                 </div>

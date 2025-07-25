@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { auth } from '../firebase-config';
+import { auth } from '../firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import api from '../api';
 
 const ListeningTimer = ({ timeLeft, color = 'text-blue-600' }) => {
   const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
@@ -126,28 +127,23 @@ const ListeningTestPlayer = () => {
 
   const startSession = async () => {
     console.log('startSession CALLED', { user, testId });
+    if (!user) {
+      setError('Please login to start the test.');
+      setIsLoading(false);
+      return;
+    }
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`/api/listening-tests/${testId}/start/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const sessionData = await response.json();
-        setSession(sessionData);
-        setTimeLeft(sessionData.time_left || 1800);
-        loadTest();
-      } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Failed to start session');
-        setIsLoading(false);
-      }
+      const response = await api.post(`/listening-tests/${testId}/start/`);
+      setSession(response.data);
+      setTimeLeft(response.data.time_left || 1800);
+      loadTest();
     } catch (err) {
-      setError('Network error');
+      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+        setError('Session expired, please login again.');
+        setTimeout(() => navigate('/login'), 1500);
+      } else {
+        setError('Failed to start session');
+      }
       setIsLoading(false);
     }
   };
@@ -183,24 +179,16 @@ const ListeningTestPlayer = () => {
 
   const loadTest = async () => {
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`/api/listening-tests/${testId}/`, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
-      });
-      
-      if (response.ok) {
-        const testData = await response.json();
-        // Нормализуем вопросы для каждой части
-        if (Array.isArray(testData.parts)) {
-          testData.parts = testData.parts.map(part => ({
-            ...part,
-            questions: normalizeQuestions(part.questions || [])
-          }));
-        }
-        setTest(testData);
+      const response = await api.get(`/listening-tests/${testId}/`);
+      const testData = response.data;
+      // Нормализуем вопросы для каждой части
+      if (Array.isArray(testData.parts)) {
+        testData.parts = testData.parts.map(part => ({
+          ...part,
+          questions: normalizeQuestions(part.questions || [])
+        }));
       }
+      setTest(testData);
     } catch (err) {
       setError('Failed to load test');
     } finally {
@@ -210,21 +198,7 @@ const ListeningTestPlayer = () => {
 
   const loadSession = async (sessionId) => {
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`/api/listening-sessions/${sessionId}/sync/`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ answers, time_left: timeLeft }),
-      });
-      
-      if (response.ok) {
-        const sessionData = await response.json();
-        // setAnswers(sessionData.answers || {}); // Не сбрасываем локальные ответы!
-        setTimeLeft(sessionData.time_left || 1800);
-      }
+      await api.patch(`/listening-sessions/${sessionId}/sync/`, { answers, time_left: timeLeft });
     } catch (err) {
       console.error('Failed to sync session');
     }
@@ -249,21 +223,8 @@ const ListeningTestPlayer = () => {
 
   const syncAnswers = async () => {
     if (!session) return;
-    
     try {
-      const idToken = await user.getIdToken();
-      await fetch(`/api/listening-sessions/${session.id}/sync/`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          answers, 
-          flagged, // Include flagged questions
-          time_left: timeLeft 
-        }),
-      });
+      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers, flagged, time_left: timeLeft });
     } catch (err) {
       console.error('Failed to sync answers');
     }
@@ -276,29 +237,21 @@ const ListeningTestPlayer = () => {
 
   const submitTest = async () => {
     if (!session || isSubmitted) return;
-    
+    if (!user) {
+      setError('Please login to submit the test.');
+      return;
+    }
     try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`/api/listening-sessions/${session.id}/submit/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ answers, time_left: timeLeft }),
-      });
-      
-      if (response.ok) {
-        const resultData = await response.json();
-        // setResults(resultData);
-        // setIsSubmitted(true);
-        // setShowResults(true);
-        navigate(`/listening-result/${session.id}`);
-        // --- ДОБАВЛЕНО: Сообщить Dashboard, что история Listening обновилась ---
-        window.dispatchEvent(new Event('listeningHistoryUpdated'));
-      }
+      const response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers, time_left: timeLeft });
+      navigate(`/listening-result/${session.id}`);
+      window.dispatchEvent(new Event('listeningHistoryUpdated'));
     } catch (err) {
-      setError('Failed to submit test');
+      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+        setError('Session expired, please login again.');
+        setTimeout(() => navigate('/login'), 1500);
+      } else {
+        setError('Failed to submit test');
+      }
     }
   };
 
@@ -345,7 +298,7 @@ const ListeningTestPlayer = () => {
             <img
               src={question.image}
               alt="Question"
-              style={{ maxWidth: '350px', maxHeight: '220px', borderRadius: '8px', border: '1px solid #e0e7ef', background: '#fff' }}
+              style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
             />
           </div>
         )}
@@ -719,10 +672,10 @@ const ListeningTestPlayer = () => {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Header with timer */}
       <div className="bg-white shadow-md border-b sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col md:flex-row md:justify-between md:items-center">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-5 flex flex-col md:flex-row md:justify-between md:items-center">
           <div>
-            <h1 className="text-2xl font-bold text-blue-700 tracking-tight">{test.title}</h1>
-            <p className="text-sm text-gray-500">Part {currentPart + 1} of {test.parts?.length || 0}</p>
+            <h1 className="text-lg sm:text-2xl font-bold text-blue-700 tracking-tight">{test.title}</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Part {currentPart + 1} of {test.parts?.length || 0}</p>
           </div>
           <div className="flex items-center gap-2 mt-2 md:mt-0">
             <ListeningTimer timeLeft={timeLeft} />
@@ -730,12 +683,12 @@ const ListeningTestPlayer = () => {
         </div>
       </div>
 
-      <div className="w-full px-2 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8 justify-center items-start">
+      <div className="w-full px-1 sm:px-2 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8 justify-center items-start">
           {/* Audio Player */}
           <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
-              <h2 className="text-lg font-bold text-blue-700 mb-4">Audio Player</h2>
+            <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
+              <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Audio Player</h2>
               {currentPartData?.audio && (
                 <audio
                   ref={audioRef}
@@ -809,14 +762,14 @@ const ListeningTestPlayer = () => {
                 )}
               </div>
               {/* Part Navigation */}
-              <div className="mt-6 lg:mt-8">
-                <h3 className="font-medium text-blue-700 mb-3">Parts</h3>
+              <div className="mt-4 sm:mt-6 lg:mt-8">
+                <h3 className="font-medium text-blue-700 mb-2 sm:mb-3">Parts</h3>
                 <div className="flex flex-wrap lg:flex-col lg:space-y-2 gap-2 lg:gap-0">
                   {test.parts?.map((part, index) => (
                     <button
                       key={part.id}
                       onClick={() => setCurrentPart(index)}
-                      className={`text-left p-2 lg:p-3 rounded-xl font-semibold transition text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
+                      className={`text-left p-2 sm:p-3 rounded-xl font-semibold transition text-xs sm:text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
                         currentPart === index
                           ? 'bg-blue-100 text-blue-700 shadow'
                           : 'hover:bg-blue-50 text-gray-700'
@@ -831,16 +784,16 @@ const ListeningTestPlayer = () => {
           </div>
           {/* Questions */}
           <div className="lg:col-span-3 order-1 lg:order-2 flex justify-center">
-            <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-blue-100 w-full">
+            <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-blue-100 w-full">
               {currentPartData && (
                 <>
-                  <div className="mb-6">
-                    <h2 className="text-xl lg:text-2xl font-bold text-blue-700 mb-2">Part {currentPart + 1}</h2>
+                  <div className="mb-4 sm:mb-6">
+                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-700 mb-1 sm:mb-2">Part {currentPart + 1}</h2>
                     {currentPartData.instructions && (
-                      <p className="text-gray-500 mb-4 text-sm lg:text-base bg-blue-50/30 p-3 lg:p-4 rounded-lg">{currentPartData.instructions}</p>
+                      <p className="text-xs sm:text-sm lg:text-base text-gray-500 mb-2 sm:mb-4 bg-blue-50/30 p-2 sm:p-3 lg:p-4 rounded-lg">{currentPartData.instructions}</p>
                     )}
                   </div>
-                  <div className="space-y-6 lg:space-y-8">
+                  <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                     {currentPartData.questions?.map(renderQuestion)}
                   </div>
                 </>
@@ -851,11 +804,11 @@ const ListeningTestPlayer = () => {
       </div>
 
       {/* Submit Button */}
-      <div className="max-w-3xl mx-auto px-4 lg:px-2 pb-16 lg:pb-[60px]">
+      <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-2 pb-8 sm:pb-16 lg:pb-[60px]">
         <button
           onClick={submitTest}
           disabled={isSubmitted}
-          className="w-full mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-lg lg:text-xl py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
+          className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
         >
           Submit Test
         </button>

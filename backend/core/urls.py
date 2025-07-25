@@ -40,7 +40,8 @@ from .views import (
     ReadingTestResultView,
     ReadingTestSessionListView,
     ReadingTestExportCSVView,
-    GetEmailBySIDView
+    GetEmailBySIDView,
+    WritingPromptExportCSVView
 )
 
 router = DefaultRouter()
@@ -105,4 +106,5 @@ urlpatterns += [
     path('reading-sessions/<int:session_id>/result/', ReadingTestResultView.as_view(), name='reading-session-result'),
     path('reading/sessions/', ReadingTestSessionListView.as_view(), name='reading-session-list'),
     path('get-email-by-sid/', GetEmailBySIDView.as_view(), name='get-email-by-sid'),
+    path('admin/writing-prompt/<int:prompt_id>/export-csv/', WritingPromptExportCSVView.as_view(), name='writing-prompt-export-csv'),
 ]

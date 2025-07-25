@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import ReadingTestPlayer from '../components/ReadingTestPlayer';
 // import './ReadingPage.css';
 
@@ -18,7 +18,7 @@ const ReadingPage = () => {
     const fetchTests = async () => {
         try {
             setIsLoading(true);
-            const response = await axios.get('/api/reading-tests/');
+            const response = await api.get('/reading-tests/');
             setTests(response.data);
             setIsLoading(false);
         } catch (error) {
@@ -39,16 +39,16 @@ const ReadingPage = () => {
 
     if (isLoading) {
         return (
-            <div className="reading-page">
-                <div className="loading">Loading Reading tests...</div>
+            <div className="p-4 sm:p-6 text-center">
+                <div>Loading Reading tests...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="reading-page">
-                <div className="error">{error}</div>
+            <div className="p-4 sm:p-6 text-center text-red-500">
+                <div>{error}</div>
             </div>
         );
     }
@@ -63,28 +63,28 @@ const ReadingPage = () => {
     }
 
     return (
-        <div className="p-6">
-            <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold">IELTS Reading Tests</h1>
-                <p className="text-lg text-gray-600">Practice your reading skills with our comprehensive tests</p>
+        <div className="p-3 sm:p-6">
+            <div className="text-center mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold">IELTS Reading Tests</h1>
+                <p className="text-base sm:text-lg text-gray-600">Practice your reading skills with our comprehensive tests</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 max-w-full lg:max-w-7xl mx-auto">
                 {tests.map(test => (
-                    <div key={test.id} className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between border-2 border-transparent hover:border-blue-500 transition-all">
+                    <div key={test.id} className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col justify-between border-2 border-transparent hover:border-blue-500 transition-all">
                         <div>
-                            <div className="flex justify-between items-start mb-2">
-                                <h3 className="font-bold text-xl text-gray-800">{test.title}</h3>
+                            <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-2 gap-2 sm:gap-0">
+                                <h3 className="font-bold text-lg sm:text-xl text-gray-800">{test.title}</h3>
                                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${test.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                     {test.is_active ? 'Available' : 'Unavailable'}
                                 </span>
                             </div>
                             
-                            <p className="text-gray-600 text-sm mb-4">{test.description}</p>
+                            <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4">{test.description}</p>
                         </div>
                         
                         <div>
-                            <div className="flex justify-around text-center text-sm text-gray-500 mb-4 border-t pt-4">
+                            <div className="flex flex-col sm:flex-row justify-around text-center text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4 border-t pt-3 sm:pt-4 gap-2 sm:gap-0">
                                 <div>
                                     <span className="font-bold text-gray-700 block">{test.parts?.length || 0}</span>
                                     <span>Parts</span>
@@ -98,7 +98,7 @@ const ReadingPage = () => {
                             <button 
                                 onClick={() => startTest(test)}
                                 disabled={!test.is_active}
-                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm sm:text-base hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
                                 {test.is_active ? 'Start Test' : 'Unavailable'}
                             </button>
@@ -108,9 +108,9 @@ const ReadingPage = () => {
             </div>
 
             {tests.length === 0 && !isLoading && (
-                <div className="text-center text-gray-500 mt-8">
-                    <h3>No Reading tests available</h3>
-                    <p>Check back later for new tests or contact your administrator.</p>
+                <div className="text-center text-gray-500 mt-6 sm:mt-8">
+                    <h3 className="text-base sm:text-lg">No Reading tests available</h3>
+                    <p className="text-xs sm:text-base">Check back later for new tests or contact your administrator.</p>
                 </div>
             )}
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import api from '../api';
 
 const SubQuestionFeedback = ({ sq, index }) => {
     const isCorrect = sq.is_correct;

@@ -16,40 +16,219 @@ class CsrfExemptAPIView(APIView):
 # -------------------------------------
 # Проверка Firebase ID-token (verify_token)
 # -------------------------------------
-import firebase_admin
-from firebase_admin import auth, credentials
-from django.conf import settings
-
-# Путь к service account инициализации берём из настроек Django
-FIREBASE_CERT_PATH = settings.FIREBASE_CERT_PATH
-
-if not FIREBASE_CERT_PATH:
-    raise RuntimeError("Не задан путь к Firebase service account (FIREBASE_CERT_PATH в settings)")
-
-# Инициализация Firebase Admin один раз
-try:
-    firebase_admin.get_app()
-except ValueError:
-    cred = credentials.Certificate(FIREBASE_CERT_PATH)
-    firebase_admin.initialize_app(cred)
-
-
-def verify_token(id_token: str) -> dict:
-    """
-    Проверяет Firebase ID-token и возвращает декодированные данные (uid/email и т.п.).
-    Бросает ValueError при невалидном токене.
-    """
-    try:
-        decoded = auth.verify_id_token(id_token)
-        return decoded
-    except Exception as e:
-        # Здесь можно добавить логирование e
-        raise ValueError("Invalid or expired Firebase token") from e
+# Удаляю всё, что связано с firebase_admin, credentials, FIREBASE_CERT_PATH, verify_token
 
 
 # -------------------------------------
 # Ваши вспомогательные функции для тестов
 # -------------------------------------
+import openai
+import os
+
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+# IELTS Writing AI scoring (GPT-4 Vision)
+def ai_score_essay(question_text, essay_text, task_type, image_url=None):
+    if not OPENAI_API_KEY:
+        raise RuntimeError('OPENAI_API_KEY not set in environment')
+    openai.api_key = OPENAI_API_KEY
+
+    print(f'AI Scoring - Task Type: {task_type}')
+    print(f'AI Scoring - Question: {question_text[:100]}...')
+    print(f'AI Scoring - Essay: {essay_text[:100]}...')
+    print(f'AI Scoring - Image URL: {image_url}')
+
+    # Проверяем минимальную длину текста
+    min_words = 50 if task_type == 'task1' else 100
+    word_count = len(essay_text.split())
+    
+    if word_count < min_words:
+        print(f'AI WARNING: Essay too short ({word_count} words, minimum {min_words})')
+        return {
+            'task_response': 1.0,
+            'coherence': 1.0,
+            'lexical': 1.0,
+            'grammar': 1.0,
+            'feedback': f'Essay is too short ({word_count} words). Minimum required: {min_words} words for Task {task_type.upper()}. Please write a longer response.'
+        }
+
+    # Формируем промпт в зависимости от типа задания
+    if task_type == 'task1':
+        system_prompt = (
+            "You are an expert IELTS Writing Task 1 examiner with 10+ years of experience. "
+            "Task 1 requires describing data, charts, graphs, or processes in 150+ words. "
+            "You will be given a writing prompt and a student's essay. "
+            "Evaluate the essay according to official IELTS Task 1 criteria:\n\n"
+            "1. TASK ACHIEVEMENT (0-9):\n"
+            "- Band 9: Fully satisfies all requirements, clearly presents key features\n"
+            "- Band 7: Covers key features, some detail may be missing\n"
+            "- Band 5: Addresses task but format may be inappropriate, key features missing\n"
+            "- Band 3: Fails to address task, no clear overview\n\n"
+            "2. COHERENCE & COHESION (0-9):\n"
+            "- Band 9: Logical organization, clear progression, excellent linking\n"
+            "- Band 7: Clear overall progression, good use of cohesive devices\n"
+            "- Band 5: Some organization but may lack progression, limited linking\n"
+            "- Band 3: No clear organization, minimal linking\n\n"
+            "3. LEXICAL RESOURCE (0-9):\n"
+            "- Band 9: Wide range of vocabulary, precise and natural\n"
+            "- Band 7: Sufficient range, some flexibility and precision\n"
+            "- Band 5: Limited range, some errors in word choice\n"
+            "- Band 3: Very limited range, frequent errors\n\n"
+            "4. GRAMMATICAL RANGE & ACCURACY (0-9):\n"
+            "- Band 9: Wide range of structures, very few errors\n"
+            "- Band 7: Variety of complex structures, some errors\n"
+            "- Band 5: Mix of simple and complex structures, frequent errors\n"
+            "- Band 3: Limited range, many errors\n\n"
+            "OVERALL BAND: Average of the four criteria, rounded to nearest 0.5\n\n"
+            "FEEDBACK REQUIREMENTS:\n"
+            "- Write 4-6 sentences of detailed feedback\n"
+            "- Start with overall impression and main strength\n"
+            "- Identify 2-3 specific areas for improvement\n"
+            "- Provide concrete, actionable suggestions\n"
+            "- Mention vocabulary and grammar improvements\n"
+            "- Be encouraging but honest about weaknesses\n"
+            "- Use specific examples from the essay\n"
+            "- End with a positive note and encouragement\n\n"
+            "Respond ONLY with valid JSON, no explanations, no extra text, no markdown, no comments. "
+            "Do NOT include any text before or after the JSON. "
+            "Format: {\"task_achievement\":..., \"coherence\":..., \"lexical\":..., \"grammar\":..., \"feedback\":...}"
+        )
+        user_prompt = (
+            f"TASK 1 PROMPT: {question_text}\n\n"
+            f"STUDENT'S ESSAY:\n{essay_text}\n\n"
+            f"Evaluate this Task 1 response according to IELTS criteria."
+        )
+    else:  # task_type == 'task2'
+        system_prompt = (
+            "You are an expert IELTS Writing Task 2 examiner with 10+ years of experience. "
+            "Task 2 requires writing an argumentative essay of 250+ words on a given topic. "
+            "You will be given a writing prompt and a student's essay. "
+            "Evaluate the essay according to official IELTS Task 2 criteria:\n\n"
+            "1. TASK RESPONSE (0-9):\n"
+            "- Band 9: Fully addresses all parts, presents clear position, develops ideas fully\n"
+            "- Band 7: Addresses all parts, presents clear position, develops ideas\n"
+            "- Band 5: Addresses task but may not cover all parts, position unclear\n"
+            "- Band 3: Does not address task, no clear position\n\n"
+            "2. COHERENCE & COHESION (0-9):\n"
+            "- Band 9: Logical organization, clear progression, excellent linking\n"
+            "- Band 7: Clear overall progression, good use of cohesive devices\n"
+            "- Band 5: Some organization but may lack progression, limited linking\n"
+            "- Band 3: No clear organization, minimal linking\n\n"
+            "3. LEXICAL RESOURCE (0-9):\n"
+            "- Band 9: Wide range of vocabulary, precise and natural\n"
+            "- Band 7: Sufficient range, some flexibility and precision\n"
+            "- Band 5: Limited range, some errors in word choice\n"
+            "- Band 3: Very limited range, frequent errors\n\n"
+            "4. GRAMMATICAL RANGE & ACCURACY (0-9):\n"
+            "- Band 9: Wide range of structures, very few errors\n"
+            "- Band 7: Variety of complex structures, some errors\n"
+            "- Band 5: Mix of simple and complex structures, frequent errors\n"
+            "- Band 3: Limited range, many errors\n\n"
+            "OVERALL BAND: Average of the four criteria, rounded to nearest 0.5\n\n"
+            "FEEDBACK REQUIREMENTS:\n"
+            "- Write 4-6 sentences of detailed feedback\n"
+            "- Start with overall impression and main strength\n"
+            "- Identify 2-3 specific areas for improvement\n"
+            "- Provide concrete, actionable suggestions\n"
+            "- Mention argument development and structure\n"
+            "- Comment on vocabulary and grammar improvements\n"
+            "- Be encouraging but honest about weaknesses\n"
+            "- Use specific examples from the essay\n"
+            "- End with a positive note and encouragement\n\n"
+            "Respond ONLY with valid JSON, no explanations, no extra text, no markdown, no comments. "
+            "Do NOT include any text before or after the JSON. "
+            "Format: {\"task_response\":..., \"coherence\":..., \"lexical\":..., \"grammar\":..., \"feedback\":...}"
+        )
+        user_prompt = (
+            f"TASK 2 PROMPT: {question_text}\n\n"
+            f"STUDENT'S ESSAY:\n{essay_text}\n\n"
+            f"Evaluate this Task 2 response according to IELTS criteria."
+        )
+
+    print(f'AI Scoring - System Prompt: {system_prompt[:200]}...')
+    print(f'AI Scoring - User Prompt: {user_prompt[:200]}...')
+
+    # Формируем messages для Vision (если есть картинка)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": []}
+    ]
+    
+    # Если это Task 1 и есть картинка, используем Vision API
+    if task_type == 'task1' and image_url:
+        messages[1]["content"].append({"type": "text", "text": f"Prompt: {question_text}"})
+        messages[1]["content"].append({"type": "image_url", "image_url": {"url": image_url}})
+        messages[1]["content"].append({"type": "text", "text": f"Essay: {essay_text}"})
+    else:
+        messages[1]["content"] = user_prompt
+
+    print(f'AI Scoring - Messages: {messages}')
+
+    try:
+        # Вызываем OpenAI (новый синтаксис)
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=512,
+            temperature=0.2,
+        )
+        text = response.choices[0].message.content
+        print('AI RAW RESPONSE:', text)
+        
+        # Парсим JSON из ответа (более устойчиво)
+        import re, json
+        # Вырезаем JSON даже из markdown-блока
+        match = re.search(r'\{[\s\S]*\}', text)
+        if not match:
+            print('AI ERROR: No JSON found in response')
+            raise ValueError('AI did not return valid JSON')
+        
+        json_text = match.group(0)
+        print('AI EXTRACTED JSON:', json_text)
+        
+        try:
+            data = json.loads(json_text)
+            print('AI PARSED DATA:', data)
+            
+            # Проверяем, что все поля присутствуют
+            if task_type == 'task1':
+                required_fields = ['task_achievement', 'coherence', 'lexical', 'grammar', 'feedback']
+            else:
+                required_fields = ['task_response', 'coherence', 'lexical', 'grammar', 'feedback']
+            
+            for field in required_fields:
+                if field not in data:
+                    print(f'AI WARNING: Missing field {field}')
+                    data[field] = None
+            
+            return data
+            
+        except Exception as e:
+            print('AI JSON PARSE ERROR:', e)
+            print('AI JSON TEXT:', json_text)
+            raise ValueError('AI did not return valid JSON')
+            
+    except Exception as e:
+        print('AI API ERROR:', str(e))
+        # Возвращаем пустой результат вместо исключения
+        if task_type == 'task1':
+            return {
+                'task_achievement': None,
+                'coherence': None,
+                'lexical': None,
+                'grammar': None,
+                'feedback': f'AI scoring failed: {str(e)}'
+            }
+        else:
+            return {
+                'task_response': None,
+                'coherence': None,
+                'lexical': None,
+                'grammar': None,
+                'feedback': f'AI scoring failed: {str(e)}'
+            }
+
+
 def validate_reading_test(test):
     """
     Проверяет целостность Reading теста перед активацией.

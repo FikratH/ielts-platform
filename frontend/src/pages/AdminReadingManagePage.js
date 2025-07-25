@@ -8,6 +8,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
+import api from '../api';
+import { auth } from '../firebase';
 
 const AdminReadingManagePage = () => {
   const [tests, setTests] = useState([]);
@@ -21,11 +23,8 @@ const AdminReadingManagePage = () => {
 
   const loadTests = async () => {
     try {
-      const response = await fetch('/api/reading-tests/');
-      if (response.ok) {
-        const data = await response.json();
-        setTests(data);
-      }
+      const response = await api.get('/reading-tests/');
+      setTests(response.data);
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load tests', severity: 'error' });
     } finally {
@@ -35,23 +34,17 @@ const AdminReadingManagePage = () => {
 
   const toggleTestStatus = async (testId, isActive) => {
     try {
-      const response = await fetch(`/api/reading-tests/${testId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ is_active: isActive }),
+      await api.patch(`/reading-tests/${testId}/`, {
+        is_active: isActive,
       });
-      if (response.ok) {
-        setTests(tests.map(test =>
-          test.id === testId ? { ...test, is_active: isActive } : test
-        ));
-        setSnackbar({
-          open: true,
-          message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`,
-          severity: 'success'
-        });
-      }
+      setTests(tests.map(test =>
+        test.id === testId ? { ...test, is_active: isActive } : test
+      ));
+      setSnackbar({
+        open: true,
+        message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`,
+        severity: 'success'
+      });
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to update test status', severity: 'error' });
     }
@@ -60,13 +53,9 @@ const AdminReadingManagePage = () => {
   const deleteTest = async (testId) => {
     if (!window.confirm('Are you sure you want to delete this test?')) return;
     try {
-      const response = await fetch(`/api/reading-tests/${testId}/`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        setTests(tests.filter(test => test.id !== testId));
-        setSnackbar({ open: true, message: 'Test deleted successfully', severity: 'success' });
-      }
+      await api.delete(`/reading-tests/${testId}/`);
+      setTests(tests.filter(test => test.id !== testId));
+      setSnackbar({ open: true, message: 'Test deleted successfully', severity: 'success' });
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to delete test', severity: 'error' });
     }
@@ -74,27 +63,17 @@ const AdminReadingManagePage = () => {
 
   const downloadCSV = async (testId, testTitle) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/admin/reading-test/${testId}/export-csv/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `reading_test_${testId}_results.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        setSnackbar({ open: true, message: 'CSV downloaded successfully', severity: 'success' });
-      } else {
-        setSnackbar({ open: true, message: 'Failed to download CSV', severity: 'error' });
-      }
+      const response = await api.get(`/admin/reading-test/${testId}/export-csv/`, { responseType: 'blob' });
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reading_test_${testId}_results.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      setSnackbar({ open: true, message: 'CSV downloaded successfully', severity: 'success' });
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to download CSV', severity: 'error' });
     }

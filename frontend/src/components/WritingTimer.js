@@ -25,7 +25,9 @@ const WritingTimer = ({ onTimeUp, initialSeconds = 60 }) => {
   const formatted = `${min}:${sec.toString().padStart(2, '0')}`;
 
   return (
-    <div className="text-xl font-bold mb-4 text-black-600">Timer: {formatted}</div>
+    <div className="bg-blue-50 rounded-xl shadow px-8 py-4 text-3xl font-bold text-blue-700">
+      {formatted}
+    </div>
   );
 };
 

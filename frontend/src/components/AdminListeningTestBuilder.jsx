@@ -17,7 +17,8 @@ import UploadIcon from '@mui/icons-material/Upload';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { auth } from '../firebase-config';
+import { auth } from '../firebase';
+import api from '../api';
 
 // IELTS Listening question types
 const QUESTION_TYPES = [
@@ -137,16 +138,11 @@ const AdminListeningTestBuilder = () => {
   const loadExistingTest = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/listening-tests/${testId}/`);
-      if (response.ok) {
-        const loadedTest = await response.json();
-        setTest(normalizeTestFromAPI(loadedTest));
-        setIsNewTest(false);
-      } else {
-        setSnackbar({ open: true, message: 'Failed to load test', severity: 'error' });
-      }
+      const response = await api.get(`/listening-tests/${testId}/`);
+      setTest(normalizeTestFromAPI(response.data));
+      setIsNewTest(false);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Network error', severity: 'error' });
+      setSnackbar({ open: true, message: 'Failed to load test', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -235,14 +231,13 @@ const AdminListeningTestBuilder = () => {
           alert('Вы не авторизованы как админ. Перезайдите в систему.');
           return;
         }
-        const response = await fetch('/api/admin/audio/upload/', {
-          method: 'POST',
-          body: formData,
+        const response = await api.post('/admin/audio/upload/', formData, {
           headers: {
-            'Authorization': `Bearer ${idToken}`
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'multipart/form-data',
           },
         });
-        const data = await response.json();
+        const data = response.data;
         if (data.success && data.file_url) {
           updatePart(partIdx, { audio: data.file_url });
         } else {
@@ -1181,7 +1176,11 @@ const AdminListeningTestBuilder = () => {
                     />
                     {question.image && (
                       <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center' }}>
-                        <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ width: '500px', maxWidth: '100%', height: 'auto', display: 'block', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                        <img
+                          src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                          alt="Question"
+                          style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                        />
                       </Box>
                     )}
                     <Button
@@ -1255,7 +1254,11 @@ const AdminListeningTestBuilder = () => {
               />
               {question.image && (
                 <Box sx={{ minWidth: 500, width: '100%', display: 'flex', justifyContent: 'center' }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ width: '500px', height: 'auto', maxWidth: '100%', maxHeight: '400px', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
             </Grid>
@@ -1335,7 +1338,11 @@ const AdminListeningTestBuilder = () => {
               />
               {part.image && (
                 <Box sx={{ mt: 1 }}>
-                  <img src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)}
+                    alt="Section"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
             </Grid>
@@ -1519,38 +1526,21 @@ const AdminListeningTestBuilder = () => {
   const saveTest = async () => {
     setLoading(true);
     try {
-      const method = isNewTest ? 'POST' : 'PUT';
-      const url = isNewTest ? '/api/listening-tests/' : `/api/listening-tests/${testId}/`;
+      const method = isNewTest ? 'post' : 'put';
+      const url = isNewTest ? '/listening-tests/' : `/listening-tests/${testId}/`;
       const apiTest = transformTestForAPI(test);
-      // ЛОГИРУЕМ структуру вопросов перед отправкой
-      console.log("QUESTIONS STRUCTURE:", JSON.stringify(test.parts.map(p => p.questions), null, 2));
-      console.log('SAVING TEST TO API:', apiTest);
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiTest),
-      });
-      if (response.ok) {
-        const savedTest = await response.json();
-        if (isNewTest) {
-          setTest(normalizeTestFromAPI({ ...test, id: savedTest.id }));
-          setIsNewTest(false);
-          setSnackbar({ open: true, message: 'Test saved', severity: 'success' });
-          setTimeout(() => navigate('/admin/listening'), 800);
-        } else {
-          setTest(normalizeTestFromAPI(savedTest));
-          setSnackbar({ open: true, message: 'Test saved', severity: 'success' });
-          setTimeout(() => navigate('/admin/listening'), 800);
-        }
+      let response;
+      if (isNewTest) {
+        response = await api.post(url, apiTest);
       } else {
-        const errorText = await response.text();
-        console.log('SAVE ERROR:', response, errorText);
-        setSnackbar({ open: true, message: 'Failed to save test', severity: 'error' });
+        response = await api.put(url, apiTest);
       }
+      setTest(normalizeTestFromAPI(response.data));
+      setSnackbar({ open: true, message: 'Test saved', severity: 'success' });
+      setTimeout(() => navigate('/admin/listening'), 800);
+      setIsNewTest(false);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Network error', severity: 'error' });
+      setSnackbar({ open: true, message: 'Failed to save test', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -1577,7 +1567,11 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1608,7 +1602,11 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
               <TextField
@@ -1628,7 +1626,11 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1715,7 +1717,11 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
               <FormControl component="fieldset">
@@ -1749,7 +1755,11 @@ const AdminListeningTestBuilder = () => {
               </Typography>
               {question.image && (
                 <Box sx={{ mb: 2 }}>
-                  <img src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)} alt="Question" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                  <img
+                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    alt="Question"
+                    style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                  />
                 </Box>
               )}
               <TextField
@@ -1788,7 +1798,11 @@ const AdminListeningTestBuilder = () => {
             <Typography variant="h6" gutterBottom>{currentPart.title}</Typography>
             {currentPart.image && (
               <Box sx={{ mb: 2 }}>
-                <img src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)} alt="Section" style={{ maxWidth: '100%', maxHeight: '400px', width: 'auto', height: 'auto', display: 'block', margin: '16px 0', borderRadius: 8, boxShadow: '0 2px 8px #0001' }} />
+                <img
+                  src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)}
+                  alt="Section"
+                  style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
+                />
               </Box>
             )}
             {currentPart.audio && (

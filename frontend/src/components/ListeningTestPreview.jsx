@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ListeningTestPlayer from './ListeningTestPlayer';
+import api from '../api';
 
 const ListeningTestPreview = ({ test, onClose }) => {
   const [currentPart, setCurrentPart] = useState(0);

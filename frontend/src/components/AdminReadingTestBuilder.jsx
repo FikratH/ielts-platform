@@ -12,7 +12,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { auth } from '../firebase-config';
+import { auth } from '../firebase';
+import api from '../api';
 
 // IELTS Reading question types
 const QUESTION_TYPES = [
@@ -86,21 +87,17 @@ const AdminReadingTestBuilder = () => {
         setIsNewTest(false);
         setLoading(true);
         try {
-            const response = await fetch(`/api/reading-tests/${testId}/`);
-            if (response.ok) {
-                const data = await response.json();
-                const normalizedParts = data.parts.map(part => ({
-                    ...part,
-                    questions: part.questions.map(q => ({
-                        ...q,
-                        // Ensure extra_data exists and has a default structure if not
-                        extra_data: q.extra_data || getDefaultExtraData(q.question_type)
-                    }))
-                }));
-                setTest({ ...data, parts: normalizedParts });
-            } else {
-                 setSnackbar({ open: true, message: `Failed to load test: ${response.statusText}`, severity: 'error' });
-            }
+            const response = await api.get(`/reading-tests/${testId}/`);
+            const data = response.data;
+            const normalizedParts = data.parts.map(part => ({
+                ...part,
+                questions: part.questions.map(q => ({
+                    ...q,
+                    // Ensure extra_data exists and has a default structure if not
+                    extra_data: q.extra_data || getDefaultExtraData(q.question_type)
+                }))
+            }));
+            setTest({ ...data, parts: normalizedParts });
         } catch (error) {
             console.error('Error loading test:', error);
             setSnackbar({ open: true, message: 'An error occurred while loading the test.', severity: 'error' });
@@ -464,7 +461,7 @@ const AdminReadingTestBuilder = () => {
     const saveTest = async () => {
         setLoading(true);
         const apiPayload = transformTestForAPI(test);
-        const url = isNewTest ? `/api/reading-tests/` : `/api/reading-tests/${testId}/`;
+        const url = isNewTest ? `/reading-tests/` : `/reading-tests/${testId}/`;
         const method = isNewTest ? 'POST' : 'PUT';
 
         try {
@@ -476,28 +473,23 @@ const AdminReadingTestBuilder = () => {
             }
             const token = await user.getIdToken();
 
-            const response = await fetch(url, {
+            const response = await api.request({
+                url: url,
                 method: method,
+                data: apiPayload,
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(apiPayload),
             });
 
-            if (response.ok) {
-                const savedTest = await response.json();
-                setSnackbar({ open: true, message: 'Test saved successfully!', severity: 'success' });
-                if (isNewTest) {
-                    navigate(`/admin/reading/edit/${savedTest.id}`);
-                } else {
-                    // Reload the test to get fresh data from the backend (with correct IDs)
-                    loadExistingTest();
-                }
+            const savedTest = response.data;
+            setSnackbar({ open: true, message: 'Test saved successfully!', severity: 'success' });
+            if (isNewTest) {
+                navigate(`/admin/reading/edit/${savedTest.id}`);
             } else {
-                const errorData = await response.json();
-                console.error('Save error:', errorData);
-                setSnackbar({ open: true, message: `Error saving test: ${JSON.stringify(errorData)}`, severity: 'error' });
+                // Reload the test to get fresh data from the backend (with correct IDs)
+                loadExistingTest();
             }
         } catch (error) {
             console.error('Failed to save the test:', error);
