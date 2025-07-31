@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase-config';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ReadingResultPage = () => {
     const { sessionId } = useParams();
@@ -167,7 +168,7 @@ const ReadingResultPage = () => {
     if (loading || isLoading) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
-                <div className="text-xl font-semibold text-gray-600">Loading result...</div>
+                <LoadingSpinner fullScreen text="Loading..." />
             </div>
         );
     }

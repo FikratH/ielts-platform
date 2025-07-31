@@ -162,7 +162,7 @@ class EssayListView(ListAPIView):
             queryset = Essay.objects.filter(user=user)
             if session_id:
                 queryset = queryset.filter(test_session_id=session_id)
-            return queryset.order_by('-submitted_at')
+            return queryset.order_by('task_type')
         except User.DoesNotExist:
             return Essay.objects.none()
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const initialForm = {
   student_id: '',
@@ -98,7 +99,7 @@ export default function AdminStudentsPage() {
         </button>
       </div>
       {loading ? (
-        <p>Loading...</p>
+        <LoadingSpinner fullScreen text="Loading..." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border rounded-xl overflow-hidden">

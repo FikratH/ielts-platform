@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { QuestionReview } from '../components/QuestionForm';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function Dashboard() {
   const [essays, setEssays] = useState([]);
@@ -126,7 +127,7 @@ export default function Dashboard() {
         raw_score: null,
         total_score: null,
         band_score: item.overall_band,
-        test_title: 'Writing Task',
+        test_title: `Writing Task ${item.task_type.toUpperCase()}`,
     }))
   ].sort((a, b) => {
     const dateA = a.date ? new Date(a.date) : new Date(0);
@@ -147,6 +148,15 @@ export default function Dashboard() {
   };
 
   const { count, avg, max } = getStats();
+
+  // Показываем лоадинг при загрузке данных
+          if (loading) {
+          return (
+            <div className="p-3 sm:p-4 md:p-8 lg:p-10 max-w-full md:max-w-5xl mx-auto">
+              <LoadingSpinner fullScreen text="Loading..." />
+            </div>
+          );
+        }
 
   return (
     <div className="p-3 sm:p-4 md:p-8 lg:p-10 max-w-full md:max-w-5xl mx-auto">
@@ -204,9 +214,9 @@ export default function Dashboard() {
             {allSessions.map((item, idx) => (
               <tr key={idx} className="border-t">
                 <td className="px-2 sm:px-4 py-2 whitespace-nowrap">{item.date ? new Date(item.date).toLocaleString() : 'No date'}</td>
-                <td className="px-2 sm:px-4 py-2 whitespace-nowrap">{item.type}</td>
-                <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-gray-500">{item.test_title || 'Practice'}</td>
-                <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-gray-500">{item.band_score || 'N/A'}</td>
+                <td className="px-2 sm:px-4 py-2 whitespace-nowrap font-bold">{item.type}</td>
+                <td className="px-2 sm:px-6 py-4 whitespace-nowrap">{item.test_title || 'Practice'}</td>
+                <td className="px-2 sm:px-6 py-4 whitespace-nowrap font-bold">{item.band_score || 'N/A'}</td>
                 <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right font-medium">
                   {item.type === 'Reading' && item.item.id && (
                     <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="text-indigo-600 hover:text-indigo-900">Details</button>
@@ -215,7 +225,7 @@ export default function Dashboard() {
                     <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="text-indigo-600 hover:text-indigo-900">Details</button>
                   )}
                   {item.type === 'Writing' && (
-                    <button onClick={() => handleOpenDetails(item)} className="text-indigo-600 hover:text-indigo-900">Details</button>
+                    <button onClick={() => navigate(`/writing/result/${item.item.test_session}`)} className="text-indigo-600 hover:text-indigo-900">Details</button>
                   )}
                 </td>
               </tr>
@@ -224,32 +234,7 @@ export default function Dashboard() {
         </table>
       </div>
 
-      {/* Writing Modal */}
-      {selectedItem && selectedItem.type === 'Writing' && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-xl p-3 sm:p-6 max-w-full sm:max-w-2xl md:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg sm:text-xl font-bold">Writing — {selectedItem.item.submitted_at?.slice(0, 10)}</h3>
-              <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
-            </div>
-            <div className="mb-4">
-              <p className="text-xs sm:text-sm text-gray-600 font-semibold mb-1">Your Essay:</p>
-              <pre className="bg-gray-100 p-2 sm:p-3 rounded whitespace-pre-wrap text-xs sm:text-sm overflow-x-auto">{selectedItem.item.submitted_text}</pre>
-            </div>
-            <div className="mb-4">
-              <p className="text-xs sm:text-sm text-gray-600 font-semibold mb-1">AI Feedback:</p>
-              <pre className="bg-gray-100 p-2 sm:p-3 rounded whitespace-pre-wrap text-xs sm:text-sm overflow-x-auto">{selectedItem.item.feedback}</pre>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm">
-              <div><strong>Task Response:</strong> {selectedItem.item.score_task}</div>
-              <div><strong>Coherence:</strong> {selectedItem.item.score_coherence}</div>
-              <div><strong>Lexical Resource:</strong> {selectedItem.item.score_lexical}</div>
-              <div><strong>Grammar:</strong> {selectedItem.item.score_grammar}</div>
-              <div className="col-span-1 sm:col-span-2"><strong>Overall:</strong> {selectedItem.item.overall_band}</div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Reading Modal */}
       {selectedItem && selectedItem.type === 'Reading' && (
@@ -260,7 +245,9 @@ export default function Dashboard() {
               <button onClick={handleCloseDetails} className="text-red-600 hover:underline">Close</button>
             </div>
             {detailsLoading ? (
-              <p className="text-center py-4">Loading details...</p>
+              <div className="text-center py-4">
+                <LoadingSpinner text="Loading..." />
+              </div>
             ) : itemDetails ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-4 sm:mb-6">
@@ -298,7 +285,9 @@ export default function Dashboard() {
             </div>
 
             {detailsLoading ? (
-              <p>Loading details...</p>
+              <div className="text-center py-4">
+                <LoadingSpinner text="Loading..." />
+              </div>
             ) : itemDetails ? (
               <>
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-center">

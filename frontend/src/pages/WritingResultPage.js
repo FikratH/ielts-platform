@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import TestResultLayout from '../components/TestResultLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const WritingResultPage = () => {
   const { sessionId } = useParams();
@@ -29,7 +30,7 @@ const WritingResultPage = () => {
     fetchResults();
   }, [sessionId]);
 
-  if (loading) return <div className="p-6 text-center">Loading results...</div>;
+  if (loading) return <LoadingSpinner fullScreen text="Loading..." />;
   if (error) return <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg">{error}</div>;
   if (essays.length === 0) return <div className="p-6 text-center">No data to display.</div>;
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function EssayDetail() {
   const { id } = useParams();
@@ -19,7 +20,7 @@ export default function EssayDetail() {
     fetchEssay();
   }, [id]);
 
-  if (!essay) return <p className="p-6">Loading...</p>;
+  if (!essay) return <LoadingSpinner fullScreen text="Loading..." />;
 
   return (
     <div className="p-6">

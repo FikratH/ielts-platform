@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 import ReadingTestPlayer from '../components/ReadingTestPlayer';
 // import './ReadingPage.css';
 
@@ -40,7 +41,7 @@ const ReadingPage = () => {
     if (isLoading) {
         return (
             <div className="p-4 sm:p-6 text-center">
-                <div>Loading Reading tests...</div>
+                <LoadingSpinner fullScreen text="Loading..." />
             </div>
         );
     }
@@ -70,13 +71,13 @@ const ReadingPage = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 max-w-full lg:max-w-7xl mx-auto">
-                {tests.map(test => (
+                {tests.filter(test => test.is_active).map(test => (
                     <div key={test.id} className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col justify-between border-2 border-transparent hover:border-blue-500 transition-all">
                         <div>
                             <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-2 gap-2 sm:gap-0">
                                 <h3 className="font-bold text-lg sm:text-xl text-gray-800">{test.title}</h3>
-                                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${test.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                    {test.is_active ? 'Available' : 'Unavailable'}
+                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                    Available
                                 </span>
                             </div>
                             
@@ -97,10 +98,9 @@ const ReadingPage = () => {
                             
                             <button 
                                 onClick={() => startTest(test)}
-                                disabled={!test.is_active}
-                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm sm:text-base hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm sm:text-base hover:bg-blue-700 transition-colors"
                             >
-                                {test.is_active ? 'Start Test' : 'Unavailable'}
+                                Start Test
                             </button>
                         </div>
                     </div>
