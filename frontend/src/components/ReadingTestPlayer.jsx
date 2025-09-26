@@ -445,9 +445,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     {/* Left Panel: Passage + Navigation */}
                     <div className="lg:col-span-1 order-2 lg:order-1">
                         <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-green-100">
-                            <h2 className="text-base sm:text-lg font-bold text-green-700 mb-3 sm:mb-4">
+                            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-700 mb-3 sm:mb-4">
                                 {currentPart.passage_heading || 'Passage'}
-                            </h2>
+                            </h1>
                             {/* Passage content */}
                             <div className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6">
                                 {currentPart ? (
