@@ -7,10 +7,13 @@ const WritingStartPage = () => {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [tests, setTests] = useState([]);
 
   useEffect(() => {
     const role = localStorage.getItem('role');
     setUserRole(role);
+    // Load writing tests to know explanation_url and completion
+    api.get('/writing-tests/').then(res => setTests(res.data)).catch(() => {});
   }, []);
 
   const startSession = async () => {
@@ -31,51 +34,103 @@ const WritingStartPage = () => {
   };
 
   return (
-    <div className="p-3 sm:p-6">
-      <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold">IELTS Writing Tests</h1>
-        <p className="text-base sm:text-lg text-gray-600">Practice your writing skills with our official IELTS tasks</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-violet-50 p-3 sm:p-6">
+      <div className="text-center mb-8 sm:mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-purple-500 to-violet-600 rounded-full mb-6 shadow-lg">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-purple-700 mb-4">IELTS Writing Tests</h1>
+        </div>
+
       {userRole === 'admin' && (
-        <div className="mb-4 sm:mb-6 text-right">
+        <div className="mb-8 text-center">
           <button
             onClick={() => navigate('/admin/writing')}
-            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold shadow text-sm sm:text-base"
+            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
           >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
             Manage Writing Tests
           </button>
         </div>
       )}
       
       <div className="flex justify-center">
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col justify-between border-2 border-transparent hover:border-blue-500 transition-all">
-            <div>
-              <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-2 gap-2 sm:gap-0">
-                <h3 className="font-bold text-lg sm:text-xl text-gray-800">IELTS Writing Test</h3>
-                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-800">Available</span>
+        <div className="w-full max-w-2xl">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-gradient-to-r from-purple-500 to-violet-600 hover:shadow-2xl transition-all duration-300 hover:scale-105 hover:-translate-y-1">
+            <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-6 gap-4">
+              <div className="flex-1">
+                <h3 className="font-bold text-xl sm:text-2xl text-gray-800 mb-2">IELTS Writing Test</h3>
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed">Task 1 (Academic/General) + Task 2 (Essay). Both tasks will be scored by AI after completion.</p>
               </div>
-              <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4">Task 1 (Academic/General) + Task 2 (Essay). Both tasks will be scored by AI after completion.</p>
-            </div>
-            <div>
-              <div className="flex flex-col sm:flex-row justify-around text-center text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4 border-t pt-3 sm:pt-4 gap-2 sm:gap-0">
-                <div>
-                  <span className="font-bold text-gray-700 block">2</span>
-                  <span>Tasks</span>
-                </div>
-                <div>
-                  <span className="font-bold text-gray-700 block">60</span>
-                  <span>Minutes</span>
-                </div>
+              <div className="flex-shrink-0">
+                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Available
+                </span>
               </div>
-              <button
-                onClick={startSession}
-                disabled={isLoading}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm sm:text-base hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isLoading ? <LoadingSpinner text="Starting..." size="sm" /> : 'Start Test'}
-              </button>
             </div>
+            
+            <div className="grid grid-cols-2 gap-6 mb-8">
+              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border border-purple-100">
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-md">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="text-lg font-bold text-purple-700">2</div>
+                <div className="text-sm text-gray-600">Tasks</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
+                <div className="w-12 h-12 bg-gradient-to-r from-violet-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-md">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="text-lg font-bold text-violet-700">60</div>
+                <div className="text-sm text-gray-600">Minutes</div>
+              </div>
+            </div>
+            
+            <button
+              onClick={startSession}
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white py-4 rounded-xl font-semibold text-lg hover:from-purple-700 hover:to-violet-700 transition-all duration-300 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <LoadingSpinner text="Starting..." size="sm" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center">
+                
+                  Start Test
+                </div>
+              )}
+            </button>
+            {(() => {
+              const activeTest = (tests || []).find(t => t.is_active);
+              if (activeTest && activeTest.user_completed && activeTest.explanation_url) {
+                return (
+                  <a
+                    href={activeTest.explanation_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex w-full items-center justify-center bg-white text-purple-700 border border-purple-200 hover:border-purple-300 hover:bg-purple-50 py-3 rounded-xl font-semibold shadow-sm transition-all duration-200"
+                  >
+                    Test explanation
+                  </a>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       </div>
