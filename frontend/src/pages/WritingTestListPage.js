@@ -95,11 +95,11 @@ const WritingTestListPage = () => {
                 </div>
             ) : (
                 <div className="max-w-6xl mx-auto">
-                    <div className={`grid gap-6 sm:gap-8 ${tests.length === 1 ? 'justify-center' : 'md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'}`}>
+                    <div className={`${tests.length === 1 ? 'flex justify-center' : 'grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'}`}>
                         {tests.map((test, index) => (
                             <div 
                                 key={test.id}
-                                className={`group bg-white rounded-2xl shadow-xl border-2 border-transparent hover:border-purple-200 hover:shadow-2xl transition-all duration-300 hover:scale-105 hover:-translate-y-1 overflow-hidden ${tests.length === 1 ? 'max-w-md mx-auto' : ''}`}
+                                className={`group bg-white rounded-2xl shadow-xl border-2 border-transparent hover:border-purple-200 hover:shadow-2xl transition-all duration-300 hover:scale-105 hover:-translate-y-1 overflow-hidden ${tests.length === 1 ? 'max-w-2xl mx-auto' : ''}`}
                             >
                                 {/* Gradient Header */}
                                 <div className="h-2 bg-gradient-to-r from-purple-500 via-violet-500 to-purple-600"></div>
