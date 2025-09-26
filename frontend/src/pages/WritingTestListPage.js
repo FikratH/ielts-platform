@@ -94,17 +94,20 @@ const WritingTestListPage = () => {
                     <p>Please check back later or contact your administrator.</p>
                 </div>
             ) : (
-                <div className="max-w-6xl mx-auto">
-                    <div className={`${tests.length === 1 ? 'flex justify-center' : 'grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'}`}>
-                        {tests.map((test, index) => (
-                            <div 
-                                key={test.id}
-                                className={`group bg-white rounded-2xl shadow-xl border-2 border-transparent hover:border-purple-200 hover:shadow-2xl transition-all duration-300 hover:scale-105 hover:-translate-y-1 overflow-hidden ${tests.length === 1 ? 'max-w-2xl mx-auto' : ''}`}
-                            >
-                                {/* Gradient Header */}
-                                <div className="h-2 bg-gradient-to-r from-purple-500 via-violet-500 to-purple-600"></div>
-                                
-                                <div className="p-6 sm:p-8">
+                <div className={`${tests.length <= 3 ? 'flex flex-wrap justify-center' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-6 sm:gap-8 lg:gap-10 max-w-7xl mx-auto`}>
+                    {tests.map((test, index) => (
+                        <div 
+                            key={test.id}
+                            className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 border border-gray-100 overflow-hidden"
+                            style={{
+                                background: `linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)`,
+                            }}
+                        >
+                            {/* Gradient top border */}
+                            <div className="h-1 bg-gradient-to-r from-purple-500 via-violet-500 to-purple-600"></div>
+                            
+                            {/* Content */}
+                            <div className="p-6 sm:p-8">
                                     {/* Header */}
                                     <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-4 gap-3">
                                         <h3 className="font-bold text-xl sm:text-2xl text-gray-800 leading-tight group-hover:text-purple-700 transition-colors duration-300">
@@ -122,54 +125,53 @@ const WritingTestListPage = () => {
                                     <p className="text-gray-600 text-sm sm:text-base mb-6 leading-relaxed">
                                         {test.description || 'Practice your writing with IELTS-style tasks and get AI-powered feedback.'}
                                     </p>
-                                </div>
-                                
-                                {/* Stats and Button */}
-                                <div className="px-6 sm:px-8 pb-6 sm:pb-8">
-                                    {/* Stats */}
-                                    <div className="grid grid-cols-2 gap-4 mb-6">
-                                        <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border border-purple-100">
-                                            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-violet-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-md">
-                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                            </div>
-                                            <div className="text-sm font-bold text-purple-700">2</div>
-                                            <div className="text-xs text-gray-600">Tasks</div>
+                            </div>
+                            
+                            {/* Stats and Button */}
+                            <div className="px-6 sm:px-8 pb-6 sm:pb-8">
+                                {/* Stats */}
+                                <div className="flex justify-around text-center mb-6 p-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-100">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-600 rounded-full flex items-center justify-center mb-2 shadow-md">
+                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
                                         </div>
-                                        
-                                        <div className="text-center p-3 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
-                                            <div className="w-8 h-8 bg-gradient-to-r from-violet-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-md">
-                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                            </div>
-                                            <div className="text-sm font-bold text-violet-700">60</div>
-                                            <div className="text-xs text-gray-600">Minutes</div>
-                                        </div>
+                                        <span className="font-bold text-lg text-gray-800">2</span>
+                                        <span className="text-xs text-gray-600 font-medium">Tasks</span>
                                     </div>
                                     
-                                    {/* Start Button */}
-                                    <button
-                                        onClick={() => startTest(test.id)}
-                                        disabled={isLoading}
-                                        className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:from-purple-700 hover:to-violet-700 transition-all duration-300 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 group-hover:shadow-purple-200"
-                                    >
-                                        {isLoading ? (
-                                            <div className="flex items-center justify-center">
-                                                <LoadingSpinner text="Starting..." size="sm" />
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-center">
-                                               
-                                                Start Test
-                                            </div>
-                                        )}
-                                    </button>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mb-2 shadow-md">
+                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <span className="font-bold text-lg text-gray-800">60</span>
+                                        <span className="text-xs text-gray-600 font-medium">Minutes</span>
+                                    </div>
                                 </div>
+                                
+                                {/* Start Button */}
+                                <button 
+                                    onClick={() => startTest(test.id)}
+                                    disabled={isLoading}
+                                    className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 border-0 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+                                >
+                                    <span className="flex items-center justify-center">
+                                        {isLoading ? (
+                                            <LoadingSpinner text="Starting..." size="sm" />
+                                        ) : (
+                                            "Start Test"
+                                        )}
+                                    </span>
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                            
+                            {/* Hover overlay effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
