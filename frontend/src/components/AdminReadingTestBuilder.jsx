@@ -38,7 +38,12 @@ const getDefaultExtraData = (type) => {
         case 'multiple_choice':
             return { options: [{ text: 'Option 1', is_correct: false }] };
         case 'multiple_response':
-            return { options: [{ text: 'Option 1', is_correct: false }, { text: 'Option 2', is_correct: false }] };
+            return { 
+                options: [
+                    { text: 'Option 1', is_correct: false, reading_points: 1 }, 
+                    { text: 'Option 2', is_correct: false, reading_points: 1 }
+                ] 
+            };
         case 'gap_fill':
             return { answers: { '1': '' } };
         case 'table':
@@ -94,7 +99,9 @@ const AdminReadingTestBuilder = () => {
                 questions: part.questions.map(q => ({
                     ...q,
                     // Ensure extra_data exists and has a default structure if not
-                    extra_data: q.extra_data || getDefaultExtraData(q.question_type)
+                    extra_data: q.extra_data || getDefaultExtraData(q.question_type),
+                    // Ensure reading_scoring_type exists for multiple_response
+                    reading_scoring_type: q.reading_scoring_type || 'all_or_nothing'
                 }))
             }));
             setTest({ ...data, parts: normalizedParts });
@@ -149,7 +156,7 @@ const AdminReadingTestBuilder = () => {
             instruction: '',
             question_text: 'New Question',
             points: 1,
-    
+            reading_scoring_type: 'all_or_nothing',
             extra_data: getDefaultExtraData('multiple_choice')
         };
 
@@ -296,6 +303,7 @@ const AdminReadingTestBuilder = () => {
     };
 
     const handleEditingQuestionChange = (field, value) => {
+        console.log(`🔍 Updating question field: ${field} = ${value}`);
         setEditingQuestion(prev => ({
             ...prev,
             question: { ...prev.question, [field]: value }
@@ -383,6 +391,8 @@ const AdminReadingTestBuilder = () => {
 
     const transformTestForAPI = (testData) => {
         const payload = { ...testData };
+        // Ensure explanation_url is included explicitly
+        payload.explanation_url = testData.explanation_url || '';
         
         // Ensure parts and questions have IDs for the backend to update them
         payload.parts = payload.parts.map(part => {
@@ -414,7 +424,12 @@ const AdminReadingTestBuilder = () => {
                         label: String.fromCharCode(65 + idx),
                         text: opt.text,
                         is_correct: opt.is_correct || false,
+                        reading_points: opt.reading_points || 1,
                     }));
+                    // Убеждаемся, что reading_scoring_type передается на бэкенд
+                    if (newQ.reading_scoring_type) {
+                        // Поле уже есть в newQ, ничего дополнительно делать не нужно
+                    }
                 }
                 
                 // For GapFill, structure correct_answers from extra_data
@@ -461,6 +476,7 @@ const AdminReadingTestBuilder = () => {
     const saveTest = async () => {
         setLoading(true);
         const apiPayload = transformTestForAPI(test);
+        console.log('🔍 Saving test with payload:', JSON.stringify(apiPayload, null, 2));
         const url = isNewTest ? `/reading-tests/` : `/reading-tests/${testId}/`;
         const method = isNewTest ? 'POST' : 'PUT';
 
@@ -557,12 +573,59 @@ const AdminReadingTestBuilder = () => {
                 });
             }
 
+            const handleReadingPointsChange = (optIdx, value) => {
+                setEditingQuestion(prev => {
+                    const newOptions = [...prev.question.extra_data.options];
+                    newOptions[optIdx] = { ...newOptions[optIdx], reading_points: parseInt(value) || 1 };
+                    return {
+                        ...prev,
+                        question: {
+                            ...prev.question,
+                            extra_data: { ...prev.question.extra_data, options: newOptions }
+                        }
+                    };
+                });
+            }
+
             return (
                 <Box>
+                    <Typography gutterBottom variant="h6" sx={{ mb: 2 }}>
+                        Reading Multiple Response Settings
+                    </Typography>
+                    
+                    <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel>Reading Scoring Type</InputLabel>
+                        <Select
+                            value={editingQuestion.question.reading_scoring_type || 'all_or_nothing'}
+                            label="Reading Scoring Type"
+                            onChange={(e) => handleEditingQuestionChange('reading_scoring_type', e.target.value)}
+                        >
+                            <MenuItem value="all_or_nothing">All or Nothing (1 балл за весь вопрос)</MenuItem>
+                            <MenuItem value="per_correct_option">Per Correct Option (баллы за каждый правильный)</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    {editingQuestion.question.reading_scoring_type === 'all_or_nothing' ? (
+                        <TextField
+                            fullWidth
+                            type="number"
+                            label="Total Points for Question"
+                            value={points}
+                            onChange={(e) => handleEditingQuestionChange('points', parseFloat(e.target.value) || 1)}
+                            sx={{ mb: 3 }}
+                            inputProps={{ min: 1, max: 10 }}
+                            helperText="Баллы за правильный ответ на весь вопрос"
+                        />
+                    ) : (
+                        <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                            Баллы за каждый правильный ответ настраиваются в опциях ниже
+                        </Typography>
+                    )}
+
                     <Typography gutterBottom>Options (select all correct answers)</Typography>
                      <FormControl component="fieldset">
                         {(extra_data.options || []).map((option, optIdx) => (
-                            <Box key={optIdx} display="flex" alignItems="center" mb={1}>
+                            <Box key={optIdx} display="flex" alignItems="center" mb={1} gap={1}>
                                 <FormControlLabel 
                                     control={
                                         <Checkbox 
@@ -579,6 +642,17 @@ const AdminReadingTestBuilder = () => {
                                     value={option.text}
                                     onChange={(e) => handleEditingOptionChange(optIdx, 'text', e.target.value)}
                                 />
+                                {editingQuestion.question.reading_scoring_type === 'per_correct_option' && (
+                                    <TextField
+                                        type="number"
+                                        label="Points"
+                                        size="small"
+                                        value={option.reading_points || 1}
+                                        onChange={(e) => handleReadingPointsChange(optIdx, e.target.value)}
+                                        sx={{ minWidth: 100 }}
+                                        inputProps={{ min: 1, max: 10 }}
+                                    />
+                                )}
                                 <IconButton onClick={() => removeEditingOption(optIdx)} size="small">
                                     <DeleteIcon />
                                 </IconButton>
@@ -617,6 +691,7 @@ const AdminReadingTestBuilder = () => {
                                 label={`Answer for gap ${gapNumber}`}
                                 value={extra_data.answers[gapNumber] || ''}
                                 onChange={(e) => handleAnswerChange(gapNumber, e.target.value)}
+                                helperText="Use | for alternatives (e.g., '1 | one year')"
                             />
                         );
                     })}
@@ -1057,6 +1132,14 @@ const AdminReadingTestBuilder = () => {
                             rows={3}
                             margin="normal"
                         />
+                        <TextField
+                            fullWidth
+                            label="Explanation URL (YouTube)"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            value={test.explanation_url || ''}
+                            onChange={e => handleTestChange('explanation_url', e.target.value)}
+                            margin="normal"
+                        />
                     </Grid>
                 </Grid>
             </Paper>
@@ -1076,6 +1159,16 @@ const AdminReadingTestBuilder = () => {
                         onChange={e => handlePartChange(partIdx, 'title', e.target.value)}
                         margin="normal"
                         variant="standard"
+                    />
+                    <TextField
+                        fullWidth
+                        label="Passage Heading"
+                        value={part.passage_heading || ''}
+                        onChange={e => handlePartChange(partIdx, 'passage_heading', e.target.value)}
+                        margin="normal"
+                        variant="standard"
+                        placeholder="e.g., 'Manatees', 'Climate Change', etc."
+                        helperText="Custom heading that will be displayed above the passage text"
                     />
                     <TextField
                         fullWidth

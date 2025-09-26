@@ -1800,7 +1800,7 @@ class ReadingPartSerializer(serializers.ModelSerializer):
         model = ReadingPart
         fields = [
             'id', 'part_number', 'title', 'instructions', 'passage_text', 
-            'passage_image_url', 'order', 'questions'
+            'passage_heading', 'passage_image_url', 'order', 'questions'
         ]
 
 class ReadingTestReadSerializer(serializers.ModelSerializer):
@@ -1846,7 +1846,7 @@ class ReadingPartWriteSerializer(serializers.ModelSerializer):
         model = ReadingPart
         fields = [
             'id', 'part_number', 'title', 'instructions', 'passage_text', 
-            'passage_image_url', 'order', 'questions'
+            'passage_heading', 'passage_image_url', 'order', 'questions'
         ]
         extra_kwargs = {
             'id': {'read_only': False, 'required': False},

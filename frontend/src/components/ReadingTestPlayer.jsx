@@ -5,13 +5,17 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import api from '../api';
 
 
-const ReadingTimer = ({ timeLeft, color = 'text-blue-600' }) => {
+const ReadingTimer = ({ timeLeft, color = 'text-green-600' }) => {
     const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
     const secs = (timeLeft % 60).toString().padStart(2, '0');
     return (
         <div className="flex flex-col items-center">
-            <span className={`text-4xl font-mono font-bold ${color} tracking-widest`} style={{ letterSpacing: '0.05em' }}>{mins}:{secs}</span>
-            <span className="text-xs text-gray-400 mt-1">Time Remaining</span>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-sm">
+                <div className="text-center">
+                    <div className="text-3xl font-bold text-green-700 font-mono tracking-wider">{mins}:{secs}</div>
+                    <div className="text-xs text-green-600 font-medium mt-1">Time Remaining</div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -73,15 +77,18 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setSession(newSession);
             setTimeLeft(newSession.time_left_seconds || 3600);
             
-            // Только загружаем ответы если сессия не завершена
-            if (!newSession.completed && !newSession.submitted && newSession.status !== 'completed') {
-                setAnswers(newSession.answers || {});
-            } else {
-                setAnswers({}); // Очищаем ответы для завершенных сессий
-            }
+            // Загружаем ответы для всех сессий (включая завершенные для отображения результатов)
+            setAnswers(newSession.answers || {});
 
             const testResponse = await api.get(`/reading-tests/${testId}/`);
-            setTest(testResponse.data);
+            const testData = testResponse.data;
+            
+            // Сортируем части по part_number для правильного порядка
+            if (testData.parts) {
+                testData.parts.sort((a, b) => a.part_number - b.part_number);
+            }
+            
+            setTest(testData);
 
         } catch (err) {
             if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -98,7 +105,6 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
     const handleAnswerChange = (questionId, subKey, value, type = 'text') => {
         const qIdStr = questionId.toString();
-        console.log("🔥 ANSWER CHANGE:", questionId, subKey, value, type);
         
         setAnswers(prev => {
             const newAnswers = { ...prev };
@@ -117,7 +123,6 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
             }
 
-            console.log("🔥 NEW ANSWERS STATE:", newAnswers);
             return newAnswers;
         });
     };
@@ -130,16 +135,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setIsSubmitting(false);
             return;
         }
-        console.log("🔥 SUBMITTING TEST:", session.id, "with answers:", answers);
         try {
             const response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers });
-            console.log("🔥 SUBMIT RESPONSE:", response.data);
-            console.log("🔥 onComplete EXISTS:", !!onComplete, typeof onComplete);
             if (onComplete) {
-                console.log("🔥 CALLING onComplete() with sessionId:", session.id);
                 onComplete(session.id);
             } else {
-                console.log("🔥 NAVIGATING TO RESULT:", `/reading-result/${session.id}`);
                 navigate(`/reading-result/${session.id}`);
             }
         } catch (err) {
@@ -155,7 +155,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     };
 
-    const currentPart = test?.parts?.[currentPartIndex];
+    // Сортируем части и получаем текущую часть
+    const sortedParts = test?.parts?.sort((a, b) => a.part_number - b.part_number) || [];
+    const currentPart = sortedParts[currentPartIndex];
 
     const renderQuestion = (question) => {
         const type = question.question_type?.toLowerCase();
@@ -164,12 +166,12 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         const headerBlock = (
             <div className="mb-4">
                 {question.header && (
-                    <h3 className="text-lg lg:text-xl font-bold text-blue-700 mb-2">
+                    <h3 className="text-lg lg:text-xl font-bold text-green-700 mb-2">
                         {question.header}
                     </h3>
                 )}
                 {question.instruction && (
-                    <div className="text-gray-600 italic mt-1 bg-blue-50/30 p-3 rounded-lg text-sm lg:text-base" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                    <div className="text-gray-600 italic mt-1 bg-green-50/30 p-3 rounded-lg text-sm lg:text-base" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                         {question.instruction}
                     </div>
                 )}
@@ -178,7 +180,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                         <img
                             src={question.image_url}
                             alt="Question Illustration"
-                            className="rounded-xl shadow-md border border-blue-100 max-w-full h-auto"
+                            className="rounded-xl shadow-md border border-green-100 max-w-full h-auto"
                             style={{ maxWidth: '400px', maxHeight: '250px' }}
                         />
                     </div>
@@ -188,24 +190,34 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         
         // --- Multiple Choice ---
         if (["multiple_choice", "multiplechoice"].includes(type) && Array.isArray(question.answer_options)) {
+            const selectedAnswer = answers[question.id.toString()]?.text;
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <p className="font-semibold text-gray-800 mb-3 lg:mb-4 text-base lg:text-lg whitespace-pre-wrap">{question.question_text}</p>
                     <div className="space-y-2 lg:space-y-3">
-                        {question.answer_options.map((option) => (
-                            <label key={option.id} className="flex items-center space-x-3 lg:space-x-4 cursor-pointer p-2 lg:p-3 rounded-xl hover:bg-blue-50 transition-colors duration-200">
-                                <input
-                                    type="radio"
-                                    name={`question-${question.id}`}
-                                    value={option.text}
-                                    checked={answers[question.id.toString()]?.text === option.text}
-                                    onChange={(e) => handleAnswerChange(question.id, null, e.target.value, 'multiple_choice')}
-                                    className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600 border-gray-300 focus:ring-blue-500 accent-blue-600 flex-shrink-0"
-                                />
-                                <span className="text-gray-700 font-medium text-sm lg:text-lg">{option.label}. {option.text}</span>
-                            </label>
-                        ))}
+                        {question.answer_options.map((option) => {
+                            const isSelected = selectedAnswer === option.label;
+                            return (
+                                <label key={option.id} className={`flex items-center space-x-3 lg:space-x-4 cursor-pointer p-2 lg:p-3 rounded-xl transition-colors duration-200 ${
+                                    isSelected 
+                                        ? 'bg-green-100 border-2 border-green-300 shadow-sm' 
+                                        : 'hover:bg-green-50 border-2 border-transparent'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name={`question-${question.id}`}
+                                        value={option.label}
+                                        checked={isSelected}
+                                        onChange={(e) => handleAnswerChange(question.id, null, e.target.value, 'multiple_choice')}
+                                        className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 border-gray-300 focus:ring-green-500 accent-green-600 flex-shrink-0"
+                                    />
+                                    <span className={`font-medium text-sm lg:text-lg ${
+                                        isSelected ? 'text-green-700 font-semibold' : 'text-gray-700'
+                                    }`}>{option.label}. {option.text}</span>
+                                </label>
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -213,24 +225,33 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
         // --- Multiple Response ---
         if (type === 'multiple_response' && Array.isArray(question.answer_options)) {
-
+            const selectedAnswers = answers[question.id.toString()] || [];
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <p className="font-semibold text-gray-800 mb-3 lg:mb-4 text-base lg:text-lg whitespace-pre-wrap">{question.question_text}</p>
                     <div className="space-y-2 lg:space-y-3">
-                        {question.answer_options.map((option) => (
-                            <label key={option.id} className="flex items-center space-x-3 lg:space-x-4 cursor-pointer p-2 lg:p-3 rounded-xl hover:bg-blue-50 transition-colors duration-200">
-                                <input
-                                    type="checkbox"
-                                    name={`question-${question.id}`}
-                                    checked={(answers[question.id.toString()] || []).includes(option.text)}
-                                    onChange={(e) => handleAnswerChange(question.id, null, { text: option.text, checked: e.target.checked }, 'multiple_response')}
-                                    className="h-4 w-4 lg:h-5 lg:w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 accent-blue-600 flex-shrink-0"
-                                />
-                                <span className="text-gray-700 font-medium text-sm lg:text-lg">{option.label}. {option.text}</span>
-                            </label>
-                        ))}
+                        {question.answer_options.map((option) => {
+                            const isSelected = selectedAnswers.includes(option.text);
+                            return (
+                                <label key={option.id} className={`flex items-center space-x-3 lg:space-x-4 cursor-pointer p-2 lg:p-3 rounded-xl transition-colors duration-200 ${
+                                    isSelected 
+                                        ? 'bg-green-100 border-2 border-green-300 shadow-sm' 
+                                        : 'hover:bg-green-50 border-2 border-transparent'
+                                }`}>
+                                    <input
+                                        type="checkbox"
+                                        name={`question-${question.id}`}
+                                        checked={isSelected}
+                                        onChange={(e) => handleAnswerChange(question.id, null, { text: option.text, checked: e.target.checked }, 'multiple_response')}
+                                        className="h-4 w-4 lg:h-5 lg:w-5 rounded text-green-600 border-gray-300 focus:ring-green-500 accent-green-600 flex-shrink-0"
+                                    />
+                                    <span className={`font-medium text-sm lg:text-lg ${
+                                        isSelected ? 'text-green-700 font-semibold' : 'text-gray-700'
+                                    }`}>{option.label}. {option.text}</span>
+                                </label>
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -254,10 +275,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                             type="text"
                             value={answers[question.id.toString()]?.[subKey] || ''}
                             onChange={e => handleAnswerChange(question.id, subKey, e.target.value, 'gap_fill')}
-                            className="border-b-2 border-blue-400 focus:border-blue-600 outline-none text-center bg-transparent w-32 lg:w-40 rounded-t-lg transition-colors duration-200 text-sm lg:text-base"
+                            className="border-b-2 border-green-400 focus:border-green-600 outline-none text-center bg-transparent w-32 lg:w-40 rounded-t-lg transition-colors duration-200 text-sm lg:text-base"
                             autoComplete="off"
                         />
-                         <span className="text-blue-600 font-bold ml-1 text-sm lg:text-base">{gapNumber}</span>
+                         <span className="text-green-600 font-bold ml-1 text-sm lg:text-base">{gapNumber}</span>
                     </span>
                 );
                 lastIndex = gapRegex.lastIndex;
@@ -265,7 +286,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             parts.push(text.slice(lastIndex));
 
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <div className="text-gray-800 leading-relaxed text-base lg:text-lg" style={{ whiteSpace: 'pre-wrap' }}>{parts}</div>
                 </div>
@@ -276,13 +297,13 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         if (['table', 'table_completion'].includes(type) && question.extra_data && question.extra_data.headers && question.extra_data.rows) {
             const { headers, rows } = question.extra_data;
             return (
-                 <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                 <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <div className="overflow-x-auto">
-                        <table className="min-w-full border border-blue-200 rounded-xl overflow-hidden shadow-sm">
+                        <table className="min-w-full border border-green-200 rounded-xl overflow-hidden shadow-sm">
                             <thead>
-                                <tr className="bg-gradient-to-r from-blue-100 to-blue-50">
-                                    {headers.map((h, idx) => <th key={idx} className="p-3 lg:p-4 border-b border-blue-200 text-left font-semibold text-blue-700 text-sm lg:text-base">{h}</th>)}
+                                <tr className="bg-gradient-to-r from-green-100 to-green-50">
+                                    {headers.map((h, idx) => <th key={idx} className="p-3 lg:p-4 border-b border-green-200 text-left font-semibold text-green-700 text-sm lg:text-base">{h}</th>)}
                                 </tr>
                             </thead>
                             <tbody>
@@ -319,19 +340,19 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             const userAnswers = answers[question.id.toString()] || {};
 
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <div className="flex flex-col gap-6 lg:gap-8">
                         {/* Items to be matched */}
                         <div className="flex-1">
                             <ul className="space-y-3 lg:space-y-4">
                                 {items.map((item, idx) => (
-                                    <li key={idx} className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-3 lg:p-4 bg-white rounded-xl border border-blue-100 shadow-sm gap-3 lg:gap-0">
+                                    <li key={idx} className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-3 lg:p-4 bg-white rounded-xl border border-green-100 shadow-sm gap-3 lg:gap-0">
                                         <span className="text-gray-800 font-medium text-sm lg:text-base">{item.text}</span>
                                         <select
                                             value={userAnswers[item.text] || ''}
                                             onChange={(e) => handleAnswerChange(question.id, item.text, e.target.value, 'matching')}
-                                            className="lg:ml-4 p-2 lg:p-3 border-2 border-blue-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base"
+                                            className="lg:ml-4 p-2 lg:p-3 border-2 border-green-200 rounded-xl shadow-sm focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200 text-sm lg:text-base"
                                         >
                                             <option value="" disabled>Select...</option>
                                             {(options || []).map((opt, optIdx) => (
@@ -352,12 +373,12 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             const { statements } = question.extra_data;
             const choices = ["True", "False", "Not Given"];
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-blue-100 rounded-2xl shadow-md bg-gradient-to-br from-blue-50/30 to-white">
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <p className="font-semibold text-gray-800 mb-3 lg:mb-4 text-base lg:text-lg whitespace-pre-wrap">{question.question_text}</p>
                     <div className="space-y-3 lg:space-y-4">
                         {statements.map((stmt, sIdx) => (
-                            <div key={sIdx} className="p-3 lg:p-4 rounded-xl border border-blue-100 bg-white shadow-sm">
+                            <div key={sIdx} className="p-3 lg:p-4 rounded-xl border border-green-100 bg-white shadow-sm">
                                 <p className="mb-2 lg:mb-3 text-gray-800 font-medium text-sm lg:text-base">{sIdx + 1}. {stmt}</p>
                                 <div className="flex flex-wrap gap-4 lg:gap-6">
                                     {choices.map(choice => (
@@ -368,7 +389,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                                 value={choice}
                                                 checked={answers[question.id.toString()]?.[`stmt${sIdx}`] === choice}
                                                 onChange={(e) => handleAnswerChange(question.id, `stmt${sIdx}`, e.target.value, 'true_false_not_given')}
-                                                className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600 border-gray-300 focus:ring-blue-500 accent-blue-600 flex-shrink-0"
+                                                className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 border-gray-300 focus:ring-green-500 accent-green-600 flex-shrink-0"
                                             />
                                             <span className="font-medium text-sm lg:text-base">{choice}</span>
                                         </label>
@@ -386,20 +407,35 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     };
 
 
-    if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-white"><div className="text-lg font-semibold text-gray-600">Loading test session...</div></div>;
-    if (error) return <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-white"><div className="p-8 bg-red-100 text-red-700 rounded-lg shadow-md">Error: {error}</div></div>;
+    if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-50 to-white"><div className="text-lg font-semibold text-gray-600">Loading test session...</div></div>;
+    if (error) return <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-50 to-white"><div className="p-8 bg-red-100 text-red-700 rounded-lg shadow-md">Error: {error}</div></div>;
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-            {/* Header with timer */}
-            <div className="bg-white shadow-md border-b sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-5 flex flex-col md:flex-row md:justify-between md:items-center">
-                    <div>
-                        <h1 className="text-lg sm:text-2xl font-bold text-blue-700 tracking-tight">{test?.title || 'Reading Test'}</h1>
-                        <p className="text-xs sm:text-sm text-gray-500">Part {currentPartIndex + 1} of {test?.parts?.length || 0}</p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 md:mt-0">
-                        <ReadingTimer timeLeft={timeLeft} />
+        <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
+            {/* Elegant Header with Logo and Timer */}
+            <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                        {/* Left Side - Logo and Test Info */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <img src="/logo.png" alt="Master Education" className="w-8 h-8 rounded-full" />
+                                <div className="text-gray-900">
+                                    <h2 className="text-sm font-medium">Master Education</h2>
+                                    
+                                </div>
+                            </div>
+                            <div className="hidden sm:block w-px h-8 bg-gray-300"></div>
+                            <div>
+                                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{test?.title || 'Reading Test'}</h1>
+                                <p className="text-sm text-gray-600">Part {currentPartIndex + 1} of {sortedParts.length || 0}</p>
+                            </div>
+                        </div>
+                        
+                        {/* Right Side - Timer */}
+                        <div className="flex items-center gap-3">
+                            <ReadingTimer timeLeft={timeLeft} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -408,8 +444,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 lg:gap-8 justify-center items-start">
                     {/* Left Panel: Passage + Navigation */}
                     <div className="lg:col-span-1 order-2 lg:order-1">
-                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
-                            <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Passage</h2>
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-green-100">
+                            <h2 className="text-base sm:text-lg font-bold text-green-700 mb-3 sm:mb-4">
+                                {currentPart.passage_heading || 'Passage'}
+                            </h2>
                             {/* Passage content */}
                             <div className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6">
                                 {currentPart ? (
@@ -424,22 +462,22 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     </div>
                     {/* Right Panel: Questions */}
                     <div className="lg:col-span-1 order-1 lg:order-2 flex justify-center">
-                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-blue-100 w-full">
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-green-100 w-full">
                             {currentPart ? (
                                 <>
                                     <div className="mb-4 sm:mb-6">
-                                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-700 mb-2 sm:mb-4">Part {currentPartIndex + 1}</h2>
+                                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-green-700 mb-2 sm:mb-4">Part {currentPartIndex + 1}</h2>
                                         {/* Part Navigation */}
                                         <div className="mb-3 sm:mb-4">
                                             <div className="flex flex-wrap gap-2">
-                                                {test?.parts?.map((part, index) => (
+                                                {sortedParts.map((part, index) => (
                                                     <button
                                                         key={part.id}
                                                         onClick={() => setCurrentPartIndex(index)}
                                                         className={`px-2 sm:px-3 py-1 sm:py-2 rounded-lg font-semibold transition text-xs sm:text-sm ${
                                                             currentPartIndex === index
-                                                                ? 'bg-blue-100 text-blue-700 shadow border border-blue-200'
-                                                                : 'hover:bg-blue-50 text-gray-700 border border-gray-200'
+                                                                ? 'bg-green-100 text-green-700 shadow border border-green-200'
+                                                                : 'hover:bg-green-50 text-gray-700 border border-gray-200'
                                                         }`}
                                                     >
                                                         Part {part.part_number || index + 1}
@@ -448,7 +486,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                             </div>
                                         </div>
                                         {currentPart.instructions && (
-                                            <p className="text-xs sm:text-sm lg:text-base text-gray-500 mb-2 sm:mb-4 bg-blue-50/30 p-2 sm:p-3 lg:p-4 rounded-lg whitespace-pre-wrap">{currentPart.instructions}</p>
+                                            <p className="text-xs sm:text-sm lg:text-base text-gray-500 mb-2 sm:mb-4 bg-green-50/30 p-2 sm:p-3 lg:p-4 rounded-lg whitespace-pre-wrap">{currentPart.instructions}</p>
                                         )}
                                     </div>
                                     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
@@ -468,7 +506,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 <button
                     onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
                     disabled={isSubmitting}
-                    className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
+                    className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-green-100 to-green-200 text-green-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-green-200 hover:to-green-300 transition-all duration-300 disabled:opacity-50 border border-green-200"
                 >
                     {isSubmitting ? 'Submitting...' : 'Submit Test'}
                 </button>
