@@ -9,8 +9,12 @@ const ListeningTimer = ({ timeLeft, color = 'text-blue-600' }) => {
   const secs = (timeLeft % 60).toString().padStart(2, '0');
   return (
     <div className="flex flex-col items-center">
-      <span className={`text-4xl font-mono font-bold ${color} tracking-widest`} style={{ letterSpacing: '0.05em' }}>{mins}:{secs}</span>
-      <span className="text-xs text-gray-400 mt-1">Time Remaining</span>
+      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200 shadow-sm">
+        <div className="text-center">
+          <div className="text-3xl font-bold text-blue-700 font-mono tracking-wider">{mins}:{secs}</div>
+          <div className="text-xs text-blue-600 font-medium mt-1">Time Remaining</div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -26,7 +30,7 @@ const ListeningTestPlayer = () => {
   const [currentPart, setCurrentPart] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flagged, setFlagged] = useState({}); // Track flagged questions
-  const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes
+  const [timeLeft, setTimeLeft] = useState(2400); // 40 minutes
   const [isSubmitted, setIsSubmitted] = useState(false);
   
   // Audio state
@@ -35,6 +39,7 @@ const ListeningTestPlayer = () => {
   const [duration, setDuration] = useState(0);
   const [audioPlayed, setAudioPlayed] = useState(false); // Track if audio was played
   const [audioEnded, setAudioEnded] = useState(false); // Track if audio ended
+  const [currentPlayingPart, setCurrentPlayingPart] = useState(null); // Track which part is currently playing
   const audioRef = useRef(null);
   
   // UI state
@@ -59,16 +64,88 @@ const ListeningTestPlayer = () => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
-  }, [currentPart]);
+  }, [volume]);
 
-  console.log('ListeningTestPlayer MOUNTED', { testId, user, loading });
+  useEffect(() => {
+    if (audioRef.current && currentPlayingPart !== null && test?.parts) {
+      audioRef.current.src = test.parts[currentPlayingPart]?.audio;
+    }
+  }, [currentPlayingPart, test?.parts]);
 
-  if (loading) {
-    console.log('Auth loading...');
-  }
-  if (!user && !loading) {
-    console.log('No user!');
-  }
+  // Define functions before useEffect
+  const startSession = async () => {
+    if (!user) {
+      setError('Please login to start the test.');
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const response = await api.post(`/listening-tests/${testId}/start/`);
+      setSession(response.data);
+      setTimeLeft(response.data.time_left || 2400);
+      await loadTest();
+    } catch (err) {
+      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+        setError('Session expired, please login again.');
+        setTimeout(() => navigate('/login'), 1500);
+      } else {
+        setError('Failed to start session');
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const normalizeQuestions = (questions) =>
+    questions.map(q => {
+      const extra = q.extra_data || {};
+      const normalized = {
+        ...q,
+        table: q.table || extra.table,
+        fields: q.fields || extra.fields,
+        gaps: q.gaps || extra.gaps,
+        options: q.options || extra.options,
+        left: q.left || extra.left,
+        right: q.right || extra.right,
+        answer: q.answer || extra.answer,
+        points: q.points || extra.points,
+      };
+      
+
+      
+      return normalized;
+    });
+
+  const loadTest = async () => {
+    try {
+      const response = await api.get(`/listening-tests/${testId}/`);
+      const testData = response.data;
+      // Нормализуем вопросы для каждой части
+      if (Array.isArray(testData.parts)) {
+        testData.parts = testData.parts.map(part => ({
+          ...part,
+          questions: normalizeQuestions(part.questions || [])
+        }));
+      }
+      setTest(testData);
+      setIsLoading(false);
+    } catch (err) {
+      setError('Failed to load test');
+      setIsLoading(false);
+    }
+  };
+
+  const loadSession = async (sessionId) => {
+    try {
+      const response = await api.get(`/listening-sessions/${sessionId}/`);
+      setSession(response.data);
+      setTimeLeft(response.data.time_left || 2400);
+      setAnswers(response.data.answers || {});
+    } catch (err) {
+      setError('Failed to load session');
+    }
+  };
+
+
 
   // Timer effect
   useEffect(() => {
@@ -88,11 +165,31 @@ const ListeningTestPlayer = () => {
 
   // Start session on component mount
   useEffect(() => {
-    console.log('useEffect: user', user, 'testId', testId, 'loading', loading, 'error', error);
     if (user && testId && !error) {
       startSession();
     }
   }, [user, testId, error]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+  if (!user && !loading) {
+    return <div className="flex items-center justify-center min-h-screen">Please login to continue</div>;
+  }
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading test...</div>;
+  }
+  if (error) {
+    return <div className="flex items-center justify-center min-h-screen text-red-600">Error: {error}</div>;
+  }
+  if (!test) {
+    return <div className="flex items-center justify-center min-h-screen">Test not found</div>;
+  }
+
+  // Define currentPartData early
+  const currentPartData = test?.parts?.[currentPart];
+
+
 
   // IELTS Rules: Prevent navigation away
   // useEffect(() => {
@@ -125,90 +222,54 @@ const ListeningTestPlayer = () => {
   //   return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   // }, [session, isSubmitted]);
 
-  const startSession = async () => {
-    console.log('startSession CALLED', { user, testId });
-    if (!user) {
-      setError('Please login to start the test.');
-      setIsLoading(false);
-      return;
-    }
-    try {
-      const response = await api.post(`/listening-tests/${testId}/start/`);
-      setSession(response.data);
-      setTimeLeft(response.data.time_left || 1800);
-      loadTest();
-    } catch (err) {
-      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-        setError('Session expired, please login again.');
-        setTimeout(() => navigate('/login'), 1500);
-      } else {
-        setError('Failed to start session');
-      }
-      setIsLoading(false);
-    }
-  };
-
-  const normalizeQuestions = (questions) =>
-    questions.map(q => {
-      const extra = q.extra_data || {};
-      const normalized = {
-        ...q,
-        table: q.table || extra.table,
-        fields: q.fields || extra.fields,
-        gaps: q.gaps || extra.gaps,
-        options: q.options || extra.options,
-        left: q.left || extra.left,
-        right: q.right || extra.right,
-        answer: q.answer || extra.answer,
-        points: q.points || extra.points,
-      };
-      
-      // Дополнительная отладка для табличных вопросов
-      if (["table", "table_completion", "tablecompletion"].includes((q.question_type || '').toLowerCase())) {
-        console.log('Normalizing table question:', {
-          questionId: q.id,
-          originalTable: q.table,
-          extraDataTable: extra.table,
-          normalizedTable: normalized.table,
-          extraData: extra
-        });
-      }
-      
-      return normalized;
-    });
-
-  const loadTest = async () => {
-    try {
-      const response = await api.get(`/listening-tests/${testId}/`);
-      const testData = response.data;
-      // Нормализуем вопросы для каждой части
-      if (Array.isArray(testData.parts)) {
-        testData.parts = testData.parts.map(part => ({
-          ...part,
-          questions: normalizeQuestions(part.questions || [])
-        }));
-      }
-      setTest(testData);
-    } catch (err) {
-      setError('Failed to load test');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadSession = async (sessionId) => {
-    try {
-      await api.patch(`/listening-sessions/${sessionId}/sync/`, { answers, time_left: timeLeft });
-    } catch (err) {
-      console.error('Failed to sync session');
-    }
-  };
-
   const handleAnswerChange = (subKey, value) => {
-    setAnswers(prev => ({
-      ...prev,
-      [subKey]: value
-    }));
+    setAnswers(prev => {
+      // Проверяем, это gap fill или multiple choice
+      if (subKey.includes('__')) {
+        const [questionId, gapPart] = subKey.split('__');
+        
+        // Если это gap fill (gap1, gap2, gap3...) - НЕ очищаем другие gaps
+        if (gapPart.startsWith('gap')) {
+          return {
+            ...prev,
+            [subKey]: value
+          };
+        }
+        
+        // Если это multiple choice (A, B, C, D...) - очищаем другие варианты
+        if (['A', 'B', 'C', 'D'].includes(gapPart)) {
+          // Проверяем, это checkbox (multiple response) или radio (multiple choice)
+          const questionElement = document.querySelector(`input[name="question-${questionId}"]`);
+          if (questionElement && questionElement.type === 'checkbox') {
+            // Multiple Response (checkbox) - НЕ очищаем, позволяем выбрать несколько
+            return {
+              ...prev,
+              [subKey]: value
+            };
+          } else {
+            // Multiple Choice (radio) - очищаем другие варианты
+            const newAnswers = { ...prev };
+            
+            // Очищаем все предыдущие ответы для этого вопроса
+            Object.keys(newAnswers).forEach(key => {
+              if (key.startsWith(`${questionId}__`)) {
+                delete newAnswers[key];
+              }
+            });
+            
+            // Устанавливаем новый ответ
+            newAnswers[subKey] = value;
+            return newAnswers;
+          }
+        }
+      }
+      
+      // Для других типов вопросов оставляем как есть
+      return {
+        ...prev,
+        [subKey]: value
+      };
+    });
   };
 
   const toggleFlag = (questionId) => {
@@ -226,7 +287,7 @@ const ListeningTestPlayer = () => {
     try {
       await api.patch(`/listening-sessions/${session.id}/sync/`, { answers, flagged, time_left: timeLeft });
     } catch (err) {
-      console.error('Failed to sync answers');
+      // Silent error for sync
     }
   };
 
@@ -584,7 +645,7 @@ const ListeningTestPlayer = () => {
                   name={`question-${question.id}`}
                   value={option.label}
                     checked={!!answers[subKey]}
-                    onChange={e => handleAnswerChange(subKey, e.target.checked ? option.label : '')}
+                    onChange={() => handleAnswerChange(subKey, option.label)}
                   className="accent-blue-600 w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0"
                 />
                 <span className="font-medium">{option.label}. {option.text}</span>
@@ -658,27 +719,36 @@ const ListeningTestPlayer = () => {
     );
   }
 
-  if (!test || !session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Test not found</div>
-      </div>
-    );
-  }
 
-  const currentPartData = test.parts?.[currentPart];
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header with timer */}
-      <div className="bg-white shadow-md border-b sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-5 flex flex-col md:flex-row md:justify-between md:items-center">
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold text-blue-700 tracking-tight">{test.title}</h1>
-            <p className="text-xs sm:text-sm text-gray-500">Part {currentPart + 1} of {test.parts?.length || 0}</p>
-          </div>
-          <div className="flex items-center gap-2 mt-2 md:mt-0">
-            <ListeningTimer timeLeft={timeLeft} />
+      {/* Elegant Header with Logo and Timer */}
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            {/* Left Side - Logo and Test Info */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <img src="/logo.png" alt="Master Education" className="w-8 h-8 rounded-full" />
+                <div className="text-gray-900">
+                  <h2 className="text-sm font-medium">Master Education</h2>
+                
+                </div>
+              </div>
+              <div className="hidden sm:block w-px h-8 bg-gray-300"></div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{test.title}</h1>
+                <p className="text-sm text-gray-600">Part {currentPart + 1} of {test.parts?.length || 0}</p>
+              </div>
+            </div>
+            
+            {/* Right Side - Timer */}
+            <div className="flex items-center gap-3">
+              <ListeningTimer timeLeft={timeLeft} />
+            </div>
           </div>
         </div>
       </div>
@@ -689,30 +759,57 @@ const ListeningTestPlayer = () => {
           <div className="lg:col-span-1 order-2 lg:order-1">
             <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
               <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Audio Player</h2>
-              {currentPartData?.audio && (
-                <audio
+                              <audio
                   ref={audioRef}
-                  src={currentPartData.audio}
+                  src={currentPlayingPart !== null && test?.parts ? test.parts[currentPlayingPart]?.audio : currentPartData?.audio}
                   onLoadedMetadata={() => setDuration(audioRef.current.duration)}
                   onTimeUpdate={() => setCurrentTime(audioRef.current.currentTime)}
                   onPlay={() => {
                     setIsPlaying(true);
                     setAudioPlayed(true);
+                    setCurrentPlayingPart(currentPart);
+                  }}
+                  onEnded={() => {
+                    setAudioEnded(true);
+                    setIsPlaying(false);
+                    setCurrentPlayingPart(null);
+                  }}
+                  onError={(e) => {
+                    console.error('Audio error:', e);
+                    setIsPlaying(false);
+                    setAudioEnded(true);
+                    setError('Ошибка загрузки аудио: Network Error');
+                  }}
+                  onPause={() => {
+                    setIsPlaying(false);
                   }}
                   className="w-full mb-4 rounded-lg border border-blue-100"
                   preload="auto"
                 />
-              )}
-              <div className="space-y-4">
-                {currentPartData?.audio ? (
+                              <div className="space-y-4">
+                  {currentPartData?.audio ? (
                   <>
                     <div className="flex flex-col items-center gap-3 w-full">
                   <button
-                    onClick={() => audioRef.current?.play()}
-                    disabled={!currentPartData?.audio || isPlaying || audioEnded}
+                    onClick={() => {
+                      // Простая логика - всегда устанавливаем src и запускаем
+                      audioRef.current.src = currentPartData?.audio;
+                      audioRef.current.play()
+                        .then(() => {
+                          // Audio started successfully
+                        })
+                        .catch(err => {
+                          console.error('Audio play error:', err);
+                          setIsPlaying(false);
+                          setError('Ошибка загрузки аудио: Network Error');
+                        });
+                    }}
+                    disabled={!currentPartData?.audio || (isPlaying && currentPlayingPart === currentPart)}
                     className="bg-blue-100 text-blue-700 font-semibold px-6 lg:px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-base lg:text-lg"
                   >
-                    {audioEnded ? 'Audio Completed' : isPlaying ? 'Playing...' : '▶ Play Audio'}
+                    {isPlaying && currentPlayingPart === currentPart ? 'Playing...' : 
+                     currentPlayingPart !== null && currentPlayingPart !== currentPart ? '▶ Play New Audio' : 
+                     '▶ Play Audio'}
                   </button>
                       {/* Глобальный контрол громкости */}
                       <div className="flex flex-row items-center gap-2 justify-center w-full">
@@ -749,12 +846,15 @@ const ListeningTestPlayer = () => {
                         <span>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></span>
                         <span>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></span>
                 </div>
-                  {audioEnded && (
+                  {audioEnded && currentPlayingPart === currentPart && (
                     <div className="text-green-600 font-medium mt-1 text-sm lg:text-base">✓ Audio completed</div>
                   )}
-                {audioPlayed && !audioEnded && (
+                {isPlaying && currentPlayingPart === currentPart && (
                   <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
-                      )}
+                )}
+                {currentPlayingPart !== null && currentPlayingPart !== currentPart && (
+                  <div className="text-blue-600 text-xs text-center">🎵 Audio from Part {currentPlayingPart + 1} is currently playing</div>
+                )}
                     </div>
                   </>
                 ) : (
@@ -765,13 +865,15 @@ const ListeningTestPlayer = () => {
               <div className="mt-4 sm:mt-6 lg:mt-8">
                 <h3 className="font-medium text-blue-700 mb-2 sm:mb-3">Parts</h3>
                 <div className="flex flex-wrap lg:flex-col lg:space-y-2 gap-2 lg:gap-0">
-                  {test.parts?.map((part, index) => (
+                  {test?.parts?.map((part, index) => (
                     <button
                       key={part.id}
                       onClick={() => setCurrentPart(index)}
                       className={`text-left p-2 sm:p-3 rounded-xl font-semibold transition text-xs sm:text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
                         currentPart === index
                           ? 'bg-blue-100 text-blue-700 shadow'
+                          : currentPlayingPart === index
+                          ? 'bg-green-100 text-green-700 border border-green-200'
                           : 'hover:bg-blue-50 text-gray-700'
                       }`}
                     >
