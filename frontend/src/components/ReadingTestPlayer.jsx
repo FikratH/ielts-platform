@@ -452,8 +452,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                             <div className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6">
                                 {currentPart ? (
                                     <div className="prose prose-base lg:prose-lg max-w-none text-black leading-relaxed text-sm sm:text-base lg:text-lg whitespace-pre-wrap" style={{ lineHeight: '1.6' }}>
-                                    {currentPart.passage_text}
-                                </div>
+                                        <div dangerouslySetInnerHTML={{ __html: currentPart.passage_text }} />
+                                    </div>
                                 ) : (
                                     <div className="text-gray-400 text-center">Loading passage...</div>
                                 )}

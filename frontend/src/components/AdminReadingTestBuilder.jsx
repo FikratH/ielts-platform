@@ -1167,8 +1167,8 @@ const AdminReadingTestBuilder = () => {
                         onChange={e => handlePartChange(partIdx, 'passage_heading', e.target.value)}
                         margin="normal"
                         variant="standard"
-                        placeholder="e.g., 'Manatees', 'Climate Change', etc."
-                        helperText="Custom heading that will be displayed above the passage text"
+                        
+                        
                     />
                     <TextField
                         fullWidth
@@ -1179,6 +1179,7 @@ const AdminReadingTestBuilder = () => {
                         rows={10}
                         margin="normal"
                         variant="outlined"
+                        helperText="You can use HTML tags for formatting: <b>bold</b>, <i>italic</i>, <u>underline</u>, <br> for line breaks"
                     />
                     
                     <Divider sx={{ my: 2 }}><Chip label="Questions" /></Divider>
