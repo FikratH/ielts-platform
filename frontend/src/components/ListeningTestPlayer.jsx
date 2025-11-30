@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import api from '../api';
@@ -22,6 +22,7 @@ const ListeningTimer = ({ timeLeft, color = 'text-blue-600' }) => {
 const ListeningTestPlayer = () => {
   const { id: testId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, loading] = useAuthState(auth);
   
   // Test state
@@ -66,26 +67,33 @@ const ListeningTestPlayer = () => {
     }
   }, [volume]);
 
-  useEffect(() => {
-    if (audioRef.current && currentPlayingPart !== null && test?.parts) {
-      audioRef.current.src = test.parts[currentPlayingPart]?.audio;
-    }
-  }, [currentPlayingPart, test?.parts]);
+  // Removed automatic src setting to prevent AbortError
 
   // Define functions before useEffect
   const startSession = async () => {
     if (!user) {
-      setError('Please login to start the test.');
+      setError('Please login again.');
       setIsLoading(false);
       return;
     }
     try {
-      const response = await api.post(`/listening-tests/${testId}/start/`);
+      const isDiagnostic = location.pathname.includes('/dashboard') ? false : 
+                          new URLSearchParams(location.search).get('diagnostic');
+      const url = isDiagnostic ? 
+        `/listening-tests/${testId}/start/?diagnostic=true` : 
+        `/listening-tests/${testId}/start/`;
+      const response = await api.post(url);
       setSession(response.data);
       setTimeLeft(response.data.time_left || 2400);
       await loadTest();
     } catch (err) {
-      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+      if (err.response?.status === 409) {
+        setError('You have already completed the diagnostic test for Listening.');
+      } else if (err.response?.status === 403) {
+        setError('Diagnostic tests are not available if you have completed any regular tests.');
+      } else if (err.response?.status === 400) {
+        setError('This test is not marked as a diagnostic template.');
+      } else if (err.response && (err.response.status === 401 || err.response.status === 403)) {
         setError('Session expired, please login again.');
         setTimeout(() => navigate('/login'), 1500);
       } else {
@@ -108,6 +116,7 @@ const ListeningTestPlayer = () => {
         right: q.right || extra.right,
         answer: q.answer || extra.answer,
         points: q.points || extra.points,
+        group_items: q.group_items || extra.group_items || [],
       };
       
 
@@ -272,6 +281,20 @@ const ListeningTestPlayer = () => {
     });
   };
 
+  const handleGroupAnswerChange = (questionId, itemId, selectedLabel) => {
+    setAnswers(prev => {
+      const newAnswers = { ...prev };
+      const flatKey = `${questionId}__${itemId}`;
+      newAnswers[flatKey] = selectedLabel;
+      const nested = newAnswers[questionId] && typeof newAnswers[questionId] === 'object' && !Array.isArray(newAnswers[questionId])
+        ? { ...newAnswers[questionId] }
+        : {};
+      nested[itemId] = selectedLabel;
+      newAnswers[questionId] = nested;
+      return newAnswers;
+    });
+  };
+
   const toggleFlag = (questionId) => {
     setFlagged(prev => ({
       ...prev,
@@ -353,11 +376,21 @@ const ListeningTestPlayer = () => {
             {question.instruction}
           </div>
       )}
+      {question.task_prompt && (
+          <div
+            className="font-semibold text-xl text-black text-center mb-3"
+            style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}
+          >
+            {question.task_prompt}
+          </div>
+      )}
         {/* Универсальный блок для изображения */}
         {question.image && (
           <div className="mb-3 flex justify-center">
             <img
-              src={question.image}
+              src={question.image.startsWith('http://') || question.image.startsWith('https://') || question.image.startsWith('/') 
+                ? question.image 
+                : `/media/${question.image}`}
               alt="Question"
               style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
             />
@@ -485,7 +518,7 @@ const ListeningTestPlayer = () => {
     // Gap Fill (универсальный IELTS)
     if (type === 'gap_fill') {
       const gapRegex = /\[\[(\d+)\]\]/g;
-      let text = question.question_text;
+      const text = question.question_text || '';
       let match;
       let lastIndex = 0;
       let gapIdx = 0;
@@ -501,7 +534,12 @@ const ListeningTestPlayer = () => {
       }
       while ((match = gapRegex.exec(text)) !== null) {
         const before = text.slice(lastIndex, match.index);
-        if (before) parts.push(<span key={`t${gapIdx}`}>{before}</span>);
+        if (before) parts.push(
+          <span
+            key={`t${gapIdx}`}
+            dangerouslySetInnerHTML={{ __html: before }}
+          />
+        );
         const gapNumber = parseInt(match[1], 10);
         const gapObj = gaps.find(g => g.number === gapNumber) || { number: gapNumber };
         parts.push(
@@ -545,7 +583,13 @@ const ListeningTestPlayer = () => {
         gapIdx++;
       }
       if (lastIndex < text.length) {
-        parts.push(<span key="end">{text.slice(lastIndex)}</span>);
+        const remaining = text.slice(lastIndex);
+        parts.push(
+          <span
+            key="end"
+            dangerouslySetInnerHTML={{ __html: remaining }}
+          />
+        );
       }
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
@@ -594,6 +638,56 @@ const ListeningTestPlayer = () => {
                 <span>{opt}</span>
               </label>
             ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Multiple Choice Group (several sub-questions with single choice each)
+    if (type === 'multiple_choice_group') {
+      const groupItems = Array.isArray(question.group_items) && question.group_items.length
+        ? question.group_items
+        : (Array.isArray(question.extra_data?.group_items) ? question.extra_data.group_items : []);
+
+      return (
+        <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
+          {headerBlock}
+          {questionHeader}
+          <div className="space-y-4">
+            {groupItems.map((item, idx) => {
+              const itemId = item.id || `item-${idx}`;
+              const nestedAnswers = answers[question.id] && typeof answers[question.id] === 'object' ? answers[question.id] : {};
+              const selectedLabel = nestedAnswers[itemId] ?? answers[`${question.id}__${itemId}`];
+              const options = Array.isArray(item.options) ? item.options : [];
+
+              return (
+                <div key={itemId} className="p-3 border border-blue-100 rounded-xl bg-white/70">
+                  <div className="font-medium text-gray-800 mb-2">
+                    {item.prompt || `Question ${idx + 1}`}
+                  </div>
+                  <div className="space-y-2">
+                    {options.map((option, optIdx) => (
+                      <label
+                        key={option.label || optIdx}
+                        className="flex items-center space-x-3 cursor-pointer text-base p-2 rounded-lg hover:bg-blue-50 transition"
+                      >
+                        <input
+                          type="radio"
+                          name={`question-${question.id}-${itemId}`}
+                          value={option.label}
+                          checked={selectedLabel === option.label}
+                          onChange={() => handleGroupAnswerChange(question.id, itemId, option.label)}
+                          className="accent-blue-600 w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="font-medium">
+                          {(option.label || String.fromCharCode(65 + optIdx))}. {option.text}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -761,7 +855,6 @@ const ListeningTestPlayer = () => {
               <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Audio Player</h2>
                               <audio
                   ref={audioRef}
-                  src={currentPlayingPart !== null && test?.parts ? test.parts[currentPlayingPart]?.audio : currentPartData?.audio}
                   onLoadedMetadata={() => setDuration(audioRef.current.duration)}
                   onTimeUpdate={() => setCurrentTime(audioRef.current.currentTime)}
                   onPlay={() => {
@@ -791,18 +884,27 @@ const ListeningTestPlayer = () => {
                   <>
                     <div className="flex flex-col items-center gap-3 w-full">
                   <button
-                    onClick={() => {
-                      // Простая логика - всегда устанавливаем src и запускаем
-                      audioRef.current.src = currentPartData?.audio;
-                      audioRef.current.play()
-                        .then(() => {
-                          // Audio started successfully
-                        })
-                        .catch(err => {
-                          console.error('Audio play error:', err);
-                          setIsPlaying(false);
-                          setError('Ошибка загрузки аудио: Network Error');
-                        });
+                    onClick={async () => {
+                      try {
+                        // Stop any currently playing audio
+                        if (audioRef.current) {
+                          audioRef.current.pause();
+                          audioRef.current.currentTime = 0;
+                        }
+                        
+                        // Set new source and play
+                        audioRef.current.src = currentPartData?.audio;
+                        setCurrentPlayingPart(currentPart);
+                        setIsPlaying(true);
+                        setError(null);
+                        
+                        await audioRef.current.play();
+                      } catch (err) {
+                        console.error('Audio play error:', err);
+                        setIsPlaying(false);
+                        setCurrentPlayingPart(null);
+                        setError('Ошибка загрузки аудио: Network Error');
+                      }
                     }}
                     disabled={!currentPartData?.audio || (isPlaying && currentPlayingPart === currentPart)}
                     className="bg-blue-100 text-blue-700 font-semibold px-6 lg:px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-base lg:text-lg"

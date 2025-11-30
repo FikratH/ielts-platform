@@ -12,18 +12,43 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import UploadIcon from '@mui/icons-material/Upload';
 import { auth } from '../firebase';
 import api from '../api';
 
 // IELTS Reading question types
 const QUESTION_TYPES = [
   { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'multiple_choice_group', label: 'Multiple Choice (Group)' },
   { value: 'multiple_response', label: 'Multiple Response' },
   { value: 'gap_fill', label: 'Gap Fill (Summary, etc.)' },
   { value: 'table', label: 'Table Completion' },
   { value: 'matching', label: 'Matching' },
   { value: 'true_false_not_given', label: 'True/False/Not Given' },
 ];
+
+const convertFileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+});
+
+const createGroupItem = (seed = '') => {
+    const id = `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${seed}`;
+    return {
+        id,
+        prompt: '',
+        options: [
+            { label: 'A', text: '' },
+            { label: 'B', text: '' },
+            { label: 'C', text: '' },
+            { label: 'D', text: '' },
+        ],
+        correct_answer: 'A',
+        points: 1,
+    };
+};
 
 const initialTest = {
   title: 'New Reading Test',
@@ -37,6 +62,8 @@ const getDefaultExtraData = (type) => {
     switch (type) {
         case 'multiple_choice':
             return { options: [{ text: 'Option 1', is_correct: false }] };
+        case 'multiple_choice_group':
+            return { group_items: [createGroupItem()] };
         case 'multiple_response':
             return { 
                 options: [
@@ -96,13 +123,94 @@ const AdminReadingTestBuilder = () => {
             const data = response.data;
             const normalizedParts = data.parts.map(part => ({
                 ...part,
-                questions: part.questions.map(q => ({
-                    ...q,
-                    // Ensure extra_data exists and has a default structure if not
-                    extra_data: q.extra_data || getDefaultExtraData(q.question_type),
-                    // Ensure reading_scoring_type exists for multiple_response
-                    reading_scoring_type: q.reading_scoring_type || 'all_or_nothing'
-                }))
+                questions: part.questions.map((q, qIdx) => {
+                    const normalizedQuestion = { ...q };
+                    const defaultExtra = getDefaultExtraData(normalizedQuestion.question_type) || {};
+                    let extraData = {};
+
+                    if (normalizedQuestion.extra_data && typeof normalizedQuestion.extra_data === 'object') {
+                        // Deep clone to avoid accidental state mutations
+                        extraData = JSON.parse(JSON.stringify(normalizedQuestion.extra_data));
+                    }
+
+                    const isChoiceQuestion = ['multiple_choice', 'multiple_response'].includes(normalizedQuestion.question_type);
+
+                    if (isChoiceQuestion) {
+                        const answerOptions = Array.isArray(normalizedQuestion.answer_options) ? normalizedQuestion.answer_options : [];
+                        const seenKeys = new Set();
+                        const optionsFromAnswer = answerOptions.reduce((acc, option, idx) => {
+                            const key = option.id ?? `${option.label ?? option.text ?? idx}`;
+                            if (seenKeys.has(key)) {
+                                return acc;
+                            }
+                            seenKeys.add(key);
+                            const label = option.label || String.fromCharCode(65 + acc.length);
+                            const optionPayload = {
+                                id: option.id,
+                                label,
+                                text: option.text || '',
+                                is_correct: !!option.is_correct,
+                            };
+                            if (normalizedQuestion.question_type === 'multiple_response') {
+                                optionPayload.reading_points = option.reading_points != null ? option.reading_points : 1;
+                            }
+                            acc.push(optionPayload);
+                            return acc;
+                        }, []);
+
+                        const currentOptions = Array.isArray(extraData.options) && extraData.options.length > 0
+                            ? extraData.options
+                            : defaultExtra.options || [];
+
+                        const normalizedOptions = (optionsFromAnswer.length > 0 ? optionsFromAnswer : currentOptions).map((opt, idx) => ({
+                            id: opt.id,
+                            label: opt.label || String.fromCharCode(65 + idx),
+                            text: opt.text || '',
+                            is_correct: !!opt.is_correct,
+                            ...(normalizedQuestion.question_type === 'multiple_response'
+                                ? { reading_points: opt.reading_points != null ? opt.reading_points : 1 }
+                                : {}),
+                        }));
+
+                        extraData = {
+                            ...defaultExtra,
+                            ...extraData,
+                            options: normalizedOptions,
+                        };
+                    } else {
+                        extraData = {
+                            ...defaultExtra,
+                            ...extraData,
+                        };
+                    }
+
+                    normalizedQuestion.extra_data = extraData;
+                    normalizedQuestion.reading_scoring_type = normalizedQuestion.reading_scoring_type || 'all_or_nothing';
+                    normalizedQuestion.image_base64 = null;
+                    normalizedQuestion.image_remove = false;
+                    normalizedQuestion.image_original = normalizedQuestion.image_url || '';
+                    normalizedQuestion.task_prompt = normalizedQuestion.task_prompt || (extraData.task_prompt || '');
+                    normalizedQuestion.group_items = Array.isArray(extraData.group_items)
+                        ? extraData.group_items.map((item, itemIdx) => {
+                            const itemId = item.id || `item-${normalizedQuestion.id || qIdx}-${itemIdx}`;
+                            const options = Array.isArray(item.options) ? item.options : [];
+                            return {
+                                id: itemId,
+                                prompt: item.prompt || '',
+                                points: item.points ?? 1,
+                                correct_answer: item.correct_answer || (options[0]?.label || 'A'),
+                                options: options.map((opt, optIdx) => ({
+                                    label: opt.label || String.fromCharCode(65 + optIdx),
+                                    text: opt.text || ''
+                                }))
+                            };
+                        })
+                        : [];
+                    normalizedQuestion.image_url = normalizedQuestion.image_url || '';
+                    normalizedQuestion.image = normalizedQuestion.image_url || '';
+
+                    return normalizedQuestion;
+                })
             }));
             setTest({ ...data, parts: normalizedParts });
         } catch (error) {
@@ -155,9 +263,16 @@ const AdminReadingTestBuilder = () => {
             header: '',
             instruction: '',
             question_text: 'New Question',
+            task_prompt: '',
             points: 1,
             reading_scoring_type: 'all_or_nothing',
-            extra_data: getDefaultExtraData('multiple_choice')
+             extra_data: getDefaultExtraData('multiple_choice'),
+             image: '',
+             image_url: '',
+             image_base64: null,
+             image_remove: false,
+            image_original: '',
+            group_items: []
         };
 
         setTest(prev => {
@@ -256,6 +371,9 @@ const AdminReadingTestBuilder = () => {
                 question_type: newType,
                 extra_data: getDefaultExtraData(newType)
             };
+            if (newType === 'multiple_choice_group') {
+                newQuestion.group_items = [createGroupItem()];
+            }
 
             newQuestions[qIdx] = newQuestion;
             newParts[partIdx].questions = newQuestions;
@@ -273,6 +391,12 @@ const AdminReadingTestBuilder = () => {
         }
         // Deep copy to prevent direct state mutation
         const questionCopy = JSON.parse(JSON.stringify(questionToEdit));
+        questionCopy.image_url = questionCopy.image_url || '';
+        questionCopy.image_original = questionCopy.image_original || questionCopy.image_url || '';
+        questionCopy.image = questionCopy.image || questionCopy.image_url || '';
+        questionCopy.image_base64 = null;
+        questionCopy.image_remove = false;
+        questionCopy.task_prompt = questionCopy.task_prompt || '';
         setEditingQuestion({ partIdx, qIdx: -1, question: questionCopy }); // qIdx is not reliable here
     };
 
@@ -407,25 +531,83 @@ const AdminReadingTestBuilder = () => {
                     delete newQ.id; // Let backend assign ID for new questions
                 }
 
+                newQ.task_prompt = newQ.task_prompt || '';
+
+                let questionImageUrl = newQ.image || newQ.image_url || newQ.image_original || '';
+                let questionImageBase64 = newQ.image_base64 ?? null;
+                if (questionImageUrl && questionImageUrl.startsWith('data:')) {
+                    if (questionImageBase64 == null) {
+                        questionImageBase64 = questionImageUrl;
+                    }
+                    questionImageUrl = '';
+                }
+                if (newQ.image_remove) {
+                    questionImageBase64 = 'null';
+                    questionImageUrl = '';
+                }
+                if (questionImageBase64 === null) {
+                    delete newQ.image_base64;
+                    newQ.image_url = questionImageUrl;
+                } else {
+                    newQ.image_base64 = questionImageBase64;
+                    newQ.image_url = '';
+                }
+                if (!newQ.extra_data || typeof newQ.extra_data !== 'object') {
+                    newQ.extra_data = {};
+                }
+                newQ.extra_data.task_prompt = newQ.task_prompt || '';
+
+                if (newQ.question_type === 'multiple_choice_group') {
+                    const itemsPayload = (newQ.group_items || []).map((item, itemIdx) => {
+                        const options = Array.isArray(item.options) ? item.options : [];
+                        return {
+                            id: item.id || `item-${newQ.id || itemIdx}`,
+                            prompt: item.prompt || '',
+                            points: Number(item.points) || 1,
+                            correct_answer: item.correct_answer || (options[0]?.label || 'A'),
+                            options: options.map((opt, optIdx) => ({
+                                label: opt.label || String.fromCharCode(65 + optIdx),
+                                text: opt.text || ''
+                            }))
+                        };
+                    });
+                    newQ.extra_data = { ...(newQ.extra_data || {}), group_items: itemsPayload };
+                    newQ.points = itemsPayload.reduce((sum, item) => sum + (Number(item.points) || 1), 0);
+                    delete newQ.group_items;
+                }
+
                 // Special handling for multiple_choice to create answer_options
                 if (newQ.question_type === 'multiple_choice' && newQ.extra_data.options) {
-                    newQ.answer_options = newQ.extra_data.options.map((opt, idx) => ({
-                        // id will be handled by backend
-                        label: String.fromCharCode(65 + idx),
-                        text: opt.text,
-                        is_correct: opt.is_correct || false,
-                    }));
+                    newQ.answer_options = newQ.extra_data.options.map((opt, idx) => {
+                        const label = opt.label || String.fromCharCode(65 + idx);
+                        const optionPayload = {
+                            label,
+                            text: opt.text || '',
+                            is_correct: Boolean(opt.is_correct),
+                        };
+                        if (opt.id) {
+                            optionPayload.id = opt.id;
+                        }
+                        return optionPayload;
+                    });
                     // The raw 'options' might not be needed in the final payload
                     // depending on backend implementation, but we send it inside extra_data
                 }
                 
                 if (newQ.question_type === 'multiple_response' && newQ.extra_data.options) {
-                     newQ.answer_options = newQ.extra_data.options.map((opt, idx) => ({
-                        label: String.fromCharCode(65 + idx),
-                        text: opt.text,
-                        is_correct: opt.is_correct || false,
-                        reading_points: opt.reading_points || 1,
-                    }));
+                     newQ.answer_options = newQ.extra_data.options.map((opt, idx) => {
+                        const label = opt.label || String.fromCharCode(65 + idx);
+                        const optionPayload = {
+                            label,
+                            text: opt.text || '',
+                            is_correct: Boolean(opt.is_correct),
+                            reading_points: opt.reading_points != null ? opt.reading_points : 1,
+                        };
+                        if (opt.id) {
+                            optionPayload.id = opt.id;
+                        }
+                        return optionPayload;
+                    });
                     // Убеждаемся, что reading_scoring_type передается на бэкенд
                     if (newQ.reading_scoring_type) {
                         // Поле уже есть в newQ, ничего дополнительно делать не нужно
@@ -467,6 +649,9 @@ const AdminReadingTestBuilder = () => {
                 
                 return newQ;
             });
+            delete newPart.passage_image_base64;
+            delete newPart.passage_image_remove;
+            delete newPart.passage_image_original;
             return newPart;
         });
 
@@ -520,6 +705,52 @@ const AdminReadingTestBuilder = () => {
 
         const { question } = editingQuestion;
         const { question_type, header, instruction, question_text, points, extra_data } = question;
+
+        const imagePreview = (() => {
+            if (question.image && (question.image.startsWith('data:') || question.image.startsWith('http') || question.image.startsWith('/'))) {
+                return question.image;
+            }
+            if (!question.image_remove && question.image && question.image.includes('/')) {
+                return question.image;
+            }
+            if (!question.image_remove && question.image_original) {
+                return question.image_original;
+            }
+            if (!question.image_remove && question.image_url) {
+                return question.image_url;
+            }
+            return null;
+        })();
+
+        const handleQuestionImageUpload = async (file) => {
+            if (!file) return;
+            const base64 = await convertFileToBase64(file);
+            setEditingQuestion(prev => ({
+                ...prev,
+                question: {
+                    ...prev.question,
+                    image: base64,
+                    image_base64: base64,
+                    image_remove: false,
+                    image_original: '',
+                    image_url: ''
+                }
+            }));
+        };
+
+        const handleQuestionImageRemove = () => {
+            setEditingQuestion(prev => ({
+                ...prev,
+                question: {
+                    ...prev.question,
+                    image: '',
+                    image_base64: 'null',
+                    image_remove: true,
+                    image_original: '',
+                    image_url: ''
+                }
+            }));
+        };
 
         const renderMCQEditor = () => {
             const correctOptionIndex = extra_data.options.findIndex(opt => opt.is_correct);
@@ -663,6 +894,141 @@ const AdminReadingTestBuilder = () => {
                 </Box>
             )
         }
+
+        const renderMCGroupEditor = () => {
+            const groupItems = Array.isArray(question.group_items) ? question.group_items : [];
+
+            const updateGroupItems = (items) => {
+                setEditingQuestion(prev => ({
+                    ...prev,
+                    question: {
+                        ...prev.question,
+                        group_items: items
+                    }
+                }));
+            };
+
+            const updateItem = (idx, updates) => {
+                const items = [...groupItems];
+                items[idx] = { ...items[idx], ...updates };
+                updateGroupItems(items);
+            };
+
+            const updateOption = (itemIdx, optIdx, value) => {
+                const items = [...groupItems];
+                const item = items[itemIdx];
+                const options = [...(item.options || [])];
+                options[optIdx] = { ...options[optIdx], text: value };
+                items[itemIdx] = { ...item, options };
+                updateGroupItems(items);
+            };
+
+            const addOption = (itemIdx) => {
+                const items = [...groupItems];
+                const item = items[itemIdx];
+                const options = [...(item.options || [])];
+                const label = String.fromCharCode(65 + options.length);
+                options.push({ label, text: '' });
+                const correct = item.correct_answer || 'A';
+                items[itemIdx] = {
+                    ...item,
+                    options,
+                    correct_answer: correct && options.find(opt => opt.label === correct) ? correct : 'A'
+                };
+                updateGroupItems(items);
+            };
+
+            const removeOption = (itemIdx, optIdx) => {
+                const items = [...groupItems];
+                const item = items[itemIdx];
+                let options = [...(item.options || [])];
+                if (options.length <= 2) return;
+                const removedLabel = options[optIdx].label;
+                options = options.filter((_, i) => i !== optIdx).map((opt, index) => ({
+                    ...opt,
+                    label: String.fromCharCode(65 + index)
+                }));
+                let correctAnswer = item.correct_answer;
+                if (correctAnswer === removedLabel) {
+                    correctAnswer = options[0]?.label || '';
+                }
+                items[itemIdx] = { ...item, options, correct_answer: correctAnswer };
+                updateGroupItems(items);
+            };
+
+            const addItem = () => updateGroupItems([...(groupItems || []), createGroupItem()]);
+            const removeItem = (idx) => updateGroupItems(groupItems.filter((_, i) => i !== idx));
+
+            return (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {groupItems.map((item, itemIdx) => (
+                        <Card key={item.id || itemIdx} variant="outlined">
+                            <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography variant="subtitle1">Question {itemIdx + 1}</Typography>
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                        <TextField
+                                            label="Points"
+                                            type="number"
+                                            size="small"
+                                            sx={{ width: 100 }}
+                                            value={item.points ?? 1}
+                                            onChange={(e) => updateItem(itemIdx, { points: Number(e.target.value) || 1 })}
+                                            inputProps={{ min: 0.5, step: 0.5 }}
+                                        />
+                                        <IconButton onClick={() => removeItem(itemIdx)} size="small" disabled={groupItems.length <= 1}>
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                </Box>
+
+                                <TextField
+                                    label="Prompt"
+                                    multiline
+                                    minRows={2}
+                                    value={item.prompt || ''}
+                                    onChange={e => updateItem(itemIdx, { prompt: e.target.value })}
+                                    placeholder="Sub-question text shown to students"
+                                />
+
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <Typography variant="subtitle2">Options:</Typography>
+                                    {Array.isArray(item.options) && item.options.map((opt, optIdx) => (
+                                        <Box key={opt.label || optIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <TextField
+                                                label={`Option ${opt.label || String.fromCharCode(65 + optIdx)}`}
+                                                value={opt.text || ''}
+                                                onChange={e => updateOption(itemIdx, optIdx, e.target.value)}
+                                                size="small"
+                                                sx={{ flex: 1 }}
+                                            />
+                                            <FormControlLabel
+                                                control={
+                                                    <Radio
+                                                        checked={(item.correct_answer || 'A') === (opt.label || String.fromCharCode(65 + optIdx))}
+                                                        onChange={() => updateItem(itemIdx, { correct_answer: opt.label || String.fromCharCode(65 + optIdx) })}
+                                                    />
+                                                }
+                                                label="Correct"
+                                            />
+                                            <IconButton onClick={() => removeOption(itemIdx, optIdx)} size="small" disabled={(item.options || []).length <= 2}>
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                    <Button size="small" startIcon={<AddIcon />} onClick={() => addOption(itemIdx)}>
+                                        Add Option
+                                    </Button>
+                                </Box>
+                            </CardContent>
+                        </Card>
+                    ))}
+                    <Button variant="outlined" startIcon={<AddIcon />} onClick={addItem}>
+                        Add Sub-question
+                    </Button>
+                </Box>
+            );
+        };
 
         const renderGapFillEditor = () => {
             const gaps = question_text.match(/\[\[\d+\]\]/g) || [];
@@ -1011,6 +1377,20 @@ const AdminReadingTestBuilder = () => {
                             />
                         </Grid>
 
+                        <Grid item xs={12}>
+                            <TextField
+                                label="Task Prompt"
+                                fullWidth
+                                multiline
+                                rows={2}
+                                variant="outlined"
+                                margin="normal"
+                                value={question.task_prompt || ''}
+                                onChange={(e) => handleEditingQuestionChange('task_prompt', e.target.value)}
+                                placeholder="Text students see as task description before answering."
+                            />
+                        </Grid>
+
 
 
                         <Grid item xs={12}>
@@ -1040,6 +1420,48 @@ const AdminReadingTestBuilder = () => {
                                 }}
                             />
                         </Grid>
+
+                        <Grid item xs={12}>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>Question Image</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                                <Button
+                                    variant="outlined"
+                                    component="label"
+                                    startIcon={<UploadIcon />}
+                                >
+                                    Upload image
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        hidden
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            await handleQuestionImageUpload(file);
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                </Button>
+                                {imagePreview && (
+                                    <Button
+                                        variant="text"
+                                        color="error"
+                                        onClick={handleQuestionImageRemove}
+                                    >
+                                        Remove image
+                                    </Button>
+                                )}
+                            </Box>
+                            {imagePreview && (
+                                <Box sx={{ mt: 2 }}>
+                                    <img
+                                        src={imagePreview}
+                                        alt="Question"
+                                        style={{ width: '100%', maxWidth: 320, height: 'auto', borderRadius: 8, border: '1px solid #e5e7eb' }}
+                                    />
+                                </Box>
+                            )}
+                        </Grid>
                         
                          {question_type === 'multiple_response' && (
                             <Grid item xs={12} sm={6}>
@@ -1060,6 +1482,7 @@ const AdminReadingTestBuilder = () => {
                             <Divider sx={{ my: 2 }} />
                             {question_type === 'multiple_choice' && renderMCQEditor()}
                             {question_type === 'multiple_response' && renderMultipleResponseEditor()}
+                            {question_type === 'multiple_choice_group' && renderMCGroupEditor()}
                             {question_type === 'gap_fill' && renderGapFillEditor()}
                             {question_type === 'table' && renderTableEditor()}
                             {question_type === 'matching' && renderMatchingEditor()}
@@ -1179,7 +1602,7 @@ const AdminReadingTestBuilder = () => {
                         rows={10}
                         margin="normal"
                         variant="outlined"
-                        helperText="You can use HTML tags for formatting: <b>bold</b>, <i>italic</i>, <u>underline</u>, <br> for line breaks"
+                        
                     />
                     
                     <Divider sx={{ my: 2 }}><Chip label="Questions" /></Divider>

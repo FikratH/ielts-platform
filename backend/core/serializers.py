@@ -1,20 +1,54 @@
 from rest_framework import serializers
 from .models import (
-    Essay, WritingPrompt, WritingTest, WritingTask, WritingTestSession, User, 
-    ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion, 
+    Essay, WritingPrompt, WritingTest, WritingTask, WritingTestSession, User,
+    ListeningTestSession, ListeningTest, ListeningPart, ListeningQuestion,
     ListeningAnswerOption, ListeningTestResult, ListeningTestClone, ListeningStudentAnswer,
-    ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, 
+    ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption,
     ReadingTestSession, ReadingTestResult, TeacherFeedback, TeacherSatisfactionSurvey, SpeakingSession
 )
 import re
 import json
+import base64
+import uuid
+import binascii
+from django.core.files.base import ContentFile
+
+
+def decode_base64_file(data):
+    if not data:
+        return None
+    if isinstance(data, ContentFile):
+        return data
+    if isinstance(data, bytes):
+        return ContentFile(data, name=f"{uuid.uuid4().hex}")
+    if not isinstance(data, str):
+        return None
+    data = data.strip()
+    if not data:
+        return None
+    file_ext = 'png'
+    if ';base64,' in data:
+        header, data = data.split(';base64,', 1)
+        if '/' in header:
+            file_ext = header.split('/')[-1]
+    elif data.startswith('data:'):
+        _, rest = data.split(':', 1)
+        if ';base64,' in rest:
+            mime, data = rest.split(';base64,', 1)
+            if '/' in mime:
+                file_ext = mime.split('/')[-1]
+    try:
+        decoded = base64.b64decode(data)
+    except (TypeError, ValueError, binascii.Error):
+        return None
+    return ContentFile(decoded, name=f"{uuid.uuid4().hex}.{file_ext}")
 
 class WritingTestSerializer(serializers.ModelSerializer):
     tasks = serializers.SerializerMethodField()
     
     class Meta:
         model = WritingTest
-        fields = ['id', 'title', 'description', 'is_active', 'explanation_url', 'created_at', 'updated_at', 'tasks']
+        fields = ['id', 'title', 'description', 'is_active', 'is_diagnostic_template', 'explanation_url', 'created_at', 'updated_at', 'tasks']
     
     def get_tasks(self, obj):
         tasks = obj.tasks.all()
@@ -27,6 +61,18 @@ class WritingTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = WritingTask
         fields = ['id', 'test', 'task_type', 'task_text', 'image', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image:
+            from django.core.files.storage import default_storage
+            from django.conf import settings
+            # If image path already contains MEDIA_URL, don't add it again
+            if instance.image.name.startswith(settings.MEDIA_URL.lstrip('/')):
+                representation['image'] = f"{settings.MEDIA_URL}{instance.image.name}"
+            else:
+                representation['image'] = default_storage.url(instance.image.name)
+        return representation
 
 class WritingTaskLightSerializer(serializers.ModelSerializer):
     """Lightweight serializer for WritingTask without test field to avoid circular imports"""
@@ -35,6 +81,18 @@ class WritingTaskLightSerializer(serializers.ModelSerializer):
     class Meta:
         model = WritingTask
         fields = ['id', 'task_type', 'task_text', 'image', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image:
+            from django.core.files.storage import default_storage
+            from django.conf import settings
+            # If image path already contains MEDIA_URL, don't add it again
+            if instance.image.name.startswith(settings.MEDIA_URL.lstrip('/')):
+                representation['image'] = f"{settings.MEDIA_URL}{instance.image.name}"
+            else:
+                representation['image'] = default_storage.url(instance.image.name)
+        return representation
 
 class WritingTestSessionSerializer(serializers.ModelSerializer):
     test = WritingTestSerializer(read_only=True)
@@ -123,7 +181,7 @@ class ListeningTestSessionSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ListeningTestSession
-        fields = ['id', 'test', 'test_title', 'user', 'student_id', 'started_at', 'status', 'answers', 'flagged', 'time_left', 'submitted']
+        fields = ['id', 'test', 'test_title', 'user', 'student_id', 'started_at', 'status', 'answers', 'flagged', 'time_left', 'submitted', 'is_diagnostic']
         read_only_fields = ['id', 'user', 'started_at', 'status', 'submitted']
 
 
@@ -189,104 +247,6 @@ class ListeningQuestionCreateSerializer(serializers.ModelSerializer):
         model = ListeningQuestion
         fields = ['question_type', 'question_text', 'options', 'image', 'correct_answer', 'header', 'instruction', 'points']
 
-
-class ListeningTestCreateSerializer(serializers.ModelSerializer):
-    questions = ListeningQuestionCreateSerializer(many=True)
-
-    class Meta:
-        model = ListeningTest
-        fields = ['id', 'title', 'description', 'questions', 'time_limit']
-        extra_kwargs = {
-            'time_limit': {'required': False, 'default': 40}
-        }
-
-    def create(self, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        test = ListeningTest.objects.create(**validated_data)
-        for part_data in parts_data:
-            questions_data = part_data.pop('questions', [])
-            part = ListeningPart.objects.create(test=test, **part_data)
-            for question_data in questions_data:
-                options_data = question_data.pop('options', [])
-                image = question_data.get('image', None)
-                if not image:
-                    question_data['image'] = None
-                question = ListeningQuestion.objects.create(part=part, **question_data)
-                for idx, option_data in enumerate(options_data):
-                    label = chr(65 + idx)
-                    option_data = dict(option_data)
-                    # Удаляем все лишние поля перед созданием
-                    option_data.pop('label', None)
-                    option_data.pop('image', None)
-                    option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)
-                    try:
-                        ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
-                    except Exception as e:
-                        continue
-        return test
-
-    def update(self, instance, validated_data):
-        parts_data = validated_data.pop('parts', [])
-        instance.title = validated_data.get('title', instance.title)
-        instance.description = validated_data.get('description', instance.description)
-        instance.is_active = validated_data.get('is_active', instance.is_active)
-        instance.save()
-
-        existing_parts = {p.part_number: p for p in instance.parts.all()}
-        sent_part_numbers = set()
-        for part_data in parts_data:
-            part_number = part_data.get('part_number')
-            sent_part_numbers.add(part_number)
-            questions_data = part_data.pop('questions', [])
-            part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data, 'test': instance})
-            if not created:
-                for attr, value in part_data.items():
-                    setattr(part, attr, value)
-                part.save()
-            existing_questions = {q.order: q for q in part.questions.all()}
-            sent_question_orders = set()
-            for question_data in questions_data:
-                order = question_data.get('order')
-                sent_question_orders.add(order)
-                options_data = question_data.pop('options', [])
-                image = question_data.get('image', None)
-                if not image:
-                    question_data['image'] = None
-                question, created = part.questions.get_or_create(order=order, defaults={**question_data, 'part': part})
-                if not created:
-                    for attr, value in question_data.items():
-                        setattr(question, attr, value)
-                    question.save()
-                existing_options = {o.label: o for o in question.options.all()}
-                sent_option_labels = set()
-                for idx, option_data in enumerate(options_data):
-                    label = chr(65 + idx)
-                    sent_option_labels.add(label)
-                    option_data = dict(option_data)
-                    # Удаляем все лишние поля перед созданием
-                    option_data.pop('label', None)
-                    option_data.pop('image', None)
-                    option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)
-                    try:
-                        option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
-                        if not created:
-                            for attr, value in option_data.items():
-                                setattr(option, attr, value)
-                            option.save()
-                    except Exception as e:
-                        continue
-                for label, option in existing_options.items():
-                    if label not in sent_option_labels:
-                        option.delete()
-            for order, question in existing_questions.items():
-                if order not in sent_question_orders:
-                    question.delete()
-        for part_number, part in existing_parts.items():
-            if part_number not in sent_part_numbers:
-                part.delete()
-        return instance
 
 class ListeningQuestionUpdateSerializer(serializers.ModelSerializer):
     image = serializers.CharField(allow_blank=True, allow_null=True, required=False)
@@ -470,6 +430,54 @@ def create_detailed_breakdown(session, test_type='reading'):
                                     'points': getattr(option, 'points', 1)
                                 })
                     
+                    # --- Multiple Choice Group (несколько подпунктов) ---
+                    elif question.question_type in ['multiple_choice_group']:
+                        extra_data = getattr(question, 'extra_data', {}) or {}
+                        group_items = extra_data.get('group_items') or []
+                        total_sub_questions = 0
+                        correct_sub_questions = 0
+
+                        # Поддерживаем два формата ответов: словарь в answers[str(question.id)] и плоские ключи questionId__itemId
+                        raw_group_answers = all_user_answers.get(str(question.id), {})
+                        group_answers = {}
+                        if isinstance(raw_group_answers, dict):
+                            group_answers.update({str(k): v for k, v in raw_group_answers.items()})
+
+                        for idx, item in enumerate(group_items):
+                            item_id = str(item.get('id') or f'item_{idx}')
+                            if item_id not in group_answers:
+                                flat_key = f"{question.id}__{item_id}"
+                                if flat_key in all_user_answers:
+                                    group_answers[item_id] = all_user_answers.get(flat_key)
+
+                        for idx, item in enumerate(group_items):
+                            item_id = str(item.get('id') or f'item_{idx}')
+                            prompt = item.get('prompt') or ''
+                            options = item.get('options') or []
+                            correct_label = str(item.get('correct_answer') or '').strip()
+                            item_points = item.get('points', 1)
+                            try:
+                                item_points = float(item_points)
+                            except (TypeError, ValueError):
+                                item_points = 1
+
+                            total_sub_questions += item_points
+
+                            user_label = group_answers.get(item_id)
+                            is_correct = check_alternative_answers(user_label, correct_label)
+                            if is_correct:
+                                correct_sub_questions += item_points
+
+                            sub_questions_data.append({
+                                'sub_id': item_id,
+                                'label': prompt,
+                                'user_answer': user_label or '(empty)',
+                                'correct_answer': correct_label,
+                                'is_correct': is_correct,
+                                'points': item_points,
+                                'options': options
+                            })
+
                     # --- Multiple Choice (один ответ) / True-False ---
                     elif question.question_type in ['multiple_choice', 'single_choice', 'radio', 'true_false_not_given', 'true_false', 'yes_no_not_given']:
                         total_sub_questions = 1
@@ -762,6 +770,11 @@ def create_listening_detailed_breakdown(session):
                 if question_type == 'multiple_response' and question.get('scoring_mode', 'total') == 'per_correct':
                     question_score = correct_sub  # Уже посчитано правильно
                     question_total = total_sub
+                elif question_type == 'multiple_choice_group':
+                    # Для multiple_choice_group баллы уже учтены в correct_sub_questions и total_sub_questions
+                    # (каждый item имеет свои points), поэтому не умножаем на points вопроса
+                    question_score = correct_sub
+                    question_total = total_sub
                 else:
                     question_score = correct_sub * points_per_sub
                     question_total = total_sub * points_per_sub
@@ -842,14 +855,18 @@ def normalize_correct_answers_for_gaps(correct_answers, question_type):
 def get_test_render_structure(serializer_instance, obj):
     """
     Универсальная функция для рендера теста (Listening/Reading).
-    Для Reading сортирует вопросы по order, для Listening — по id.
+    Для Reading сортирует парты по order и part_number, вопросы по order.
+    Для Listening сортирует парты по part_number, вопросы по order.
     """
     result = []
     session = obj
     answers = session.answers or {}
     test = session.test
     module = 'listening' if hasattr(test, 'listeningpart_set') or test.__class__.__name__ == 'ListeningTest' else 'reading'
-    parts_query = test.parts.all().order_by('order', 'part_number')
+    if module == 'reading':
+        parts_query = test.parts.all().order_by('order', 'part_number')
+    else:
+        parts_query = test.parts.all().order_by('part_number')
     for part in parts_query:
         part_data = {
             'part_number': part.part_number,
@@ -861,7 +878,7 @@ def get_test_render_structure(serializer_instance, obj):
         if module == 'reading':
             questions = part.questions.all().order_by('order')
         else:
-            questions = part.questions.all().order_by('id')
+            questions = part.questions.all().order_by('order')
         for q in questions:
             q_data = {
                 'id': q.id,
@@ -1241,7 +1258,7 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'test', 'test_title', 'explanation_url', 'student_id', 'started_at', 'completed_at',
             'time_taken', 'band_score', 'raw_score', 'total_score', 'submitted', 'answers',
-            'detailed_breakdown'
+            'detailed_breakdown', 'is_diagnostic'
         ]
         read_only_fields = fields
 
@@ -1251,22 +1268,41 @@ class ListeningTestSessionResultSerializer(serializers.ModelSerializer):
         return getattr(obj, 'time_taken', 0) or 0
 
     def to_representation(self, instance):
-        # Если данные уже были посчитаны для этого экземпляра, используем их
-        if 'listening_results' in self.context:
-            results = self.context['listening_results']
-        else:
-            # Иначе, считаем их и сохраняем в контекст
-            results = create_listening_detailed_breakdown(instance)
-            self.context['listening_results'] = results
-
-        # Получаем базовое представление от ModelSerializer
         representation = super().to_representation(instance)
         
-        # Добавляем или перезаписываем рассчитанные поля
-        representation['raw_score'] = results.get('raw_score')
-        representation['total_score'] = results.get('total_score')
-        representation['band_score'] = results.get('band_score')
-        representation['detailed_breakdown'] = results.get('detailed_breakdown')
+        try:
+            result = getattr(instance, 'listeningtestresult', None)
+            if result:
+                representation['raw_score'] = result.raw_score
+                representation['total_score'] = instance.total_questions_count or 0
+                representation['band_score'] = result.band_score
+                breakdown = result.breakdown
+                if isinstance(breakdown, list):
+                    representation['detailed_breakdown'] = breakdown
+                elif isinstance(breakdown, dict) and breakdown:
+                    representation['detailed_breakdown'] = breakdown
+                else:
+                    representation['detailed_breakdown'] = []
+            else:
+                if 'listening_results' in self.context:
+                    results = self.context['listening_results']
+                else:
+                    results = create_listening_detailed_breakdown(instance)
+                    self.context['listening_results'] = results
+                representation['raw_score'] = results.get('raw_score', 0)
+                representation['total_score'] = results.get('total_score', 0)
+                representation['band_score'] = results.get('band_score', 0)
+                representation['detailed_breakdown'] = results.get('detailed_breakdown', [])
+        except Exception:
+            if 'listening_results' in self.context:
+                results = self.context['listening_results']
+            else:
+                results = create_listening_detailed_breakdown(instance)
+                self.context['listening_results'] = results
+            representation['raw_score'] = results.get('raw_score', 0)
+            representation['total_score'] = results.get('total_score', 0)
+            representation['band_score'] = results.get('band_score', 0)
+            representation['detailed_breakdown'] = results.get('detailed_breakdown', [])
 
         return representation
 
@@ -1499,7 +1535,7 @@ class ListeningTestSessionHistorySerializer(serializers.ModelSerializer):
         model = ListeningTestSession
         fields = [
             'id', 'test_title', 'band_score', 'raw_score', 'total_score',
-            'submitted', 'completed_at', 'time_taken'
+            'submitted', 'completed_at', 'time_taken', 'is_diagnostic'
         ]
 
     def get_time_taken(self, obj):
@@ -1508,15 +1544,24 @@ class ListeningTestSessionHistorySerializer(serializers.ModelSerializer):
         return getattr(obj, 'time_taken', 0) or 0
 
     def to_representation(self, instance):
-        # Используем ту же логику, что и в основном сериализаторе результатов
-        # Это может быть не очень эффективно для списка, но гарантирует консистентность
-        results = create_listening_detailed_breakdown(instance)
-
         representation = super().to_representation(instance)
         
-        representation['raw_score'] = results.get('raw_score')
-        representation['total_score'] = results.get('total_score')
-        representation['band_score'] = results.get('band_score')
+        try:
+            result = getattr(instance, 'listeningtestresult', None)
+            if result:
+                representation['raw_score'] = result.raw_score
+                representation['total_score'] = instance.total_questions_count or 0
+                representation['band_score'] = result.band_score
+            else:
+                results = create_listening_detailed_breakdown(instance)
+                representation['raw_score'] = results.get('raw_score', 0)
+                representation['total_score'] = results.get('total_score', 0)
+                representation['band_score'] = results.get('band_score', 0)
+        except Exception:
+            results = create_listening_detailed_breakdown(instance)
+            representation['raw_score'] = results.get('raw_score', 0)
+            representation['total_score'] = results.get('total_score', 0)
+            representation['band_score'] = results.get('band_score', 0)
         
         return representation
 
@@ -1561,7 +1606,7 @@ class ListeningAnswerOptionSerializer(serializers.ModelSerializer):
         fields = ['id', 'label', 'text', 'points']
 
 class ListeningQuestionSerializer(serializers.ModelSerializer):
-    options = ListeningAnswerOptionSerializer(many=True, required=False, allow_null=True)
+    options = ListeningAnswerOptionSerializer(many=True, required=False, allow_null=True, read_only=True)
     question_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     question_text = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     extra_data = serializers.JSONField(required=False, allow_null=True)
@@ -1569,33 +1614,152 @@ class ListeningQuestionSerializer(serializers.ModelSerializer):
     header = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     instruction = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    image_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
     points = serializers.IntegerField(required=False, allow_null=True)
     scoring_mode = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = ListeningQuestion
         fields = [
             'id', 'question_type', 'question_text', 'extra_data', 'correct_answers',
-            'header', 'instruction', 'image', 'points', 'scoring_mode', 'options'
+            'header', 'instruction', 'task_prompt', 'image', 'image_file', 'image_base64', 'points', 'scoring_mode', 'options'
         ]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image_file:
+            try:
+                from django.core.files.storage import default_storage
+                from django.conf import settings
+                url = instance.image_file.url
+                if not url:
+                    representation['image'] = instance.image or None
+                elif url.startswith('http://') or url.startswith('https://'):
+                    representation['image'] = url
+                elif url.startswith(settings.MEDIA_URL):
+                    representation['image'] = url
+                elif url.startswith('/'):
+                    representation['image'] = url
+                else:
+                    representation['image'] = default_storage.url(instance.image_file.name)
+            except (ValueError, AttributeError) as e:
+                representation['image'] = instance.image or None
+        else:
+            representation['image'] = instance.image or None
+        return representation
+
+    def update(self, instance, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        image_base64 = validated_data.pop('image_base64', None)
+        should_update_image = False
+        new_image_file = None
+        
+        if image_base64 not in [None, '', 'null']:
+            decoded = decode_base64_file(image_base64)
+            if decoded:
+                new_image_file = decoded
+                should_update_image = True
+        elif image_base64 in ['', 'null']:
+            new_image_file = None
+            should_update_image = True
+        elif image_file is not None:
+            new_image_file = image_file
+            should_update_image = True
+        elif 'image' in validated_data and validated_data['image'] in [None, '', 'null']:
+            new_image_file = None
+            should_update_image = True
+        
+        if should_update_image:
+            # Удаляем старый файл перед присваиванием нового
+            if instance.image_file:
+                try:
+                    instance.image_file.delete(save=False)
+                except Exception:
+                    pass
+            instance.image_file = new_image_file
+            if 'image' in validated_data and not validated_data['image']:
+                validated_data.pop('image', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
 class ListeningPartSerializer(serializers.ModelSerializer):
-    questions = ListeningQuestionSerializer(many=True, read_only=True, source='questions.all')
-    audio = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    questions = ListeningQuestionSerializer(many=True, read_only=True)
+    audio = serializers.SerializerMethodField()
+    
     class Meta:
         model = ListeningPart
         fields = [
             'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
         ]
+    
+    def get_audio(self, obj):
+        if obj.audio:
+            from django.core.files.storage import default_storage
+            from django.conf import settings
+            # If audio path already contains MEDIA_URL, don't add it again
+            if obj.audio.startswith(settings.MEDIA_URL):
+                return obj.audio
+            return default_storage.url(obj.audio)
+        return None
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if 'questions' in representation and representation['questions']:
+            representation['questions'] = sorted(
+                representation['questions'],
+                key=lambda x: x.get('order', 0)
+            )
+        return representation
 
 # --- Вложенные сериализаторы для записи ListeningTest ---
 class ListeningQuestionWriteSerializer(serializers.ModelSerializer):
     options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
+    image_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
     class Meta:
         model = ListeningQuestion
         fields = [
-            'id', 'question_type', 'question_text', 'extra_data', 'correct_answers',
-            'header', 'instruction', 'image', 'points', 'scoring_mode', 'options'
+            'id', 'order', 'question_type', 'question_text', 'extra_data', 'correct_answers',
+            'header', 'instruction', 'task_prompt', 'image', 'image_file', 'image_base64', 'points', 'scoring_mode', 'options'
         ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image_file:
+            try:
+                from django.core.files.storage import default_storage
+                from django.conf import settings
+                url = instance.image_file.url
+                if not url:
+                    representation['image'] = instance.image or None
+                elif url.startswith('http://') or url.startswith('https://'):
+                    representation['image'] = url
+                elif url.startswith(settings.MEDIA_URL):
+                    representation['image'] = url
+                elif url.startswith('/'):
+                    representation['image'] = url
+                else:
+                    representation['image'] = default_storage.url(instance.image_file.name)
+            except (ValueError, AttributeError) as e:
+                representation['image'] = instance.image or None
+        else:
+            representation['image'] = instance.image or None
+        if hasattr(instance, 'options'):
+            options_qs = instance.options.all()
+            representation['options'] = [
+                {
+                    'id': opt.id,
+                    'label': opt.label,
+                    'text': opt.text,
+                    'points': opt.points
+                }
+                for opt in options_qs
+            ]
+        return representation
 
 class ListeningPartWriteSerializer(serializers.ModelSerializer):
     questions = ListeningQuestionWriteSerializer(many=True, required=False)
@@ -1605,14 +1769,32 @@ class ListeningPartWriteSerializer(serializers.ModelSerializer):
             'id', 'part_number', 'audio', 'audio_duration', 'instructions', 'questions'
         ]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if 'questions' in representation and representation['questions']:
+            representation['questions'] = sorted(
+                representation['questions'],
+                key=lambda x: x.get('order', 0)
+            )
+        return representation
+
 # --- Сериализатор для чтения ListeningTest (GET) ---
 class ListeningTestReadSerializer(serializers.ModelSerializer):
     parts = ListeningPartSerializer(many=True, read_only=True)
     class Meta:
         model = ListeningTest
         fields = [
-            'id', 'title', 'description', 'is_active', 'explanation_url', 'parts', 'created_at', 'updated_at'
+            'id', 'title', 'description', 'is_active', 'is_diagnostic_template', 'explanation_url', 'parts', 'created_at', 'updated_at'
         ]
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if 'parts' in representation and representation['parts']:
+            representation['parts'] = sorted(
+                representation['parts'],
+                key=lambda x: x.get('part_number', 0)
+            )
+        return representation
 
 # --- Основной сериализатор ListeningTest (POST/PUT) ---
 class ListeningTestSerializer(serializers.ModelSerializer):
@@ -1620,7 +1802,7 @@ class ListeningTestSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListeningTest
         fields = [
-            'id', 'title', 'description', 'is_active', 'explanation_url', 'parts', 'created_at', 'updated_at'
+            'id', 'title', 'description', 'is_active', 'is_diagnostic_template', 'explanation_url', 'parts', 'created_at', 'updated_at'
         ]
 
     def _filter_and_validate_options(self, options_data):
@@ -1628,7 +1810,7 @@ class ListeningTestSerializer(serializers.ModelSerializer):
         for opt in options_data:
             text = opt.get('text')
             if not text or (isinstance(text, str) and not text.strip()):
-                continue  # пропускаем пустые
+                continue
             if isinstance(text, list):
                 raise serializers.ValidationError({'options': 'Option text must be a string, not a list.'})
             filtered.append(opt)
@@ -1637,6 +1819,8 @@ class ListeningTestSerializer(serializers.ModelSerializer):
     def _filter_and_validate_questions(self, questions_data):
         filtered = []
         for q in questions_data:
+            if not isinstance(q, dict):
+                continue
             if isinstance(q.get('question_text'), list):
                 raise serializers.ValidationError({'questions': 'Question text must be a string, not a list.'})
             if 'options' in q:
@@ -1648,104 +1832,148 @@ class ListeningTestSerializer(serializers.ModelSerializer):
         parts_data = validated_data.pop('parts', [])
         test = ListeningTest.objects.create(**validated_data)
         for part_data in parts_data:
-            questions_data = part_data.pop('questions', []) if 'questions' in part_data else []
-            questions_data = self._filter_and_validate_questions(questions_data)
+            questions_data = part_data.pop('questions', [])
             part = ListeningPart.objects.create(test=test, **part_data)
             for question_data in questions_data:
-                options_data = question_data.pop('options', []) if 'options' in question_data else []
-                options_data = self._filter_and_validate_options(options_data)
-                # Сохраняем order, но удаляем title
-                question_data.pop('title', None)
-                try:
-                    question = ListeningQuestion.objects.create(part=part, **question_data)
-                except Exception as e:
-                    continue
+                options_data = question_data.pop('options', [])
+                image_file = question_data.pop('image_file', serializers.empty)
+                image_base64 = question_data.pop('image_base64', None)
+                new_image_file = serializers.empty
+                if image_base64 not in [None, '', 'null']:
+                    decoded = decode_base64_file(image_base64)
+                    if decoded:
+                        new_image_file = decoded
+                elif image_base64 in ['', 'null']:
+                    new_image_file = None
+                elif image_file is not serializers.empty:
+                    new_image_file = image_file
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                question = ListeningQuestion.objects.create(part=part, **question_data)
+                if new_image_file is not serializers.empty:
+                    question.image_file = new_image_file
+                    question.save()
                 for idx, option_data in enumerate(options_data):
-                    label = chr(65 + idx)
-                    option_data = dict(option_data)
-                    # Удаляем все лишние поля перед созданием
-                    option_data.pop('label', None)
-                    option_data.pop('image', None)
-                    option_data.pop('id', None)
-                    option_data.pop('isCorrect', None)
+                    label = option_data.get('label') or chr(65 + idx)
+                    text = option_data.get('text', '')
+                    points = option_data.get('points', 1)
                     try:
-                        ListeningAnswerOption.objects.create(question=question, label=label, **option_data)
+                        ListeningAnswerOption.objects.create(question=question, label=label, text=text, points=points)
                     except Exception as e:
                         continue
         return test
 
     def update(self, instance, validated_data):
-        parts_data = validated_data.pop('parts', None)
+        parts_data = validated_data.pop('parts', [])
         instance.title = validated_data.get('title', instance.title)
         instance.description = validated_data.get('description', instance.description)
         instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.is_diagnostic_template = validated_data.get('is_diagnostic_template', instance.is_diagnostic_template)
+        instance.explanation_url = validated_data.get('explanation_url', instance.explanation_url)
         instance.save()
 
-        # Only process parts if they were explicitly provided in the request
-        if parts_data is not None:
-            existing_parts = {p.part_number: p for p in instance.parts.all()}
-            sent_part_numbers = set()
-            for part_data in parts_data:
-                part_number = part_data.get('part_number')
-                sent_part_numbers.add(part_number)
-                questions_data = part_data.pop('questions', []) if 'questions' in part_data else []
-                questions_data = self._filter_and_validate_questions(questions_data)
-                part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data, 'test': instance})
-                if not created:
-                    for attr, value in part_data.items():
-                        setattr(part, attr, value)
-                    part.save()
-                existing_questions = {str(q.id): q for q in part.questions.all()}
-                sent_question_ids = set()
-                for question_data in questions_data:
-                    q_id = str(question_data.get('id')) if question_data.get('id') else None
-                    options_data = question_data.pop('options', []) if 'options' in question_data else []
-                    options_data = self._filter_and_validate_options(options_data)
-                    # Сохраняем order, но удаляем title
-                    question_data.pop('title', None)
+        existing_parts = {p.id: p for p in instance.parts.all()}
+        sent_part_ids = set()
+        for part_data in parts_data:
+            part_id = part_data.get('id')
+            part_number = part_data.get('part_number')
+            questions_data = part_data.pop('questions', [])
+            part_data_copy = {k: v for k, v in part_data.items() if k not in ['questions', 'test', 'id']}
+            part = None
+            if part_id:
+                part = existing_parts.get(part_id)
+            if part:
+                sent_part_ids.add(part.id)
+                for attr, value in part_data_copy.items():
+                    setattr(part, attr, value)
+                part.save()
+            else:
+                part = ListeningPart.objects.create(test=instance, **part_data_copy)
+                sent_part_ids.add(part.id)
+            existing_questions = {q.id: q for q in part.questions.all()}
+            sent_question_ids = set()
+            for question_data in questions_data:
+                order = question_data.get('order')
+                options_data = question_data.pop('options', [])
+                image_file = question_data.pop('image_file', serializers.empty)
+                image_base64 = question_data.pop('image_base64', None)
+                should_update_image = False
+                new_image_file = serializers.empty
+                if image_base64 not in [None, '', 'null']:
+                    decoded = decode_base64_file(image_base64)
+                    if decoded:
+                        new_image_file = decoded
+                        should_update_image = True
+                elif image_base64 in ['', 'null']:
+                    new_image_file = None
+                    should_update_image = True
+                elif image_file is not serializers.empty:
+                    new_image_file = image_file
+                    should_update_image = True
+                image = question_data.get('image', None)
+                if not image:
+                    question_data['image'] = None
+                question_id = question_data.pop('id', None)
+                question = None
+                if question_id is not None:
+                    question = existing_questions.get(question_id)
+                if question:
+                    sent_question_ids.add(question.id)
+                    for attr, value in question_data.items():
+                        setattr(question, attr, value)
+                    if should_update_image:
+                        # Удаляем старый файл перед присваиванием нового
+                        if question.image_file:
+                            try:
+                                question.image_file.delete(save=False)
+                            except Exception:
+                                pass
+                        question.image_file = new_image_file if new_image_file is not serializers.empty else None
+                    question.save()
+                else:
+                    question = ListeningQuestion.objects.create(part=part, **question_data)
+                    sent_question_ids.add(question.id)
+                    if should_update_image:
+                        question.image_file = new_image_file if new_image_file is not serializers.empty else None
+                        question.save()
+                existing_options = {o.label: o for o in question.options.all()}
+                sent_option_labels = set()
+                for idx, option_data in enumerate(options_data):
+                    label = option_data.get('label') or chr(65 + idx)
+                    sent_option_labels.add(label)
+                    option_data = dict(option_data)
+                    option_data.pop('label', None)
+                    option_data.pop('id', None)
+                    option_data.pop('isCorrect', None)
                     try:
-                        if q_id and q_id in existing_questions:
-                            question = existing_questions[q_id]
-                            for attr, value in question_data.items():
-                                setattr(question, attr, value)
-                            question.save()
-                        else:
-                            question = ListeningQuestion.objects.create(part=part, **question_data)
+                        option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
+                        if not created:
+                            for attr, value in option_data.items():
+                                setattr(option, attr, value)
+                            option.save()
                     except Exception as e:
                         continue
-                    sent_question_ids.add(str(question.id))
-                    # --- Обработка опций ---
-                    existing_options = {o.label: o for o in question.options.all()}
-                    sent_option_labels = set()
-                    for opt_idx, option_data in enumerate(options_data):
-                        label = chr(65 + opt_idx)
-                        sent_option_labels.add(label)
-                        option_data = dict(option_data)
-                        # Удаляем все лишние поля перед созданием
-                        option_data.pop('label', None)
-                        option_data.pop('image', None)
-                        option_data.pop('id', None)
-                        option_data.pop('isCorrect', None)
-                        try:
-                            option, created = question.options.get_or_create(label=label, defaults={**option_data, 'question': question})
-                            if not created:
-                                for attr, value in option_data.items():
-                                    setattr(option, attr, value)
-                                option.save()
-                        except Exception as e:
-                            continue
-                    for label, option in existing_options.items():
-                        if label not in sent_option_labels:
-                            option.delete()
-                # --- Удаляем вопросы, которых нет в новом списке ---
-                if questions_data:
-                    for qid, question in existing_questions.items():
-                        if qid not in sent_question_ids:
-                            question.delete()
-            for part_number, part in existing_parts.items():
-                if part_number not in sent_part_numbers:
-                    part.delete()
+                for label, option in existing_options.items():
+                    if label not in sent_option_labels:
+                        option.delete()
+            for question_id, question in existing_questions.items():
+                if question_id not in sent_question_ids:
+                    question.delete()
+        for part_id, part in existing_parts.items():
+            if part_id not in sent_part_ids:
+                part.delete()
         return instance
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if 'parts' in representation and representation['parts']:
+            representation['parts'] = sorted(
+                representation['parts'],
+                key=lambda x: x.get('part_number', 0)
+            )
+        return representation
+
 
 class ListeningTestResultSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1786,13 +2014,46 @@ class ReadingAnswerOptionSerializer(serializers.ModelSerializer):
 
 class ReadingQuestionSerializer(serializers.ModelSerializer):
     answer_options = ReadingAnswerOptionSerializer(many=True, read_only=True)
+    image_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
     class Meta:
         model = ReadingQuestion
         fields = [
-            'id', 'order', 'question_type', 'header', 'instruction',
-            'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options',
+            'id', 'order', 'question_type', 'header', 'instruction', 'task_prompt',
+            'image_url', 'image_file', 'image_base64', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options',
             'reading_scoring_type'
         ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image_file:
+            try:
+                representation['image_url'] = instance.image_file.url
+            except ValueError:
+                representation['image_url'] = instance.image_url or None
+        else:
+            representation['image_url'] = instance.image_url or None
+        return representation
+
+    def update(self, instance, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        image_base64 = validated_data.pop('image_base64', None)
+        if image_base64 not in [None, '', 'null']:
+            decoded = decode_base64_file(image_base64)
+            if decoded:
+                instance.image_file = decoded
+        elif image_base64 in ['', 'null']:
+            instance.image_file = None
+        if image_file is not None:
+            instance.image_file = image_file
+            if 'image_url' in validated_data and not validated_data['image_url']:
+                validated_data.pop('image_url', None)
+        elif 'image_url' in validated_data and validated_data['image_url'] in [None, '', 'null']:
+            instance.image_file = None
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class ReadingPartSerializer(serializers.ModelSerializer):
     questions = ReadingQuestionSerializer(many=True, read_only=True)
@@ -1803,6 +2064,17 @@ class ReadingPartSerializer(serializers.ModelSerializer):
             'passage_heading', 'passage_image_url', 'order', 'questions'
         ]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['passage_image_url'] = instance.passage_image_url or None
+        return representation
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
 class ReadingTestReadSerializer(serializers.ModelSerializer):
     parts = ReadingPartSerializer(many=True, read_only=True)
     
@@ -1810,7 +2082,7 @@ class ReadingTestReadSerializer(serializers.ModelSerializer):
         model = ReadingTest
         fields = [
             'id', 'title', 'description', 'time_limit', 
-            'total_points', 'is_active', 'explanation_url', 'created_at', 'parts'
+            'total_points', 'is_active', 'is_diagnostic_template', 'explanation_url', 'created_at', 'parts'
         ]
     
     def to_representation(self, instance):
@@ -1827,21 +2099,33 @@ class ReadingTestReadSerializer(serializers.ModelSerializer):
 
 class ReadingQuestionWriteSerializer(serializers.ModelSerializer):
     answer_options = serializers.ListField(child=serializers.DictField(), required=False, allow_null=True, default=list)
+    image_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = ReadingQuestion
         fields = [
-            'id', 'order', 'question_type', 'header', 'instruction',
-            'image_url', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options',
+            'id', 'order', 'question_type', 'header', 'instruction', 'task_prompt',
+            'image_url', 'image_file', 'image_base64', 'question_text', 'points', 'correct_answers', 'extra_data', 'answer_options',
             'reading_scoring_type'
         ]
         extra_kwargs = {
             'id': {'read_only': False, 'required': False},
         }
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.image_file:
+            try:
+                representation['image_url'] = instance.image_file.url
+            except ValueError:
+                representation['image_url'] = instance.image_url or None
+        else:
+            representation['image_url'] = instance.image_url or None
+        return representation
+
 class ReadingPartWriteSerializer(serializers.ModelSerializer):
     questions = ReadingQuestionWriteSerializer(many=True, required=False)
-
     class Meta:
         model = ReadingPart
         fields = [
@@ -1860,106 +2144,143 @@ class ReadingTestSerializer(serializers.ModelSerializer):
         model = ReadingTest
         fields = [
             'id', 'title', 'description', 'time_limit', 
-            'is_active', 'explanation_url', 'parts'
+            'is_active', 'is_diagnostic_template', 'explanation_url', 'parts'
         ]
-
+    
     def create(self, validated_data):
         parts_data = validated_data.pop('parts', [])
         test = ReadingTest.objects.create(**validated_data)
-
         for part_data in parts_data:
-            questions_data = part_data.pop('questions', [])
-            part_data.pop('id', None) # Remove id for creation
+            if not isinstance(part_data, dict):
+                continue
+            questions_data = part_data.pop('questions', []) if 'questions' in part_data else []
             part = ReadingPart.objects.create(test=test, **part_data)
-
             for question_data in questions_data:
-                answer_options_data = question_data.pop('answer_options', [])
-                question_data.pop('id', None) # Remove id for creation
-                question = ReadingQuestion.objects.create(part=part, **question_data)
-
+                answer_options_data = question_data.pop('answer_options', []) if 'answer_options' in question_data else []
+                image_file = question_data.pop('image_file', serializers.empty)
+                image_base64 = question_data.pop('image_base64', None)
+                if image_base64 not in [None, '', 'null']:
+                    decoded_question = decode_base64_file(image_base64)
+                    if decoded_question:
+                        image_file = decoded_question
+                elif image_base64 in ['', 'null']:
+                    image_file = None
+                try:
+                    question = ReadingQuestion.objects.create(part=part, **question_data)
+                    if image_file is not serializers.empty:
+                        question.image_file = image_file or None
+                        question.save()
+                except Exception:
+                    continue
                 for option_data in answer_options_data:
-                    ReadingAnswerOption.objects.create(question=question, **option_data)
-        
+                    option_data.pop('image_file', None)
+                    option_data.pop('image_base64', None)
+                    try:
+                        ReadingAnswerOption.objects.create(question=question, **option_data)
+                    except Exception:
+                        continue
         return test
-
+ 
     def update(self, instance, validated_data):
+        parts_data = validated_data.pop('parts', None)
         instance.title = validated_data.get('title', instance.title)
         instance.description = validated_data.get('description', instance.description)
         instance.time_limit = validated_data.get('time_limit', instance.time_limit)
         instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.is_diagnostic_template = validated_data.get('is_diagnostic_template', instance.is_diagnostic_template)
         instance.explanation_url = validated_data.get('explanation_url', instance.explanation_url)
         instance.save()
-
-        parts_data = validated_data.get('parts', None)
-        
-        # Only process parts if they were explicitly provided in the request
+ 
         if parts_data is not None:
-            # --- Parts ---
-            existing_parts = {part.id: part for part in instance.parts.all()}
-            incoming_part_ids = {item.get('id') for item in parts_data if item.get('id')}
-            
-            # Delete parts that are not in the incoming data
-            for part_id, part in existing_parts.items():
-                if part_id not in incoming_part_ids:
-                    part.delete()
-
+            existing_parts = {p.part_number: p for p in instance.parts.all()}
+            sent_part_numbers = set()
             for part_data in parts_data:
-                part_id = part_data.get('id')
-                questions_data = part_data.pop('questions', [])
-                
-                if part_id and part_id in existing_parts:
-                    # Update existing part
-                    part = existing_parts[part_id]
-                    for key, value in part_data.items():
-                        setattr(part, key, value)
+                if not isinstance(part_data, dict):
+                    continue
+                part_number = part_data.get('part_number')
+                sent_part_numbers.add(part_number)
+                questions_data = part_data.get('questions', []) if 'questions' in part_data else []
+                part_data_copy = {k: v for k, v in part_data.items() if k not in ['questions', 'test']}
+                part, created = instance.parts.get_or_create(part_number=part_number, defaults={**part_data_copy, 'test': instance})
+                if not created:
+                    for attr, value in part_data_copy.items():
+                        if attr != 'part_number':
+                            setattr(part, attr, value)
                     part.save()
                 else:
-                    # Create new part
-                    part_data.pop('id', None)
-                    part = ReadingPart.objects.create(test=instance, **part_data)
-
-                # --- Questions ---
-                existing_questions = {q.id: q for q in part.questions.all()}
-                incoming_question_ids = {item.get('id') for item in questions_data if item.get('id')}
-
-                # Delete questions
-                for q_id, q in existing_questions.items():
-                    if q_id not in incoming_question_ids:
-                        q.delete()
-                
+                    part.save()
+                existing_questions = {str(q.id): q for q in part.questions.all()}
+                sent_question_ids = set()
                 for question_data in questions_data:
-                    q_id = question_data.get('id')
-                    answer_options_data = question_data.pop('answer_options', [])
-                    
+                    if not isinstance(question_data, dict):
+                        continue
+                    q_id = str(question_data.get('id')) if question_data.get('id') else None
+                    answer_options_data = question_data.pop('answer_options', []) if 'answer_options' in question_data else []
+                    image_file = question_data.pop('image_file', serializers.empty)
+                    image_base64 = question_data.pop('image_base64', None)
+                    if image_base64 not in [None, '', 'null']:
+                        decoded_question = decode_base64_file(image_base64)
+                        if decoded_question:
+                            image_file = decoded_question
+                    elif image_base64 in ['', 'null']:
+                        image_file = None
                     if q_id and q_id in existing_questions:
-                        # Update question
                         question = existing_questions[q_id]
-                        for key, value in question_data.items():
-                            setattr(question, key, value)
+                        sent_question_ids.add(q_id)
+                        for attr, value in question_data.items():
+                            setattr(question, attr, value)
+                        if image_file is not serializers.empty:
+                            question.image_file = image_file or None
                         question.save()
+                        existing_options = {str(opt.id): opt for opt in question.answer_options.all()}
+                        sent_option_ids = set()
+                        for option_data in answer_options_data:
+                            opt_id = str(option_data.get('id')) if option_data.get('id') else None
+                            option_data.pop('image_file', None)
+                            option_data.pop('image_base64', None)
+                            if opt_id and opt_id in existing_options:
+                                option = existing_options[opt_id]
+                                sent_option_ids.add(opt_id)
+                                for attr, value in option_data.items():
+                                    setattr(option, attr, value)
+                                option.save()
+                            else:
+                                new_option = ReadingAnswerOption.objects.create(question=question, **option_data)
+                                sent_option_ids.add(str(new_option.id))
+                        for opt_id, opt in existing_options.items():
+                            if opt_id not in sent_option_ids:
+                                opt.delete()
                     else:
-                        # Create question
-                        question_data.pop('id', None)
                         question = ReadingQuestion.objects.create(part=part, **question_data)
-                    
-                    # --- Answer Options ---
-                    # Simple approach: delete all and recreate
-                    question.answer_options.all().delete()
-                    for option_data in answer_options_data:
-                        option_data.pop('id', None)
-                        ReadingAnswerOption.objects.create(question=question, **option_data)
-
+                        if image_file is not serializers.empty:
+                            question.image_file = image_file or None
+                            question.save()
+                        sent_question_ids.add(str(question.id))
+                        for option_data in answer_options_data:
+                            option_data.pop('image_file', None)
+                            option_data.pop('image_base64', None)
+                            ReadingAnswerOption.objects.create(question=question, **option_data)
+                for q_id, question in existing_questions.items():
+                    if q_id not in sent_question_ids:
+                        question.delete()
+            for part_number, part in existing_parts.items():
+                if part_number not in sent_part_numbers:
+                    part.delete()
+ 
         return instance
-
 
 class ReadingTestSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReadingTestSession
         fields = [
             'id', 'user', 'test', 'start_time', 'end_time', 
-            'completed', 'answers', 'time_left_seconds'
+            'completed', 'answers', 'time_left_seconds', 'is_diagnostic'
         ]
-        read_only_fields = ['user', 'test', 'start_time', 'end_time', 'completed']
+
+
+def count_correct_subanswers(user_answer, correct_answers, question_type, extra_data=None, all_user_answers=None, question_id=None, options=None, points=1):
+    """Helper function to count correct subanswers"""
+    pass  # Implementation here if needed
 
 class ReadingTestResultSerializer(serializers.ModelSerializer):
     correct_answers_text = serializers.SerializerMethodField()
@@ -1995,6 +2316,9 @@ class ReadingTestResultSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         return representation
+
+# --- Reading Test Result ---
+# Removed duplicate ReadingTestResultSerializer - using the one above with correct_answers_text
 
 # --- Teacher Feedback (Writing) ---
 
@@ -2117,13 +2441,13 @@ class SpeakingSessionCreateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             teacher = request.user
-            if teacher.role != 'teacher':
+            if teacher.role not in ['teacher', 'speaking_mentor']:
                 raise serializers.ValidationError("Only teachers can create speaking sessions")
             
-            # Check if student belongs to this teacher (using the same logic as Writing)
-            teacher_name = teacher.first_name or teacher.student_id
-            if value.teacher != teacher_name:
-                raise serializers.ValidationError("Student does not belong to this teacher")
+            if teacher.role == 'teacher':
+                teacher_name = teacher.first_name or teacher.student_id
+                if value.teacher != teacher_name:
+                    raise serializers.ValidationError("Student does not belong to this teacher")
         
         return value
 
@@ -2164,16 +2488,20 @@ class SpeakingSessionHistorySerializer(serializers.ModelSerializer):
     """Serializer for speaking session history (dashboard view)"""
     student_name = serializers.SerializerMethodField()
     student_id = serializers.CharField(source='student.student_id', read_only=True)
+    teacher_name = serializers.SerializerMethodField()
     
     class Meta:
         model = SpeakingSession
         fields = [
-            'id', 'student_name', 'student_id', 'overall_band_score', 
+            'id', 'student_name', 'student_id', 'teacher_name', 'overall_band_score', 
             'conducted_at', 'completed'
         ]
     
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}".strip()
+    
+    def get_teacher_name(self, obj):
+        return f"{obj.teacher.first_name} {obj.teacher.last_name}".strip()
 
 
 # === READING MULTIPLE RESPONSE SCORING FUNCTIONS ===

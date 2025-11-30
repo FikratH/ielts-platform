@@ -1,25 +1,46 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const WritingStartPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userRole, setUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [tests, setTests] = useState([]);
-
-  useEffect(() => {
-    const role = localStorage.getItem('role');
-    setUserRole(role);
-    // Load writing tests to know explanation_url and completion
-    api.get('/writing-tests/').then(res => setTests(res.data)).catch(() => {});
-  }, []);
+  const [autoStarted, setAutoStarted] = useState(false);
 
   const startSession = async () => {
     try {
       setIsLoading(true);
-      const res = await api.post('/start-writing-session/');
+      
+      // Если тесты ещё не загрузились, дождёмся их
+      if (tests.length === 0) {
+        const response = await api.get('/writing-tests/');
+        setTests(response.data);
+      }
+      
+      const urlParams = new URLSearchParams(location.search);
+      const isDiagnostic = urlParams.get('diagnostic');
+      const testId = urlParams.get('test_id');
+      
+      let activeTest;
+      if (isDiagnostic && testId) {
+        // Для диагностических тестов используем конкретный test_id
+        activeTest = tests.find(t => t.id === parseInt(testId));
+      } else {
+        // Для обычных тестов используем активный тест
+        activeTest = tests.find(t => t.is_active);
+      }
+      
+      if (!activeTest) {
+        alert(isDiagnostic ? "No diagnostic writing test template found" : "No active writing test found");
+        return;
+      }
+      
+      const url = isDiagnostic ? '/start-writing-session/?diagnostic=true' : '/start-writing-session/';
+      const res = await api.post(url, { test_id: activeTest.id });
       localStorage.removeItem('writing_timer');
       localStorage.removeItem('writing_task1');
       localStorage.removeItem('writing_task2');
@@ -27,11 +48,40 @@ const WritingStartPage = () => {
       navigate(`/writing/task1/${sessionId}`);
     } catch (err) {
       console.error(err);
-      alert("Error starting Writing Test");
+      if (err.response?.status === 409) {
+        alert('You have already completed the diagnostic test for Writing.');
+      } else if (err.response?.status === 403) {
+        alert('Diagnostic tests are not available if you have completed any regular tests.');
+      } else if (err.response?.status === 400) {
+        alert('This test is not marked as a diagnostic template.');
+      } else {
+        alert("Error starting Writing Test");
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const role = localStorage.getItem('role');
+    setUserRole(role);
+    // Load writing tests to know explanation_url and completion
+    api.get('/writing-tests/').then(res => {
+      setTests(res.data);
+    }).catch(() => {});
+  }, []);
+
+  // Отдельный useEffect для автоматического запуска диагностических тестов
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const isDiagnostic = urlParams.get('diagnostic');
+    
+    // Запускаем только для диагностических тестов и только один раз
+    if (isDiagnostic && !autoStarted && tests.length > 0) {
+      setAutoStarted(true);
+      setTimeout(() => startSession(), 500);
+    }
+  }, [location.search, tests.length, autoStarted, startSession]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-violet-50 p-3 sm:p-6">
@@ -116,7 +166,13 @@ const WritingStartPage = () => {
               )}
             </button>
             {(() => {
-              const activeTest = (tests || []).find(t => t.is_active);
+              const urlParams = new URLSearchParams(location.search);
+              const isDiagnostic = urlParams.get('diagnostic');
+              
+              // Показываем explanation только для регулярных тестов
+              if (isDiagnostic) return null;
+              
+              const activeTest = (tests || []).find(t => t.is_active && !t.is_diagnostic_template);
               if (activeTest && activeTest.user_completed && activeTest.explanation_url) {
                 return (
                   <a

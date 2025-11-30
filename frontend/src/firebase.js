@@ -2,13 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, onIdTokenChanged } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBWa87NKswOQuNAZUj30h6jPWXNXEveXT4",
-  authDomain: "ielts-project-459e3.firebaseapp.com",
-  projectId: "ielts-project-459e3",
-  storageBucket: "ielts-project-459e3.firebasestorage.app",
-  messagingSenderId: "992938387814",
-  appId: "1:992938387814:web:3ca1f48b933256078700a7",
-  measurementId: "G-4XGG4890EC"
+  apiKey: "AIzaSyCGaTlQrpo0EB7H-EP7PYR_QeBHIl0oE-c",
+  authDomain: "ielts-project-6259a.firebaseapp.com",
+  projectId: "ielts-project-6259a",
+  storageBucket: "ielts-project-6259a.firebasestorage.app",
+  messagingSenderId: "938135977743",
+  appId: "1:938135977743:web:8edc003b80c1f2557b087a",
+  measurementId: "G-TXD2ZR6SF4"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -25,6 +25,9 @@ onIdTokenChanged(auth, async (user) => {
     localStorage.removeItem('uid');
     localStorage.removeItem('role');
     localStorage.removeItem('student_id');
+    localStorage.removeItem('first_name');
+    localStorage.removeItem('last_name');
+    localStorage.removeItem('group');
     // Автоматический редирект на логин
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';

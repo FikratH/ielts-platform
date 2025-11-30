@@ -1,0 +1,357 @@
+{
+  "title": "Diagnostic test - Listening",
+  "description": "",
+  "is_active": false,
+  "is_diagnostic_template": true,
+  "explanation_url": "",
+  "parts": [
+    {
+      "part_number": 3,
+      "audio": null,
+      "audio_duration": 0.0,
+      "instructions": "",
+      "questions": [
+        {
+          "question_type": "gap_fill",
+          "question_text": "• what [[21]] the item is on\n• the [[22]] of the item, including the headline\n• any [[23]] accompanying the item\n• the [[24]] of the item, e.g. what’s made prominent\n• the writer’s main [[25]]\n• the [[26]] the writer may make about the reader",
+          "extra_data": {
+            "gaps": [
+              { "answer": "page", "number": 21 },
+              { "answer": "size", "number": 22 },
+              { "answer": "graphic | graphics", "number": 23 },
+              { "answer": "structure", "number": 24 },
+              { "answer": "purpose", "number": 25 },
+              { "answer": "assumption | assumptions", "number": 26 }
+            ]
+          },
+          "correct_answers": [
+            "page",
+            "size",
+            "graphic | graphics",
+            "structure",
+            "purpose",
+            "assumption | assumptions"
+          ],
+          "header": "Questions 21 – 26",
+          "instruction": "Complete the notes below.\nWrite ONE WORD ONLY for each answer.\n\nWhat Hazel should analyse about items in newspapers:",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": []
+        },
+        {
+          "question_type": "gap_fill",
+          "question_text": "A She will definitely look for a suitable article.\nB She may look for a suitable article.\nC She definitely won’t look for an article.\n\nTypes of articles\nnational news item [[27]]\neditorial [[28]]\nhuman interest [[29]]\narts [[30]]",
+          "extra_data": {
+            "gaps": [
+              { "answer": "A", "number": 27 },
+              { "answer": "C", "number": 28 },
+              { "answer": "C", "number": 29 },
+              { "answer": "B", "number": 30 }
+            ]
+          },
+          "correct_answers": ["A", "C", "C", "B"],
+          "header": "Questions 27-30",
+          "instruction": "What does Hazel decide to do about each of the following types of articles?\nWrite the correct letter, A, B or C, next to Questions 27-30",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": []
+        }
+      ]
+    },
+    {
+      "part_number": 4,
+      "audio": null,
+      "audio_duration": 0.0,
+      "instructions": "",
+      "questions": [
+        {
+          "question_type": "gap_fill",
+          "question_text": "Early history of keeping clean\n\nPrehistoric times:\n• water was used to wash off [[31]]\n\nAncient Babylon:\n• soap-like material found in [[32]] cylinders\n\nAncient Greece:\n• people cleaned themselves with sand and other substances\n• used a strigil – scraper made of [[33]]\n• washed clothes in streams\n\nAncient Germany and Gaul:\n• used soap to colour their [[34]]\n\nAncient Rome:\n• animal fat, ashes and clay mixed through action of rain, used for washing clothes\n• from about 312 BC, water carried to Roman [[35]] by aqueducts\n\nEurope in Middle Ages:\n• decline in bathing contributed to occurrence of [[36]]\n• [[37]] began to be added to soap\n\nEurope from 17th century:\n• 1600s: cleanliness and bathing started becoming usual\n• 1791: Leblanc invented a way of making soda ash from [[38]]\n• early 1800s: Chevreul turned soapmaking into a [[39]]\n• from 1800s, there was no longer a [[40]] on soap",
+          "extra_data": {
+            "gaps": [
+              { "answer": "mud", "number": 31 },
+              { "answer": "clay", "number": 32 },
+              { "answer": "metal", "number": 33 },
+              { "answer": "hair", "number": 34 },
+              { "answer": "bath | baths", "number": 35 },
+              { "answer": "disease | diseases", "number": 36 },
+              { "answer": "perfume", "number": 37 },
+              { "answer": "salt", "number": 38 },
+              { "answer": "science", "number": 39 },
+              { "answer": "tax", "number": 40 }
+            ]
+          },
+          "correct_answers": [
+            "mud",
+            "clay",
+            "metal",
+            "hair",
+            "bath | baths",
+            "disease | diseases",
+            "perfume",
+            "salt",
+            "science",
+            "tax"
+          ],
+          "header": "Questions 31 – 40",
+          "instruction": "Complete the notes below.\nWrite ONE WORD ONLY for each answer.",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": []
+        }
+      ]
+    },
+    {
+      "part_number": 1,
+      "audio": null,
+      "audio_duration": 0.0,
+      "instructions": "",
+      "questions": [
+        {
+          "question_type": "gap_fill",
+          "question_text": "Employment Agency: Possible Jobs:\n\nFirst Job\nAdministrative assistant in a company that produces [[1]] (North London)\n\nResponsibilities\n• data entry\n• go to [[2]] and take notes\n• general admin\n• management of [[3]]\n\nRequirements\n• good computer skills including spreadsheets\n• good interpersonal skills\n• attention to [[4]]\n\nExperience\n• need a minimum of [[5]] of experience of teleconferencing\n\nSecond Job\nWarehouse assistant in South London\n\nResponsibilities\n• stock management\n• managing [[6]]\n\nRequirements\n• ability to work with numbers\n• good computer skills\n• very organised and [[7]]\n• good communication skills\n• used to working in a [[8]]\n• able to cope with items that are [[9]]\n\nNeed experience of\n• driving in London\n• warehouse work\n• [[10]] service",
+          "extra_data": {
+            "gaps": [
+              { "answer": "furniture", "number": 1 },
+              { "answer": "meetings", "number": 2 },
+              { "answer": "diary", "number": 3 },
+              { "answer": "detail | details", "number": 4 },
+              { "answer": "1 | one year", "number": 5 },
+              { "answer": "deliveries", "number": 6 },
+              { "answer": "tidy", "number": 7 },
+              { "answer": "team", "number": 8 },
+              { "answer": "heavy", "number": 9 },
+              { "answer": "customer", "number": 10 }
+            ]
+          },
+          "correct_answers": [
+            "furniture",
+            "meetings",
+            "diary",
+            "detail | details",
+            "1 | one year",
+            "deliveries",
+            "tidy",
+            "team",
+            "heavy",
+            "customer"
+          ],
+          "header": "Questions 1 – 10",
+          "instruction": "Complete the notes below.\nWrite ONE WORD AND/OR A NUMBER for each answer.",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": []
+        }
+      ]
+    },
+    {
+      "part_number": 2,
+      "audio": null,
+      "audio_duration": 0.0,
+      "instructions": "",
+      "questions": [
+        {
+          "question_type": "multiple_choice",
+          "question_text": "When did the Street Play Scheme first take place?",
+          "extra_data": {
+            "answer": "B",
+            "options": [
+              { "id": "A", "text": "two years ago", "image": "", "label": "A" },
+              { "id": "B", "text": "three years ago", "image": "", "label": "B" },
+              { "id": "C", "text": "six years ago", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["B"],
+          "header": "Questions 11 – 16",
+          "instruction": "Choose the correct letter, A, B or C.",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "two years ago", "points": 1 },
+            { "label": "B", "text": "three years ago", "points": 1 },
+            { "label": "C", "text": "six years ago", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_choice",
+          "question_text": "How often is Beechwood Road closed to traffic now?",
+          "extra_data": {
+            "answer": "A",
+            "options": [
+              { "id": "A", "text": "once a week", "image": "", "label": "A" },
+              { "id": "B", "text": "on Saturdays and Sundays", "image": "", "label": "B" },
+              { "id": "C", "text": "once a month", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["A"],
+          "header": "Question 12",
+          "instruction": "",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "once a week", "points": 1 },
+            { "label": "B", "text": "on Saturdays and Sundays", "points": 1 },
+            { "label": "C", "text": "once a month", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_choice",
+          "question_text": "Who is responsible for closing the road?",
+          "extra_data": {
+            "answer": "C",
+            "options": [
+              { "id": "A", "text": "a council official", "image": "", "label": "A" },
+              { "id": "B", "text": "the police", "image": "", "label": "B" },
+              { "id": "C", "text": "local wardens", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["C"],
+          "header": "Question 13",
+          "instruction": "",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "a council official", "points": 1 },
+            { "label": "B", "text": "the police", "points": 1 },
+            { "label": "C", "text": "local wardens", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_choice",
+          "question_text": "Residents who want to use their cars",
+          "extra_data": {
+            "answer": "B",
+            "options": [
+              { "id": "A", "text": "have to park in another street.", "image": "", "label": "A" },
+              { "id": "B", "text": "must drive very slowly", "image": "", "label": "B" },
+              { "id": "C", "text": "need permission from a warden.", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["B"],
+          "header": "Question 14",
+          "instruction": "",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "have to park in another street.", "points": 1 },
+            { "label": "B", "text": "must drive very slowly", "points": 1 },
+            { "label": "C", "text": "need permission from a warden.", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_choice",
+          "question_text": "Alice says that Street Play Schemes are most needed in",
+          "extra_data": {
+            "answer": "C",
+            "options": [
+              { "id": "A", "text": "wealthy areas", "image": "", "label": "A" },
+              { "id": "B", "text": "quiet suburban areas.", "image": "", "label": "B" },
+              { "id": "C", "text": "areas with heavy traffic.", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["C"],
+          "header": "Question 15",
+          "instruction": "",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "wealthy areas", "points": 1 },
+            { "label": "B", "text": "quiet suburban areas.", "points": 1 },
+            { "label": "C", "text": "areas with heavy traffic.", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_choice",
+          "question_text": "What has been the reaction of residents who are not parents?",
+          "extra_data": {
+            "answer": "B",
+            "options": [
+              { "id": "A", "text": "Many of them were unhappy at first.", "image": "", "label": "A" },
+              { "id": "B", "text": "They like seeing children play in the street.", "image": "", "label": "B" },
+              { "id": "C", "text": "They are surprised by the lack of noise.", "image": "", "label": "C" }
+            ]
+          },
+          "correct_answers": ["B"],
+          "header": "Question 16",
+          "instruction": "",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "total",
+          "options": [
+            { "label": "A", "text": "Many of them were unhappy at first.", "points": 1 },
+            { "label": "B", "text": "They like seeing children play in the street.", "points": 1 },
+            { "label": "C", "text": "They are surprised by the lack of noise.", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_response",
+          "question_text": null,
+          "extra_data": {
+            "answer": ["B", "D"],
+            "options": [
+              { "id": "A", "text": "increased physical activity", "image": "", "label": "A", "points": 1, "isCorrect": false },
+              { "id": "B", "text": "increased sense of independence", "image": "", "label": "B", "points": 1, "isCorrect": true },
+              { "id": "C", "text": "opportunity to learn new games", "image": "", "label": "C", "points": 1, "isCorrect": false },
+              { "id": "D", "text": "opportunity to be part of a community", "image": "", "label": "D", "points": 1, "isCorrect": true },
+              { "id": "E", "text": "opportunity to make new friends", "image": "", "label": "E", "points": 1, "isCorrect": false }
+            ],
+            "scoring_mode": "per_correct"
+          },
+          "correct_answers": ["B", "D"],
+          "header": "Questions 17 and 18",
+          "instruction": "Choose TWO letters, A-E.\nWhich TWO benefits for children does Alice think are the most important?",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "per_correct",
+          "options": [
+            { "label": "A", "text": "increased physical activity", "points": 1 },
+            { "label": "B", "text": "increased sense of independence", "points": 1 },
+            { "label": "C", "text": "opportunity to learn new games", "points": 1 },
+            { "label": "D", "text": "opportunity to be part of a community", "points": 1 },
+            { "label": "E", "text": "opportunity to make new friends", "points": 1 }
+          ]
+        },
+        {
+          "question_type": "multiple_response",
+          "question_text": null,
+          "extra_data": {
+            "answer": ["A", "E"],
+            "options": [
+              { "id": "A", "text": "more shoppers", "image": "", "label": "A", "points": 1, "isCorrect": true },
+              { "id": "B", "text": "improved safety", "image": "", "label": "B", "points": 1, "isCorrect": false },
+              { "id": "C", "text": "less air pollution", "image": "", "label": "C", "points": 1, "isCorrect": false },
+              { "id": "D", "text": "more relaxed atmosphere", "image": "", "label": "D", "points": 1, "isCorrect": false },
+              { "id": "E", "text": "less noise pollution", "image": "", "label": "E", "points": 1, "isCorrect": true }
+            ],
+            "scoring_mode": "per_correct"
+          },
+          "correct_answers": ["A", "E"],
+          "header": "Questions 19 and 20",
+          "instruction": "Choose TWO letters, A-E.\nWhich TWO results of the King Street experiment surprised Alice?",
+          "image": "",
+          "points": 1,
+          "scoring_mode": "per_correct",
+          "options": [
+            { "label": "A", "text": "more shoppers", "points": 1 },
+            { "label": "B", "text": "improved safety", "points": 1 },
+            { "label": "C", "text": "less air pollution", "points": 1 },
+            { "label": "D", "text": "more relaxed atmosphere", "points": 1 },
+            { "label": "E", "text": "less noise pollution", "points": 1 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+
+

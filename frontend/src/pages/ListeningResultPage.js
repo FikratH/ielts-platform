@@ -22,7 +22,7 @@ const ListeningResultPage = () => {
     const fetchResult = async () => {
         setIsLoading(true);
         try {
-            const response = await api.get(`/listening/sessions/${sessionId}/`);
+            const response = await api.get(`/listening-sessions/${sessionId}/result/`);
             setResult(response.data);
         } catch (err) {
             setError('Failed to load listening test results. Please try again.');
@@ -130,8 +130,10 @@ const ListeningResultPage = () => {
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-4 sm:py-8">
             <div className="max-w-full md:max-w-4xl mx-auto px-2 sm:px-4">
                 <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 mb-6 sm:mb-8 border border-blue-100">
-                    <h1 className="text-xl sm:text-3xl font-bold text-center mb-2 sm:mb-4 text-blue-700">Test Results</h1>
-                    <h2 className="text-base sm:text-xl text-center text-gray-600 mb-4 sm:mb-6">{result.test_title || 'IELTS Listening Test'}</h2>
+                    <div className="flex flex-col items-center gap-2">
+                      <h1 className="text-xl sm:text-3xl font-bold text-blue-700">Test Results</h1>
+                      <h2 className="text-base sm:text-xl text-gray-600">{result.test_title || 'IELTS Listening Test'}</h2>
+                    </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6">
                         <div className="text-center p-3 sm:p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200">
@@ -152,6 +154,16 @@ const ListeningResultPage = () => {
                         >
                             Take Another Test
                         </button>
+                        {result?.explanation_url && (
+                          <a
+                            href={result.explanation_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 sm:px-6 py-2 sm:py-3 bg-white text-blue-700 border border-blue-200 hover:border-blue-300 hover:bg-blue-50 font-semibold rounded-xl shadow-sm transition-all duration-300 text-xs sm:text-base text-center"
+                          >
+                            Test explanation
+                          </a>
+                        )}
                         <button
                             onClick={() => navigate('/dashboard')}
                             className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold rounded-xl shadow-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 text-xs sm:text-base"

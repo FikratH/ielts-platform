@@ -20,7 +20,13 @@ class User(AbstractBaseUser):
     uid = models.CharField(max_length=128, unique=True)
     role = models.CharField(
         max_length=20,
-        choices=[('student', 'Student'), ('teacher', 'Teacher'), ('admin', 'Admin'), ('curator', 'Curator')]
+        choices=[
+            ('student', 'Student'),
+            ('teacher', 'Teacher'),
+            ('speaking_mentor', 'Speaking Mentor'),
+            ('admin', 'Admin'),
+            ('curator', 'Curator'),
+        ]
     )
     student_id = models.CharField(max_length=64, null=True, blank=True)
     curator_id = models.CharField(max_length=64, null=True, blank=True)
@@ -51,6 +57,8 @@ class WritingTest(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=False)
     explanation_url = models.URLField(null=True, blank=True)
+    # Marks this test as a diagnostic template; used only from Diagnostic flow
+    is_diagnostic_template = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -63,6 +71,8 @@ class WritingTestSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed = models.BooleanField(default=False)
     band_score = models.FloatField(null=True, blank=True)
+    # True when this session is a part of the diagnostic flow
+    is_diagnostic = models.BooleanField(default=False)
 
     def __str__(self):
         return f"TestSession #{self.id} for {self.user.uid}"
@@ -176,6 +186,8 @@ class ListeningTest(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=False)
     explanation_url = models.URLField(null=True, blank=True)
+    # Diagnostic template flag
+    is_diagnostic_template = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # TODO: Add fields for admin, clone, etc.
@@ -194,11 +206,13 @@ class ListeningQuestion(models.Model):
     order = models.PositiveIntegerField(default=1)
     question_type = models.CharField(max_length=32, blank=True, null=True, default=None)
     question_text = models.TextField(blank=True, null=True, default=None)
+    task_prompt = models.TextField(blank=True, default='')
     extra_data = JSONField(default=dict, blank=True, null=True)
     correct_answers = JSONField(default=list, blank=True, null=True)
     header = models.CharField(max_length=255, blank=True, default='')
     instruction = models.TextField(blank=True, default='', null=True)
     image = models.CharField(max_length=500, blank=True, null=True, default=None)
+    image_file = models.ImageField(upload_to='listening/questions/', null=True, blank=True)
     points = models.PositiveIntegerField(default=1, blank=True, null=True)
     scoring_mode = models.CharField(
         max_length=20, 
@@ -234,6 +248,8 @@ class ListeningTestSession(models.Model):
     correct_answers_count = models.IntegerField(default=0)
     total_questions_count = models.IntegerField(default=0)
     # TODO: Enforce one sitting, no pause, etc.
+    # Diagnostic marker for this session
+    is_diagnostic = models.BooleanField(default=False)
 
 class ListeningStudentAnswer(models.Model):
     session = models.ForeignKey(ListeningTestSession, related_name='student_answers', on_delete=models.CASCADE)
@@ -263,6 +279,8 @@ class ReadingTest(models.Model):
     total_points = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=False)
     explanation_url = models.URLField(null=True, blank=True)
+    # Diagnostic template flag
+    is_diagnostic_template = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -287,7 +305,9 @@ class ReadingQuestion(models.Model):
     question_type = models.CharField(max_length=32, blank=True, null=True, default=None)
     header = models.CharField(max_length=255, blank=True, default='')
     instruction = models.TextField(blank=True, default='')
+    task_prompt = models.TextField(blank=True, default='')
     image_url = models.CharField(max_length=500, blank=True, null=True)
+    image_file = models.ImageField(upload_to='reading/questions/', null=True, blank=True)
     question_text = models.TextField(blank=True, null=True, default=None)
     points = models.FloatField(default=1)
     correct_answers = models.JSONField(default=list, blank=True, null=True)
@@ -326,6 +346,8 @@ class ReadingTestSession(models.Model):
     completed = models.BooleanField(default=False)
     answers = models.JSONField(default=dict, blank=True)  # {question_id: answer, ...}
     time_left_seconds = models.IntegerField(default=3600)  # 60 минут
+    # Diagnostic marker for this session
+    is_diagnostic = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Reading Session for {self.user.email} on {self.test.title}"

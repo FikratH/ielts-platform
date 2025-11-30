@@ -14,34 +14,71 @@ const LoginPage = () => {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const emailRes = await api.get('/get-email-by-sid/', { params: { student_id: sid } });
+      let emailRes;
+      let isCurator = false;
+      
+      try {
+        emailRes = await api.get('/get-email-by-sid/', { params: { student_id: sid } });
+      } catch (error) {
+        if (error.response && error.response.status === 404) {
+          try {
+            emailRes = await api.get('/get-email-by-curator-id/', { params: { curator_id: sid } });
+            isCurator = true;
+          } catch (curatorError) {
+            throw new Error('SID/Curator ID not found');
+          }
+        } else {
+          throw error;
+        }
+      }
+      
       const email = emailRes.data.email;
       if (!email) throw new Error('Email not found');
+      
       const result = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await result.user.getIdToken();
       localStorage.setItem('token', idToken);
+      
       const response = await api.post('/login/', {
         idToken,
-        student_id: sid,
+        student_id: isCurator ? null : sid,
+        curator_id: isCurator ? sid : null,
+        first_name: emailRes.data.first_name,
+        last_name: emailRes.data.last_name,
+        group: emailRes.data.group,
+        role: emailRes.data.role
       });
+      
       localStorage.setItem('uid', response.data.uid);
       localStorage.setItem('role', response.data.role);
       localStorage.setItem('student_id', response.data.student_id);
+      localStorage.setItem('curator_id', response.data.curator_id);
+      localStorage.setItem('first_name', response.data.first_name);
+      localStorage.setItem('last_name', response.data.last_name);
+      localStorage.setItem('group', response.data.group);
+      
       setRole(response.data.role);
       window.dispatchEvent(new Event('local-storage'));
+      
       if (response.data.role === 'admin') {
         navigate('/admin/dashboard');
+      } else if (response.data.role === 'curator') {
+        navigate('/curator/dashboard');
+      } else if (response.data.role === 'teacher') {
+        navigate('/teacher/writing');
+      } else if (response.data.role === 'speaking_mentor') {
+        navigate('/teacher/speaking');
       } else {
         navigate('/dashboard');
       }
     } catch (error) {
       console.error('Login error:', error);
-      if (error.response && error.response.status === 404) {
-        alert('SID not found. Please check the Student ID.');
+      if (error.message === 'SID/Curator ID not found') {
+        alert('SID/Curator ID not found. Please check the ID.');
       } else if (error.code === 'auth/wrong-password') {
         alert('Incorrect password.');
       } else {
-        alert('Login failed. Please check SID and password.');
+        alert('Login failed. Please check ID and password.');
       }
     } finally {
       setLoading(false);

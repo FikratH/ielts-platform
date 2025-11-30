@@ -33,17 +33,13 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
         raise RuntimeError('OPENAI_API_KEY not set in environment')
     openai.api_key = OPENAI_API_KEY
 
-    print(f'AI Scoring - Task Type: {task_type}')
-    print(f'AI Scoring - Question: {question_text[:100]}...')
-    print(f'AI Scoring - Essay: {essay_text[:100]}...')
-    print(f'AI Scoring - Image URL: {image_url}')
+
 
     # Проверяем минимальную длину текста
     min_words = 50 if task_type == 'task1' else 100
     word_count = len(essay_text.split())
     
     if word_count < min_words:
-        print(f'AI WARNING: Essay too short ({word_count} words, minimum {min_words})')
         return {
             'task_response': 1.0,
             'coherence': 1.0,
@@ -57,7 +53,7 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
         system_prompt = (
             "You are an expert IELTS Writing Task 1 examiner with 10+ years of experience. "
             "Task 1 requires describing data, charts, graphs, or processes in 150+ words. "
-            "You will be given a writing prompt and a student's essay. "
+            "You will be given a writing task and a student's essay. "
             "Evaluate the essay according to official IELTS Task 1 criteria:\n\n"
             "1. TASK ACHIEVEMENT (0-9):\n"
             "- Band 9: Fully satisfies all requirements, clearly presents key features\n"
@@ -94,7 +90,7 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
             "Format: {\"task_achievement\":..., \"coherence\":..., \"lexical\":..., \"grammar\":..., \"feedback\":...}"
         )
         user_prompt = (
-            f"TASK 1 PROMPT: {question_text}\n\n"
+            f"TASK 1 INSTRUCTIONS: {question_text}\n\n"
             f"STUDENT'S ESSAY:\n{essay_text}\n\n"
             f"Evaluate this Task 1 response according to IELTS criteria."
         )
@@ -102,7 +98,7 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
         system_prompt = (
             "You are an expert IELTS Writing Task 2 examiner with 10+ years of experience. "
             "Task 2 requires writing an argumentative essay of 250+ words on a given topic. "
-            "You will be given a writing prompt and a student's essay. "
+            "You will be given a writing task and a student's essay. "
             "Evaluate the essay according to official IELTS Task 2 criteria:\n\n"
             "1. TASK RESPONSE (0-9):\n"
             "- Band 9: Fully addresses all parts, presents clear position, develops ideas fully\n"
@@ -140,13 +136,12 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
             "Format: {\"task_response\":..., \"coherence\":..., \"lexical\":..., \"grammar\":..., \"feedback\":...}"
         )
         user_prompt = (
-            f"TASK 2 PROMPT: {question_text}\n\n"
+            f"TASK 2 INSTRUCTIONS: {question_text}\n\n"
             f"STUDENT'S ESSAY:\n{essay_text}\n\n"
             f"Evaluate this Task 2 response according to IELTS criteria."
         )
 
-    print(f'AI Scoring - System Prompt: {system_prompt[:200]}...')
-    print(f'AI Scoring - User Prompt: {user_prompt[:200]}...')
+
 
     # Формируем messages для Vision (если есть картинка)
     messages = [
@@ -156,39 +151,38 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
     
     # Если это Task 1 и есть картинка, используем Vision API
     if task_type == 'task1' and image_url:
-        messages[1]["content"].append({"type": "text", "text": f"Prompt: {question_text}"})
-        messages[1]["content"].append({"type": "image_url", "image_url": {"url": image_url}})
-        messages[1]["content"].append({"type": "text", "text": f"Essay: {essay_text}"})
+        messages[1]["content"] = [
+            {"type": "text", "text": f"Task: {question_text}"},
+            {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+            {"type": "text", "text": f"Essay: {essay_text}"}
+        ]
     else:
         messages[1]["content"] = user_prompt
-
-    print(f'AI Scoring - Messages: {messages}')
+    
+    # Используем gpt-4o для всех случаев (поддерживает и текст, и изображения)
+    model = "gpt-4o"
 
     try:
-        # Вызываем OpenAI (новый синтаксис)
+        # Вызываем OpenAI
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=messages,
             max_tokens=512,
             temperature=0.2,
         )
         text = response.choices[0].message.content
-        print('AI RAW RESPONSE:', text)
         
         # Парсим JSON из ответа (более устойчиво)
         import re, json
         # Вырезаем JSON даже из markdown-блока
         match = re.search(r'\{[\s\S]*\}', text)
         if not match:
-            print('AI ERROR: No JSON found in response')
             raise ValueError('AI did not return valid JSON')
         
         json_text = match.group(0)
-        print('AI EXTRACTED JSON:', json_text)
         
         try:
             data = json.loads(json_text)
-            print('AI PARSED DATA:', data)
             
             # Проверяем, что все поля присутствуют
             if task_type == 'task1':
@@ -198,22 +192,25 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
             
             for field in required_fields:
                 if field not in data:
-                    print(f'AI WARNING: Missing field {field}')
                     data[field] = None
             
-            return data
+            # Приводим к единому формату независимо от того, что вернул GPT
+            return {
+                'task_response': data.get('task_achievement') or data.get('task_response') or data.get('score_task'),
+                'coherence': data.get('coherence') or data.get('score_coherence'),
+                'lexical': data.get('lexical') or data.get('score_lexical'),
+                'grammar': data.get('grammar') or data.get('score_grammar'),
+                'feedback': data.get('feedback', '')
+            }
             
         except Exception as e:
-            print('AI JSON PARSE ERROR:', e)
-            print('AI JSON TEXT:', json_text)
             raise ValueError('AI did not return valid JSON')
             
     except Exception as e:
-        print('AI API ERROR:', str(e))
         # Возвращаем пустой результат вместо исключения
         if task_type == 'task1':
             return {
-                'task_achievement': None,
+                'task_response': None,
                 'coherence': None,
                 'lexical': None,
                 'grammar': None,
@@ -243,7 +240,7 @@ def validate_reading_test(test):
         errors.append("Valid time limit is required")
     
     # Проверяем части
-    parts = test.parts.all()
+    parts = test.parts.all().order_by('part_number')
     if not parts.exists():
         errors.append("Test must have at least one part")
         return False, errors
@@ -252,7 +249,7 @@ def validate_reading_test(test):
     total_sub_questions = 0
     
     for part in parts:
-        questions = part.questions.all()
+        questions = part.questions.all().order_by('order')
         if not questions.exists():
             errors.append(f"Part {part.part_number} has no questions")
             continue
@@ -288,8 +285,8 @@ def auto_fix_reading_test(test):
     fixes_applied = []
     
     # Исправляем порядок вопросов
-    for part in test.parts.all():
-        questions = list(part.questions.all().order_by('id'))
+    for part in test.parts.all().order_by('part_number'):
+        questions = list(part.questions.all().order_by('order'))
         for idx, q in enumerate(questions):
             if q.order != idx + 1:
                 q.order = idx + 1
@@ -297,8 +294,8 @@ def auto_fix_reading_test(test):
                 fixes_applied.append(f"Fixed order for question {q.id}")
     
     # Добавляем недостающие инструкции
-    for part in test.parts.all():
-        for q in part.questions.all():
+    for part in test.parts.all().order_by('part_number'):
+        for q in part.questions.all().order_by('order'):
             if not q.header and not q.instruction:
                 if q.question_type == 'gap_fill':
                     q.instruction = "Complete the text by filling in the gaps."

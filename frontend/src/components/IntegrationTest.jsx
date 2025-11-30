@@ -12,7 +12,7 @@ const IntegrationTest = () => {
     if (!user) return;
     
     setIsRunning(true);
-    const results = {};
+    const results = {}; 
     
     try {
       const idToken = await user.getIdToken();

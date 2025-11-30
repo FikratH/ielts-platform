@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     FirebaseLoginView,
+    UserProfileView,
     EssaySubmissionView,
     EssayListView,
     EssayDetailView,
@@ -10,6 +11,10 @@ from .views import (
     SubmitTaskView,
     FinishWritingSessionView,
     WritingPromptViewSet,
+    WritingTestViewSet,
+    WritingTaskViewSet,
+    WritingTestSessionDetailView,
+    WritingTestExportCSVView,
     AdminEssayListView,
 
     ListeningTestViewSet,
@@ -26,6 +31,9 @@ from .views import (
     ListeningTestExportCSVView,
     WritingTestExportCSVView,
     AdminCreateStudentView,
+    AdminBulkImportStudentsView,
+    AdminCreateTeacherView,
+    AdminCreateCuratorView,
     AdminStudentListView,
     AdminStudentDetailView,
     
@@ -41,10 +49,63 @@ from .views import (
     ReadingTestSessionListView,
     ReadingTestExportCSVView,
     GetEmailBySIDView,
-    WritingPromptExportCSVView
+    WritingPromptExportCSVView,
+    
+    # Admin Student Results Views
+    AdminStudentResultsView,
+    AdminReadingSessionListView,
+    AdminReadingSessionResultView,
+    AdminListeningSessionResultView,
+    AdminListeningSessionListView,
+    AdminListeningSessionDetailView,
+    AdminEssayListView,
+    AdminReadingSessionDetailView,
+    # Teacher Writing Feedback Views
+    TeacherEssayListView,
+    TeacherEssayDetailView,
+    TeacherFeedbackSaveView,
+    TeacherFeedbackPublishView,
+    StudentTeacherFeedbackView,
+    TeachersListView,
+    
+    # Speaking Views
+    TeacherSpeakingStudentsView,
+    TeacherSpeakingSessionsView,
+    TeacherSpeakingSessionDetailView,
+    StudentSpeakingSessionsView,
+    StudentSpeakingSessionDetailView,
+    
+    # Teacher Satisfaction Survey Views
+    TeacherSatisfactionSurveyView,
+    AdminTeacherSurveyResultsView,
+    
+    # Curator Views
+    CuratorStudentsView,
+    CuratorWritingOverviewView,
+    CuratorListeningOverviewView,
+    CuratorReadingOverviewView,
+    CuratorSpeakingOverviewView,
+    CuratorOverviewView,
+    CuratorSpeakingExportCSVView,
+    CuratorOverviewExportCSVView,
+    CuratorWritingExportCSVView,
+    CuratorTestComparisonView,
+    CuratorTestComparisonExportCSVView,
+    AdminCuratorsListView,
+    GetEmailByCuratorIDView,
+    CuratorActiveTestsView,
+    DashboardSummaryView,
+    DiagnosticSummaryView,
+    CuratorDiagnosticResultsView,
+    # New session-level writing feedback views
+    TeacherSessionFeedbackView,
+    TeacherSessionPublishView,
+    StudentSessionFeedbackView,
 )
 
 router = DefaultRouter()
+router.register(r'writing-tests', WritingTestViewSet, basename='writing-test')
+router.register(r'writing-tasks', WritingTaskViewSet, basename='writing-task')
 router.register(r'prompts', WritingPromptViewSet, basename='prompt')
 router.register(r'listening-tests', ListeningTestViewSet, basename='listening-test')
 router.register(r'listening-parts', ListeningPartViewSet, basename='listening-part')
@@ -62,15 +123,23 @@ router.register(r'reading-test-results', ReadingTestResultViewSet, basename='rea
 urlpatterns = router.urls + [
     # Firebase Authentication
     path('login/', FirebaseLoginView.as_view(), name='firebase-login'),
+    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
     
     # Essay endpoints
     path('essay/', EssaySubmissionView.as_view(), name='essay-submit'),
     path('essays/', EssayListView.as_view(), name='essay-list'),
     path('essays/<int:pk>/', EssayDetailView.as_view(), name='essay-detail'),
     
+    # Dashboard summary (student)
+    path('dashboard/summary/', DashboardSummaryView.as_view(), name='dashboard-summary'),
+    path('diagnostic/summary/', DiagnosticSummaryView.as_view(), name='diagnostic-summary'),
+    path('diagnostic/curator/', CuratorDiagnosticResultsView.as_view(), name='diagnostic-curator'),
+    
 
     
     # Writing session endpoints
+    path('writing-tests/<int:test_id>/start/', StartWritingSessionView.as_view(), name='start-writing-test'),
+    path('writing-test-sessions/<int:session_id>/', WritingTestSessionDetailView.as_view(), name='writing-test-session-detail'),
     path('start-writing-session/', StartWritingSessionView.as_view(), name='start-writing-session'),
     path('submit-task/', SubmitTaskView.as_view(), name='submit-task'),
     path('finish-writing-session/', FinishWritingSessionView.as_view(), name='finish-writing-session'),
@@ -82,6 +151,9 @@ urlpatterns = router.urls + [
     path('admin/audio/upload/', SecureAudioUploadView.as_view(), name='secure-audio-upload'),
     path('admin/image/upload/', AdminImageUploadView.as_view(), name='admin-image-upload'),
     path('admin/create-student/', AdminCreateStudentView.as_view(), name='admin-create-student'),
+    path('admin/bulk-import-students/', AdminBulkImportStudentsView.as_view(), name='admin-bulk-import-students'),
+    path('admin/create-teacher/', AdminCreateTeacherView.as_view(), name='admin-create-teacher'),
+    path('admin/create-curator/', AdminCreateCuratorView.as_view(), name='admin-create-curator'),
     path('admin/students/', AdminStudentListView.as_view(), name='admin-student-list'),
     path('admin/students/<int:id>/', AdminStudentDetailView.as_view(), name='admin-student-detail'),
     
@@ -97,6 +169,7 @@ urlpatterns = router.urls + [
 urlpatterns += [
     path('admin/listening-test/<int:test_id>/export-csv/', ListeningTestExportCSVView.as_view(), name='listening-test-export-csv'),
     path('admin/reading-test/<int:test_id>/export-csv/', ReadingTestExportCSVView.as_view(), name='reading-test-export-csv'),
+    path('admin/writing-test/<int:test_id>/export-csv/', WritingTestExportCSVView.as_view(), name='writing-test-export-csv'),
     path('admin/writing/export-csv/', WritingTestExportCSVView.as_view(), name='writing-export-csv'),
     
     # Reading test session endpoints
@@ -106,5 +179,57 @@ urlpatterns += [
     path('reading-sessions/<int:session_id>/result/', ReadingTestResultView.as_view(), name='reading-session-result'),
     path('reading/sessions/', ReadingTestSessionListView.as_view(), name='reading-session-list'),
     path('get-email-by-sid/', GetEmailBySIDView.as_view(), name='get-email-by-sid'),
+    path('get-email-by-curator-id/', GetEmailByCuratorIDView.as_view(), name='get-email-by-curator-id'),
     path('admin/writing-prompt/<int:prompt_id>/export-csv/', WritingPromptExportCSVView.as_view(), name='writing-prompt-export-csv'),
+    # Teacher Writing feedback (session-level)
+    path('teacher/writing/sessions/<int:session_id>/feedback/', TeacherSessionFeedbackView.as_view(), name='teacher-session-feedback'),
+    path('teacher/writing/sessions/<int:session_id>/publish/', TeacherSessionPublishView.as_view(), name='teacher-session-publish'),
+    # Student session feedback (combined Task1+Task2)
+    path('writing/sessions/<int:session_id>/teacher-feedback/', StudentSessionFeedbackView.as_view(), name='student-session-feedback'),
+    
+    # Admin Student Results endpoints
+    path('admin/student-results/', AdminStudentResultsView.as_view(), name='admin-student-results'),
+    path('admin/reading-sessions/', AdminReadingSessionListView.as_view(), name='admin-reading-sessions'),
+    path('admin/reading-sessions/<int:session_id>/result/', AdminReadingSessionResultView.as_view(), name='admin-reading-session-result'),
+    path('admin/listening-sessions/<int:session_id>/result/', AdminListeningSessionResultView.as_view(), name='admin-listening-session-result'),
+    path('admin/listening-sessions/', AdminListeningSessionListView.as_view(), name='admin-listening-sessions'),
+    path('admin/listening-sessions/<int:session_id>/', AdminListeningSessionDetailView.as_view(), name='admin-listening-session-detail'),
+    path('admin/essays/', AdminEssayListView.as_view(), name='admin-essays'),
+    path('admin/reading-sessions/<int:session_id>/', AdminReadingSessionDetailView.as_view(), name='admin-reading-session-detail'),
+    # Teacher Writing Feedback
+    path('teacher/writing/essays/', TeacherEssayListView.as_view(), name='teacher-essay-list'),
+    path('teacher/writing/essays/<int:essay_id>/', TeacherEssayDetailView.as_view(), name='teacher-essay-detail'),
+    path('teacher/writing/essays/<int:essay_id>/feedback/', TeacherFeedbackSaveView.as_view(), name='teacher-feedback-save'),
+    path('teacher/writing/essays/<int:essay_id>/publish/', TeacherFeedbackPublishView.as_view(), name='teacher-feedback-publish'),
+    path('writing/essays/<int:essay_id>/teacher-feedback/', StudentTeacherFeedbackView.as_view(), name='student-teacher-feedback'),
+    path('teachers/', TeachersListView.as_view(), name='teachers-list'),
+    
+    # Teacher Satisfaction Survey
+    path('teacher-survey/', TeacherSatisfactionSurveyView.as_view(), name='teacher-survey'),
+    path('admin/teacher-survey-results/', AdminTeacherSurveyResultsView.as_view(), name='admin-teacher-survey-results'),
+    
+    # Speaking Assessment
+    path('teacher/speaking/students/', TeacherSpeakingStudentsView.as_view(), name='teacher-speaking-students'),
+    path('teacher/speaking/sessions/', TeacherSpeakingSessionsView.as_view(), name='teacher-speaking-sessions'),
+    path('teacher/speaking/sessions/<int:session_id>/', TeacherSpeakingSessionDetailView.as_view(), name='teacher-speaking-session-detail'),
+    path('speaking/sessions/', StudentSpeakingSessionsView.as_view(), name='student-speaking-sessions'),
+    path('speaking/sessions/<int:session_id>/', StudentSpeakingSessionDetailView.as_view(), name='student-speaking-session-detail'),
+    
+    # Curator Views
+    path('curator/students/', CuratorStudentsView.as_view(), name='curator-students'),
+    path('curator/writing-overview/', CuratorWritingOverviewView.as_view(), name='curator-writing-overview'),
+    path('curator/listening-overview/', CuratorListeningOverviewView.as_view(), name='curator-listening-overview'),
+    path('curator/reading-overview/', CuratorReadingOverviewView.as_view(), name='curator-reading-overview'),
+    path('curator/speaking-overview/', CuratorSpeakingOverviewView.as_view(), name='curator-speaking-overview'),
+    path('curator/overview/', CuratorOverviewView.as_view(), name='curator-overview'),
+    path('curator/active-tests/', CuratorActiveTestsView.as_view(), name='curator-active-tests'),
+    path('curator/test-comparison/', CuratorTestComparisonView.as_view(), name='curator-test-comparison'),
+    path('curator/test-comparison-export-csv/', CuratorTestComparisonExportCSVView.as_view(), name='curator-test-comparison-export-csv'),
+    # Curator CSV Exports
+    path('curator/speaking-export-csv/', CuratorSpeakingExportCSVView.as_view(), name='curator-speaking-export-csv'),
+    path('curator/overview-export-csv/', CuratorOverviewExportCSVView.as_view(), name='curator-overview-export-csv'),
+    path('curator/writing-export-csv/', CuratorWritingExportCSVView.as_view(), name='curator-writing-export-csv'),
+    path('curator/student-detail/<int:student_id>/', CuratorStudentDetailView.as_view(), name='curator-student-detail'),
+    path('curator/missing-tests/', CuratorMissingTestsView.as_view(), name='curator-missing-tests'),
+    path('admin/curators/', AdminCuratorsListView.as_view(), name='admin-curators-list'),
 ]

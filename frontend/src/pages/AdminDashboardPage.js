@@ -23,6 +23,10 @@ const AdminDashboardPage = () => {
         <Link to="/admin/listening" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
           <h2 className="text-xl font-bold text-gray-800">Manage Listening tests</h2>
         </Link>
+        <Link to="/admin/teacher-survey-results" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+          <h2 className="text-xl font-bold text-gray-800">Teacher Survey Results</h2>
+          <p className="text-gray-600 mt-2">View student feedback about teachers</p>
+        </Link>
       </div>
     </div>
   );

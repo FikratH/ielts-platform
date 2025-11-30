@@ -1,0 +1,66 @@
+/* Writing Test Protection Styles */
+
+/* Animation for notification toast */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Copy protection styles */
+.no-copy {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  cursor: default;
+}
+
+.no-copy:hover {
+  background-color: rgba(139, 92, 246, 0.1);
+}
+
+/* Visual feedback for blocked operations */
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+}
+
+/* Lock icon animation */
+@keyframes lock-pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.lock-icon {
+  animation: lock-pulse 2s infinite;
+}
+
+/* Notification styles */
+.notification-toast {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .notification-toast {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    transform: none;
+  }
+}

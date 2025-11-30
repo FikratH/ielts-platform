@@ -21,17 +21,11 @@ const ReadingResultPage = () => {
 
     const fetchResult = async () => {
         setIsLoading(true);
-        console.log("🔥 FETCHING RESULT for session:", sessionId);
         try {
             const response = await api.get(`/reading-sessions/${sessionId}/result/`);
-            console.log("🔥 RESULT DATA:", response.data);
-            console.log("🔥 BREAKDOWN EXISTS:", !!response.data.breakdown);
-            if (response.data.breakdown) {
-                console.log("🔥 BREAKDOWN KEYS:", Object.keys(response.data.breakdown));
-            }
             setResult(response.data);
         } catch (err) {
-            console.error("🔥 ERROR fetching result:", err.response?.data || err);
+            console.error("Error fetching result:", err.response?.data || err);
             setError('Failed to load test results. Please try again.');
         } finally {
             setIsLoading(false);
@@ -60,12 +54,22 @@ const ReadingResultPage = () => {
             return <p className="text-gray-600">No detailed breakdown available.</p>;
         }
         
-        return Object.entries(result.breakdown).map(([questionId, data]) => (
+        const entries = Object.entries(result.breakdown);
+        entries.sort(([, a], [, b]) => {
+            const pa = a.part_number ?? 999;
+            const pb = b.part_number ?? 999;
+            if (pa !== pb) return pa - pb;
+            const aid = Number.isFinite(parseInt(a.sub_questions?.[0]?.id)) ? parseInt(a.sub_questions?.[0]?.id) : 0;
+            const bid = Number.isFinite(parseInt(b.sub_questions?.[0]?.id)) ? parseInt(b.sub_questions?.[0]?.id) : 0;
+            return aid - bid;
+        });
+
+        return entries.map(([questionId, data]) => (
             <div key={questionId} className="mb-8 p-6 border border-blue-100 rounded-2xl bg-gradient-to-br from-blue-50/30 to-white shadow-md">
                 <h3 className="text-xl font-bold mb-4 text-blue-700">
                     {data.header || `Question ${questionId}`}
                 </h3>
-                {data.sub_questions.map((sub, index) => {
+                {data.sub_questions && data.sub_questions.map ? data.sub_questions.map((sub, index) => {
                     const isCorrect = sub.is_correct;
                     const bgColor = isCorrect ? 'bg-green-50' : 'bg-red-50';
                     const borderColor = isCorrect ? 'border-green-300' : 'border-red-300';
@@ -111,7 +115,14 @@ const ReadingResultPage = () => {
                             ) : sub.type === 'multiple_response' && sub.options ? (
                                 /* Multiple Response Question */
                                 <div className="text-sm space-y-2">
-                                    <p className="font-medium text-gray-600 mb-2">Answer options:</p>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="font-medium text-gray-600">Answer options:</p>
+                                        {sub.scoring_mode && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                                {sub.scoring_mode === 'all_or_nothing' ? 'All or Nothing' : 'Per Correct Option'}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="space-y-1">
                                         {sub.options.map(opt => (
                                             <div key={opt.label} className={`p-2 border rounded-md text-sm ${
@@ -119,22 +130,43 @@ const ReadingResultPage = () => {
                                                 opt.student_selected && !opt.is_correct_option ? 'border-red-400 bg-red-50' : 
                                                 'border-gray-300'
                                             }`}>
-                                                <span className={`font-bold mr-2 ${opt.is_correct_option ? 'text-green-700' : ''}`}>
-                                                    {opt.label}.
-                                                </span>
-                                                <span>{typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
-                                                {opt.is_correct_option && (
-                                                    <span className="text-green-600 font-semibold ml-2">(Correct)</span>
-                                                )}
-                                                {opt.student_selected && (
-                                                    <span className="text-blue-600 font-semibold ml-2">(Selected)</span>
-                                                )}
-                                                {opt.student_selected && !opt.is_correct_option && (
-                                                    <span className="text-red-600 font-semibold ml-2">(Incorrect Selection)</span>
-                                                )}
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1">
+                                                        <span className={`font-bold mr-2 ${opt.is_correct_option ? 'text-green-700' : ''}`}>
+                                                            {opt.label}.
+                                                        </span>
+                                                        <span>{typeof opt.text === 'string' ? opt.text : JSON.stringify(opt.text)}</span>
+                                                        {opt.is_correct_option && (
+                                                            <span className="text-green-600 font-semibold ml-2">(Correct)</span>
+                                                        )}
+                                                        {opt.student_selected && (
+                                                            <span className="text-blue-600 font-semibold ml-2">(Selected)</span>
+                                                        )}
+                                                        {opt.student_selected && !opt.is_correct_option && (
+                                                            <span className="text-red-600 font-semibold ml-2">(Incorrect Selection)</span>
+                                                        )}
+                                                    </div>
+                                                    {opt.points && sub.scoring_mode === 'per_correct_option' && (
+                                                        <div className="text-xs text-gray-500 ml-2">
+                                                            {opt.student_selected && opt.is_correct_option ? 
+                                                                `+${opt.points} pts` : 
+                                                                `${opt.points} pts`
+                                                            }
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
+                                    {sub.final_score !== undefined && (
+                                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium">Score: </span>
+                                            <span className="font-bold text-blue-600">{sub.final_score}</span>
+                                            {sub.scoring_mode === 'per_correct_option' && sub.max_score && (
+                                                <span className="text-gray-500"> / {sub.max_score}</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 /* Default text-based answers */
@@ -142,7 +174,7 @@ const ReadingResultPage = () => {
                                     <p>
                                         <span className="font-medium text-gray-600">Your answer:</span> 
                                         <span className={`ml-2 font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
-                                            {sub.student_answer || "(empty)"}
+                                            {sub.user_answer || "(empty)"}
                                         </span>
                                     </p>
                                     {!isCorrect && (
@@ -160,7 +192,7 @@ const ReadingResultPage = () => {
                             )}
                         </div>
                     );
-                })}
+                }) : <p>No sub-questions available</p>}
             </div>
         ));
     };
@@ -196,8 +228,10 @@ const ReadingResultPage = () => {
             <div className="max-w-full md:max-w-4xl mx-auto px-2 sm:px-4">
                 {/* Header */}
                 <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 mb-6 sm:mb-8 border border-blue-100">
-                    <h1 className="text-xl sm:text-3xl font-bold text-center mb-2 sm:mb-4 text-blue-700">Test Results</h1>
-                    <h2 className="text-base sm:text-xl text-center text-gray-600 mb-4 sm:mb-6">{result.test_title || 'IELTS Reading Test'}</h2>
+                    <div className="flex flex-col items-center gap-2">
+                      <h1 className="text-xl sm:text-3xl font-bold text-blue-700">Test Results</h1>
+                      <h2 className="text-base sm:text-xl text-gray-600">{result.test_title || 'IELTS Reading Test'}</h2>
+                    </div>
                     
                     {/* Score Summary */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6">
@@ -220,6 +254,16 @@ const ReadingResultPage = () => {
                         >
                             Take Another Test
                         </button>
+                        {result?.explanation_url && (
+                          <a
+                            href={result.explanation_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 sm:px-6 py-2 sm:py-3 bg-white text-emerald-700 border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 font-semibold rounded-xl shadow-sm transition-all duration-300 text-xs sm:text-base text-center"
+                          >
+                            Test explanation
+                          </a>
+                        )}
                         <button
                             onClick={() => navigate('/dashboard')}
                             className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-semibold rounded-xl shadow-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 text-xs sm:text-base"

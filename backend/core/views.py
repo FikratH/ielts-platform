@@ -2,6 +2,22 @@ import os
 import csv
 from dotenv import load_dotenv
 load_dotenv()
+
+def ielts_round_score(score):
+    """Apply IELTS band score rounding rules"""
+    if score is None:
+        return None
+    try:
+        score = float(score)
+        decimal = score - int(score)
+        if decimal < 0.25:
+            return int(score)
+        elif decimal < 0.75:
+            return int(score) + 0.5
+        else:
+            return int(score) + 1.0
+    except (ValueError, TypeError):
+        return None
 from .utils import CsrfExemptAPIView
 from django.http import HttpResponse
 from .firebase_config import verify_firebase_token
@@ -9,19 +25,19 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
 from .models import ListeningTest, ListeningTestSession
 from .serializers import (
-    EssaySerializer, WritingPromptSerializer,
-    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestCreateSerializer, ListeningTestSessionResultSerializer,
+    EssaySerializer, WritingPromptSerializer, WritingTestSerializer, WritingTaskSerializer, WritingTestSessionSerializer,
+    ListeningTestListSerializer, ListeningTestDetailSerializer, ListeningTestSessionSerializer, ListeningTestSessionResultSerializer,
     ListeningTestSessionHistorySerializer, ReadingTestSessionHistorySerializer
 )
-from .models import WritingTestSession
+from .models import WritingTestSession, WritingTest, WritingTask
 from rest_framework import serializers
 from rest_framework import viewsets
 from .models import WritingPrompt
 from .serializers import WritingPromptSerializer
 from rest_framework.generics import ListAPIView
-from .models import Essay, User
+from .models import Essay, User, TeacherFeedback, SpeakingSession
 from .serializers import EssaySerializer
-from .permissions import IsAdmin
+from .permissions import IsAdmin, IsTeacher, IsTeacherOrCurator
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 import re
@@ -29,6 +45,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
+from datetime import timedelta, datetime
 import json
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import render, get_object_or_404
@@ -44,6 +61,7 @@ from .serializers import (
     ListeningTestSessionSerializer, ListeningTestResultSerializer, ListeningTestCloneSerializer
 )
 from .serializers import ListeningTestSessionSyncSerializer, ListeningTestSessionSubmitSerializer, ListeningTestResultSerializer
+from .serializers import create_listening_detailed_breakdown
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -55,6 +73,1107 @@ from firebase_admin import auth as firebase_auth
 from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
 from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
 from .utils import ai_score_essay
+from .models import TeacherSatisfactionSurvey
+from .serializers import TeacherSatisfactionSurveySerializer
+from django.db import models
+from .permissions import IsCurator, IsTeacherOrCurator
+from django.utils import timezone
+from datetime import timedelta
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .auth import verify_firebase_token
+from .models import (
+    ListeningTestSession, ListeningTestResult,
+    ReadingTestSession, ReadingTestResult,
+    Essay, TeacherFeedback, User, SpeakingSession
+)
+
+
+def _parse_date_param(value):
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
+
+def apply_date_range_filter(queryset, request, field_name):
+    date_from = _parse_date_param(request.query_params.get('date_from'))
+    date_to = _parse_date_param(request.query_params.get('date_to'))
+    if date_from:
+        queryset = queryset.filter(**{f'{field_name}__date__gte': date_from})
+    if date_to:
+        queryset = queryset.filter(**{f'{field_name}__date__lte': date_to})
+    return queryset
+
+# ------------------------------
+# User Profile Views
+# ------------------------------
+class UserProfileView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            return Response({
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'role': user.role,
+                'student_id': user.student_id,
+                'group': user.group,
+                'teacher': user.teacher,
+                'uid': user.uid
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+# ------------------------------
+# Student Dashboard Summary View
+# ------------------------------
+class DashboardSummaryView(APIView):
+    permission_classes = [AllowAny]
+
+    def _get_current_user(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return None
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return None
+        uid = decoded.get('uid')
+        try:
+            return User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return None
+
+    def get(self, request):
+        user = self._get_current_user(request)
+        if not user:
+            return Response({'detail': 'Authentication required'}, status=401)
+
+        now = timezone.now()
+        since_30d = now - timedelta(days=30)
+
+        # Listening aggregates
+        listen_qs = ListeningTestSession.objects.filter(user=user)
+        listen_30_qs = listen_qs.filter(models.Q(completed_at__gte=since_30d) | models.Q(started_at__gte=since_30d))
+
+        listening_completed_all = listen_qs.filter(submitted=True).count()
+        listening_completed_30d = listen_30_qs.filter(submitted=True).count()
+
+        listen_results = ListeningTestResult.objects.filter(session__in=listen_qs)
+        listen_band_all = listen_results.aggregate(avg=models.Avg('band_score'))['avg']
+        listen_results_30 = ListeningTestResult.objects.filter(session__in=listen_30_qs)
+        listen_band_30d = listen_results_30.aggregate(avg=models.Avg('band_score'))['avg']
+
+        last_listen = listen_qs.order_by(models.F('completed_at').desc(nulls_last=True), models.F('started_at').desc()).first()
+        last_listen_band = None
+        last_listen_date = None
+        last_listen_accuracy = None
+        if last_listen:
+            last_listen_date = last_listen.completed_at or last_listen.started_at
+            lr = ListeningTestResult.objects.filter(session=last_listen).first()
+            last_listen_band = (lr.band_score if lr else None)
+            if last_listen.total_questions_count:
+                last_listen_accuracy = round(100.0 * (last_listen.correct_answers_count or 0) / max(1, last_listen.total_questions_count), 1)
+
+        # Compute average accuracy over 30 days if possible
+        accuracy_samples = []
+        for row in listen_30_qs.values('correct_answers_count', 'total_questions_count'):
+            total = row.get('total_questions_count') or 0
+            correct = row.get('correct_answers_count') or 0
+            if total > 0:
+                accuracy_samples.append(100.0 * correct / total)
+        # Fallback: derive accuracy from ListeningTestResult.raw_score when session counters are empty
+        if not accuracy_samples:
+            for row in ListeningTestResult.objects.filter(session__in=listen_30_qs).values('raw_score', 'session__total_questions_count'):
+                total = row.get('session__total_questions_count') or 0
+                raw = row.get('raw_score') or 0
+                if total > 0:
+                    accuracy_samples.append(100.0 * raw / total)
+        listen_accuracy_avg_30d = round(sum(accuracy_samples) / len(accuracy_samples), 1) if accuracy_samples else None
+
+        listening = {
+            'totals': {
+                'completed_all': listening_completed_all,
+                'completed_30d': listening_completed_30d,
+            },
+            'avg': {
+                'band_all': listen_band_all,
+                'band_30d': listen_band_30d,
+            },
+            'last_result': {
+                'band': last_listen_band,
+                'date': last_listen_date,
+            },
+            'accuracy': {
+                'last_test_percent': last_listen_accuracy,
+                'avg_30d_percent': listen_accuracy_avg_30d,
+            }
+        }
+
+        # Reading aggregates
+        reading_qs = ReadingTestSession.objects.filter(user=user)
+        reading_30_qs = reading_qs.filter(models.Q(end_time__gte=since_30d) | models.Q(start_time__gte=since_30d))
+
+        reading_completed_all = reading_qs.filter(completed=True).count()
+        reading_completed_30d = reading_30_qs.filter(completed=True).count()
+
+        read_results = ReadingTestResult.objects.filter(session__in=reading_qs)
+        read_band_all = read_results.aggregate(avg=models.Avg('band_score'))['avg']
+        read_score_all = read_results.aggregate(avg=models.Avg('total_score'))['avg']
+        read_results_30 = ReadingTestResult.objects.filter(session__in=reading_30_qs)
+        read_band_30d = read_results_30.aggregate(avg=models.Avg('band_score'))['avg']
+        read_score_30d = read_results_30.aggregate(avg=models.Avg('total_score'))['avg']
+
+        last_reading = reading_qs.order_by(models.F('end_time').desc(nulls_last=True), models.F('start_time').desc()).first()
+        last_read_band = None
+        last_read_score = None
+        last_read_date = None
+        last_read_accuracy = None
+        if last_reading:
+            last_read_date = last_reading.end_time or last_reading.start_time
+            rr = ReadingTestResult.objects.filter(session=last_reading).first()
+            if rr:
+                last_read_band = rr.band_score
+                last_read_score = rr.total_score
+                if getattr(rr, 'raw_score', None) is not None and rr.total_score:
+                    last_read_accuracy = round(100.0 * rr.raw_score / max(1.0, rr.total_score), 1)
+
+        reading = {
+            'totals': {
+                'completed_all': reading_completed_all,
+                'completed_30d': reading_completed_30d,
+            },
+            'avg': {
+                'band_all': read_band_all,
+                'score_all': read_score_all,
+                'band_30d': read_band_30d,
+                'score_30d': read_score_30d,
+            },
+            'last_result': {
+                'band': last_read_band,
+                'score': last_read_score,
+                'date': last_read_date,
+            },
+            'accuracy': {
+                'last_test_percent': last_read_accuracy,
+            }
+        }
+
+        # Writing aggregates
+        essays_qs = Essay.objects.filter(user=user)
+        essays_30_qs = essays_qs.filter(submitted_at__gte=since_30d)
+        essays_count_all = essays_qs.count()
+        essays_count_30d = essays_30_qs.count()
+        sessions_30d = essays_30_qs.exclude(test_session__isnull=True).values('test_session').distinct().count()
+
+        write_avg_all = essays_qs.aggregate(avg=models.Avg('overall_band'))['avg']
+        write_avg_30d = essays_30_qs.aggregate(avg=models.Avg('overall_band'))['avg']
+
+        last_essay = essays_qs.order_by('-submitted_at').first()
+        last_feedback = None
+        if last_essay:
+            tf = TeacherFeedback.objects.filter(essay=last_essay).first()
+            if tf:
+                last_feedback = {
+                    'published': tf.published,
+                    'teacher_overall_score': tf.teacher_overall_score,
+                }
+            else:
+                last_feedback = {
+                    'published': None,
+                    'teacher_overall_score': None,
+                }
+
+        writing = {
+            'totals': {
+                'essays_all': essays_count_all,
+                'essays_30d': essays_count_30d,
+                'sessions_30d': sessions_30d,
+            },
+            'avg': {
+                'overall_band_all': write_avg_all,
+                'overall_band_30d': write_avg_30d,
+            },
+            'last_feedback': last_feedback,
+        }
+
+        # Diagnostic quick summary
+        diag_locked = (
+            ListeningTestSession.objects.filter(user=user, submitted=True, is_diagnostic=False).exists() or
+            ReadingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists() or
+            WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists()
+        )
+        # Diagnostic details
+        diag_l_session = ListeningTestSession.objects.filter(user=user, submitted=True, is_diagnostic=True).first()
+        diag_r_session = ReadingTestSession.objects.filter(user=user, completed=True, is_diagnostic=True).first()
+        
+        diag_w_session = WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=True).first()
+        diag_w_band = None
+        if diag_w_session:
+            essays = Essay.objects.filter(test_session=diag_w_session)
+            bands = [e.overall_band for e in essays if e.overall_band is not None]
+            if bands:
+                avg = sum(bands) / len(bands)
+                dec = avg - int(avg)
+                if dec < 0.25:
+                    diag_w_band = float(int(avg))
+                elif dec < 0.75:
+                    diag_w_band = float(int(avg)) + 0.5
+                else:
+                    diag_w_band = float(int(avg)) + 1.0
+
+        diagnostic = {
+            'locked': diag_locked,
+            'listening_done': diag_l_session is not None,
+            'reading_done': diag_r_session is not None,
+            'writing_done': diag_w_session is not None,
+            'listening': {
+                'band': ListeningTestResult.objects.filter(session=diag_l_session).first().band_score if diag_l_session else None,
+                'date': diag_l_session.completed_at if diag_l_session else None,
+                'session_id': diag_l_session.id if diag_l_session else None,
+            } if diag_l_session else None,
+            'reading': {
+                'band': ReadingTestResult.objects.filter(session=diag_r_session).first().band_score if diag_r_session else None,
+                'date': diag_r_session.end_time if diag_r_session else None,
+                'session_id': diag_r_session.id if diag_r_session else None,
+            } if diag_r_session else None,
+            'writing': {
+                'band': diag_w_band,
+                'date': essays.order_by('-submitted_at').first().submitted_at if diag_w_session and essays.exists() else None,
+                'session_id': diag_w_session.id if diag_w_session else None,
+            } if diag_w_session else None,
+        }
+        
+        # Add completion count
+        diagnostic['completed_count'] = (
+            int( diagnostic['listening_done']) + 
+            int( diagnostic['reading_done']) + 
+            int( diagnostic['writing_done'])
+        )
+
+        return Response({
+            'listening': listening,
+            'reading': reading,
+            'writing': writing,
+            'diagnostic': diagnostic,
+        })
+
+
+# ------------------------------
+# Diagnostic Summary Endpoints
+# ------------------------------
+class DiagnosticSummaryView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+        locked = (
+            ListeningTestSession.objects.filter(user=user, submitted=True, is_diagnostic=False).exists() or
+            ReadingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists() or
+            WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists()
+        )
+
+        # Listening
+        l_session = ListeningTestSession.objects.filter(user=user, submitted=True, is_diagnostic=True).order_by('-completed_at').first()
+        l_band = None
+        l_date = None
+        l_sid = None
+        if l_session:
+            l_res = ListeningTestResult.objects.filter(session=l_session).first()
+            l_band = l_res.band_score if l_res else None
+            l_date = l_session.completed_at or l_session.started_at
+            l_sid = l_session.id
+
+        # Reading
+        r_session = ReadingTestSession.objects.filter(user=user, completed=True, is_diagnostic=True).order_by('-end_time').first()
+        r_band = None
+        r_date = None
+        r_sid = None
+        if r_session:
+            r_res = ReadingTestResult.objects.filter(session=r_session).first()
+            r_band = r_res.band_score if r_res else None
+            r_date = r_session.end_time or r_session.start_time
+            r_sid = r_session.id
+
+        # Writing
+        w_session = WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=True).order_by('-started_at').first()
+        w_band = None
+        w_date = None
+        w_sid = None
+        if w_session:
+            # Average overall band across essays in this session
+            essays = Essay.objects.filter(test_session=w_session)
+            bands = [e.overall_band for e in essays if e.overall_band is not None]
+            if bands:
+                avg = sum(bands) / len(bands)
+                dec = avg - int(avg)
+                if dec < 0.25:
+                    w_band = float(int(avg))
+                elif dec < 0.75:
+                    w_band = float(int(avg)) + 0.5
+                else:
+                    w_band = float(int(avg)) + 1.0
+            w_date = essays.order_by('-submitted_at').first().submitted_at if essays.exists() else None
+            w_sid = w_session.id
+
+        completed_count = int(l_band is not None) + int(r_band is not None) + int(w_band is not None)
+
+        overall_band = None
+        if completed_count == 3:
+            avg = (l_band + r_band + w_band) / 3.0
+            dec = avg - int(avg)
+            if dec < 0.25:
+                overall_band = float(int(avg))
+            elif dec < 0.75:
+                overall_band = float(int(avg)) + 0.5
+            else:
+                overall_band = float(int(avg)) + 1.0
+
+        return Response({
+            'locked': locked,
+            'listening': {'band': l_band, 'date': l_date, 'session_id': l_sid},
+            'reading': {'band': r_band, 'date': r_date, 'session_id': r_sid},
+            'writing': {'band': w_band, 'date': w_date, 'session_id': w_sid},
+            'completed_count': completed_count,
+            'overall_band': overall_band,
+        })
+
+
+class CuratorDiagnosticResultsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role not in ['teacher', 'curator']:
+                return Response({'error': 'Access denied'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+        # Get all students with diagnostic test data
+        students_with_diagnostics = []
+        
+        # Get students with any diagnostic sessions
+        diagnostic_students = set()
+        diagnostic_students.update(
+            ListeningTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
+        )
+        diagnostic_students.update(
+            ReadingTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
+        )
+        diagnostic_students.update(
+            WritingTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
+        )
+
+        for student_id in diagnostic_students:
+            try:
+                student = User.objects.get(id=student_id)
+                
+                # Get latest diagnostic sessions for each module
+                l_session = ListeningTestSession.objects.filter(user=student, submitted=True, is_diagnostic=True).order_by('-completed_at').first()
+                r_session = ReadingTestSession.objects.filter(user=student, completed=True, is_diagnostic=True).order_by('-end_time').first()
+                w_session = WritingTestSession.objects.filter(user=student, completed=True, is_diagnostic=True).order_by('-started_at').first()
+
+                l_band = None
+                l_date = None
+                if l_session:
+                    l_res = ListeningTestResult.objects.filter(session=l_session).first()
+                    l_band = l_res.band_score if l_res else None
+                    l_date = l_session.completed_at or l_session.started_at
+
+                r_band = None
+                r_date = None
+                if r_session:
+                    r_res = ReadingTestResult.objects.filter(session=r_session).first()
+                    r_band = r_res.band_score if r_res else None
+                    r_date = r_session.end_time or r_session.start_time
+
+                w_band = None
+                w_date = None
+                if w_session:
+                    essays = Essay.objects.filter(test_session=w_session)
+                    bands = [e.overall_band for e in essays if e.overall_band is not None]
+                    if bands:
+                        avg = sum(bands) / len(bands)
+                        dec = avg - int(avg)
+                        if dec < 0.25:
+                            w_band = float(int(avg))
+                        elif dec < 0.75:
+                            w_band = float(int(avg)) + 0.5
+                        else:
+                            w_band = float(int(avg)) + 1.0
+                    w_date = essays.order_by('-submitted_at').first().submitted_at if essays.exists() else None
+
+                completed_count = int(l_band is not None) + int(r_band is not None) + int(w_band is not None)
+                
+                overall_band = None
+                if completed_count == 3:
+                    avg = (l_band + r_band + w_band) / 3.0
+                    dec = avg - int(avg)
+                    if dec < 0.25:
+                        overall_band = float(int(avg))
+                    elif dec < 0.75:
+                        overall_band = float(int(avg)) + 0.5
+                    else:
+                        overall_band = float(int(avg)) + 1.0
+
+                students_with_diagnostics.append({
+                    'student_id': student.id,
+                    'student_name': f"{student.first_name} {student.last_name}".strip() or student.email,
+                    'email': student.email,
+                    'listening': {'band': l_band, 'date': l_date},
+                    'reading': {'band': r_band, 'date': r_date},
+                    'writing': {'band': w_band, 'date': w_date},
+                    'completed_count': completed_count,
+                    'overall_band': overall_band,
+                })
+            except User.DoesNotExist:
+                continue
+
+        # Sort by overall band score (completed students first)
+        students_with_diagnostics.sort(key=lambda x: (
+            -1 if x['overall_band'] is not None else 1,  # Completed first
+            -(x['overall_band'] or 0)  # Then by band score descending
+        ))
+
+        # Calculate summary statistics
+        completed_students = [s for s in students_with_diagnostics if s['completed_count'] == 3]
+        total_diagnostic_students = len(students_with_diagnostics)
+        avg_overall = None
+        if completed_students:
+            overall_bands = [s['overall_band'] for s in completed_students if s['overall_band'] is not None]
+            avg_overall = sum(overall_bands) / len(overall_bands) if overall_bands else None
+
+        return Response({
+            'students': students_with_diagnostics,
+            'summary': {
+                'total_diagnostic_students': total_diagnostic_students,
+                'completed_diagnostic_students': len(completed_students),
+                'average_overall_band': avg_overall,
+            }
+        })
+
+
+# ------------------------------
+# Teacher Writing Feedback Views
+# ------------------------------
+from .serializers import TeacherFeedbackSerializer, TeacherFeedbackUpsertSerializer, TeacherEssayListItemSerializer
+
+def get_teacher_from_request(request, allowed_roles=None):
+    """Helper function to extract and validate teacher from request"""
+    allowed_roles = allowed_roles or ('teacher',)
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Bearer '):
+        return None, Response({'error': 'Authentication required'}, status=401)
+    id_token = auth_header.split(' ')[1]
+    decoded = verify_firebase_token(id_token)
+    if not decoded:
+        return None, Response({'error': 'Invalid token'}, status=401)
+    uid = decoded['uid']
+    try:
+        teacher = User.objects.get(uid=uid)
+        if teacher.role not in allowed_roles:
+            return None, Response({'error': 'Teacher access required'}, status=403)
+        request.user = teacher
+        return teacher, None
+    except User.DoesNotExist:
+        return None, Response({'error': 'User not found'}, status=404)
+
+
+
+class TeacherEssayListView(ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = TeacherEssayListItemSerializer
+
+    def get_queryset(self):
+        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Essay.objects.none()
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Essay.objects.none()
+        uid = decoded['uid']
+        try:
+            teacher = User.objects.get(uid=uid)
+            if teacher.role != 'teacher':
+                return Essay.objects.none()
+        except User.DoesNotExist:
+            return Essay.objects.none()
+        qs = Essay.objects.select_related('user', 'prompt', 'test_session')
+        
+        # Связываем студентов с учителем через поле teacher (по имени)
+        # Ищем студентов, у которых в поле teacher указано имя текущего учителя
+        teacher_name = teacher.first_name
+        if not teacher_name:
+            # Если у учителя нет first_name, попробуем использовать student_id или полное имя
+            teacher_name = teacher.student_id or f"{teacher.first_name} {teacher.last_name}".strip()
+        
+        if teacher_name:
+            qs = qs.filter(user__teacher=teacher_name)
+        else:
+            # Если у учителя нет никакого идентификатора, возвращаем пустой queryset
+            return qs.none()
+        prompt_id = self.request.query_params.get('prompt_id')
+        task_type = self.request.query_params.get('task_type')
+        student_id = self.request.query_params.get('student_id')
+        group = self.request.query_params.get('group')
+        published = self.request.query_params.get('published')
+        if prompt_id:
+            qs = qs.filter(prompt_id=prompt_id)
+        if task_type:
+            qs = qs.filter(task_type=task_type)
+        if student_id:
+            qs = qs.filter(user__student_id=student_id)
+        if group:
+            qs = qs.filter(user__group=group)
+        if published is not None:
+            p = str(published).lower()
+            if p in ['1', 'true', 'yes']:
+                qs = qs.filter(teacher_feedback__published=True)
+            elif p in ['0', 'false', 'no']:
+                qs = qs.exclude(teacher_feedback__published=True)
+        return qs.order_by('-submitted_at')
+
+class TeacherEssayDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, essay_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+            
+        essay = get_object_or_404(Essay.objects.select_related('user', 'prompt'), pk=essay_id)
+        # Проверяем, что студент принадлежит этому учителю (по имени)
+        teacher_name = teacher.first_name or teacher.student_id
+        if essay.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+        feedback = getattr(essay, 'teacher_feedback', None)
+        return Response({
+            'essay': EssaySerializer(essay).data,
+            'feedback': TeacherFeedbackSerializer(feedback).data if feedback else None
+        })
+
+class TeacherFeedbackSaveView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, essay_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+            
+        essay = get_object_or_404(Essay.objects.select_related('user'), pk=essay_id)
+        # Проверяем, что студент принадлежит этому учителю (по имени)
+        teacher_name = teacher.first_name or teacher.student_id
+        if essay.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+        upsert = TeacherFeedbackUpsertSerializer(data=request.data)
+        upsert.is_valid(raise_exception=True)
+        data = upsert.validated_data
+        # Обрабатываем пустые строки как None для числовых полей
+        def clean_score(score):
+            if score == '' or score is None:
+                return None
+            try:
+                return float(score)
+            except (ValueError, TypeError):
+                return None
+        
+        feedback, _ = TeacherFeedback.objects.update_or_create(
+            essay=essay,
+            defaults={
+                'teacher': teacher,
+                'overall_feedback': data.get('overall_feedback', ''),
+                'annotations': data.get('annotations', []),
+                'teacher_task_score': clean_score(data.get('teacher_task_score')),
+                'teacher_coherence_score': clean_score(data.get('teacher_coherence_score')),
+                'teacher_lexical_score': clean_score(data.get('teacher_lexical_score')),
+                'teacher_grammar_score': clean_score(data.get('teacher_grammar_score')),
+                'teacher_task_feedback': data.get('teacher_task_feedback', ''),
+                'teacher_coherence_feedback': data.get('teacher_coherence_feedback', ''),
+                'teacher_lexical_feedback': data.get('teacher_lexical_feedback', ''),
+                'teacher_grammar_feedback': data.get('teacher_grammar_feedback', ''),
+            }
+        )
+        return Response(TeacherFeedbackSerializer(feedback).data)
+
+class TeacherFeedbackPublishView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, essay_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+            
+        essay = get_object_or_404(Essay.objects.select_related('user'), pk=essay_id)
+        # Проверяем, что студент принадлежит этому учителю (по имени)
+        teacher_name = teacher.first_name or teacher.student_id
+        if essay.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+        upsert = TeacherFeedbackUpsertSerializer(data=request.data)
+        upsert.is_valid(raise_exception=True)
+        data = upsert.validated_data
+        from django.utils import timezone as dj_tz
+        # Обрабатываем пустые строки как None для числовых полей
+        def clean_score(score):
+            if score == '' or score is None:
+                return None
+            try:
+                return float(score)
+            except (ValueError, TypeError):
+                return None
+        
+        feedback, _ = TeacherFeedback.objects.update_or_create(
+            essay=essay,
+            defaults={
+                'teacher': teacher,
+                'overall_feedback': data.get('overall_feedback', ''),
+                'annotations': data.get('annotations', []),
+                'teacher_task_score': clean_score(data.get('teacher_task_score')),
+                'teacher_coherence_score': clean_score(data.get('teacher_coherence_score')),
+                'teacher_lexical_score': clean_score(data.get('teacher_lexical_score')),
+                'teacher_grammar_score': clean_score(data.get('teacher_grammar_score')),
+                'teacher_task_feedback': data.get('teacher_task_feedback', ''),
+                'teacher_coherence_feedback': data.get('teacher_coherence_feedback', ''),
+                'teacher_lexical_feedback': data.get('teacher_lexical_feedback', ''),
+                'teacher_grammar_feedback': data.get('teacher_grammar_feedback', ''),
+                'published': True,
+                'published_at': dj_tz.now(),
+            }
+        )
+        return Response(TeacherFeedbackSerializer(feedback).data)
+
+class StudentTeacherFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, essay_id):
+        essay = get_object_or_404(Essay, pk=essay_id, user=request.user)
+        feedback = getattr(essay, 'teacher_feedback', None)
+        if not feedback or not feedback.published:
+            return Response({'error': 'Feedback not available'}, status=404)
+        return Response({
+            'essay': EssaySerializer(essay).data,
+            'feedback': TeacherFeedbackSerializer(feedback).data
+        })
+
+# ------------------------------
+# Session-level Writing Feedback (Teacher + Student)
+# ------------------------------
+
+class TeacherSessionFeedbackView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+        session = get_object_or_404(WritingTestSession.objects.select_related('user', 'test'), pk=session_id)
+        teacher_name = teacher.first_name or teacher.student_id
+        if session.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+
+        essays = Essay.objects.filter(test_session=session).select_related('prompt').order_by('task_type')
+        items = []
+        for e in essays:
+            fb = getattr(e, 'teacher_feedback', None)
+            items.append({
+                'essay': EssaySerializer(e).data,
+                'feedback': TeacherFeedbackSerializer(fb).data if fb else None
+            })
+        return Response({'session': {'id': session.id, 'user_id': session.user_id, 'test_id': session.test_id, 'completed': session.completed}, 'items': items})
+
+    def put(self, request, session_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+        session = get_object_or_404(WritingTestSession.objects.select_related('user'), pk=session_id)
+        teacher_name = teacher.first_name or teacher.student_id
+        if session.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+
+        payload = request.data if isinstance(request.data, dict) else {}
+        items = payload.get('items', [])
+        updated = []
+
+        for item in items:
+            essay_id = item.get('essay_id')
+            if not essay_id:
+                continue
+            essay = get_object_or_404(Essay.objects.select_related('user'), pk=essay_id)
+            if essay.test_session_id != session.id:
+                return Response({'error': 'Essay does not belong to session'}, status=400)
+            if essay.user.teacher != teacher_name:
+                return Response({'error': 'Not allowed'}, status=403)
+
+            upsert = TeacherFeedbackUpsertSerializer(data=item.get('feedback', {}))
+            upsert.is_valid(raise_exception=True)
+            data = upsert.validated_data
+
+            def clean_score(score):
+                if score == '' or score is None:
+                    return None
+                try:
+                    return float(score)
+                except (ValueError, TypeError):
+                    return None
+
+            fb, _ = TeacherFeedback.objects.update_or_create(
+                essay=essay,
+                defaults={
+                    'teacher': teacher,
+                    'overall_feedback': data.get('overall_feedback', ''),
+                    'annotations': data.get('annotations', []),
+                    'teacher_task_score': clean_score(data.get('teacher_task_score')),
+                    'teacher_coherence_score': clean_score(data.get('teacher_coherence_score')),
+                    'teacher_lexical_score': clean_score(data.get('teacher_lexical_score')),
+                    'teacher_grammar_score': clean_score(data.get('teacher_grammar_score')),
+                    'teacher_task_feedback': data.get('teacher_task_feedback', ''),
+                    'teacher_coherence_feedback': data.get('teacher_coherence_feedback', ''),
+                    'teacher_lexical_feedback': data.get('teacher_lexical_feedback', ''),
+                    'teacher_grammar_feedback': data.get('teacher_grammar_feedback', ''),
+                }
+            )
+            updated.append(TeacherFeedbackSerializer(fb).data)
+
+        return Response({'updated': updated})
+
+
+class TeacherSessionPublishView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        teacher, error_response = get_teacher_from_request(request)
+        if error_response:
+            return error_response
+        session = get_object_or_404(WritingTestSession.objects.select_related('user'), pk=session_id)
+        teacher_name = teacher.first_name or teacher.student_id
+        if session.user.teacher != teacher_name:
+            return Response({'error': 'Not allowed'}, status=403)
+
+        from django.utils import timezone as dj_tz
+        essays = Essay.objects.filter(test_session=session)
+        published_ids = []
+        for essay in essays:
+            fb, _ = TeacherFeedback.objects.get_or_create(essay=essay, defaults={'teacher': teacher})
+            # Если пришли данные в теле запроса (могут быть обновления), применяем их перед публикацией
+            payload = request.data if isinstance(request.data, dict) else {}
+            items = payload.get('items', []) if payload else []
+            for item in items:
+                if item.get('essay_id') == essay.id:
+                    data = item.get('feedback', {}) or {}
+                    # Обновляем поля фидбэка
+                    fb.overall_feedback = data.get('overall_feedback', fb.overall_feedback)
+                    fb.annotations = data.get('annotations', fb.annotations) or []
+                    for field in ['teacher_task_score','teacher_coherence_score','teacher_lexical_score','teacher_grammar_score','teacher_task_feedback','teacher_coherence_feedback','teacher_lexical_feedback','teacher_grammar_feedback']:
+                        if field in data:
+                            setattr(fb, field, data.get(field))
+            fb.teacher = teacher
+            fb.published = True
+            fb.published_at = dj_tz.now()
+            fb.save()
+            published_ids.append(essay.id)
+        return Response({'published_essays': published_ids})
+
+
+class StudentSessionFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(WritingTestSession, pk=session_id, user=request.user)
+        essays = Essay.objects.filter(test_session=session).order_by('task_type')
+        items = []
+        for e in essays:
+            fb = getattr(e, 'teacher_feedback', None)
+            if fb and fb.published:
+                items.append({'essay': EssaySerializer(e).data, 'feedback': TeacherFeedbackSerializer(fb).data})
+            else:
+                # Отдаём карточку без содержимого, чтобы фронт мог показать Draft
+                items.append({'essay': EssaySerializer(e).data, 'feedback': None})
+        # Если нет вообще эссе в сессии — 404
+        if not items:
+            return Response({'error': 'Feedback not available'}, status=404)
+        return Response({'session': {'id': session.id, 'test_id': session.test_id, 'completed': session.completed}, 'items': items})
+
+
+# ------------------------------
+# Teacher Speaking Assessment Views
+# ------------------------------
+from .serializers import (
+    SpeakingSessionSerializer, SpeakingSessionCreateSerializer, 
+    SpeakingSessionUpdateSerializer, SpeakingSessionStudentSerializer,
+    SpeakingSessionHistorySerializer
+)
+
+class TeacherSpeakingStudentsView(APIView):
+    """Get list of students assigned to the teacher for speaking assessment"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        if teacher.role == 'speaking_mentor':
+            students = User.objects.filter(role='student').order_by('first_name', 'last_name')
+        else:
+            teacher_name = teacher.first_name
+            if not teacher_name:
+                teacher_name = teacher.student_id or f"{teacher.first_name} {teacher.last_name}".strip()
+            if not teacher_name:
+                return Response({'students': []})
+            students = User.objects.filter(role='student', teacher=teacher_name).order_by('first_name', 'last_name')
+        
+        students_data = []
+        for student in students:
+            if teacher.role == 'speaking_mentor':
+                sessions = SpeakingSession.objects.filter(student=student)
+            else:
+                sessions = SpeakingSession.objects.filter(student=student, teacher=teacher)
+            completed_sessions = sessions.filter(completed=True)
+            latest_session = completed_sessions.order_by('-conducted_at').first()
+            
+            students_data.append({
+                'id': student.id,
+                'student_id': student.student_id,
+                'first_name': student.first_name,
+                'last_name': student.last_name,
+                'email': student.email,
+                'group': student.group,
+                'total_sessions': sessions.count(),
+                'completed_sessions': completed_sessions.count(),
+                'latest_score': latest_session.overall_band_score if latest_session else None,
+                'latest_date': latest_session.conducted_at if latest_session else None
+            })
+        
+        return Response({'students': students_data})
+
+
+class TeacherSpeakingSessionsView(APIView):
+    """Get speaking sessions history for teacher"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        # Filter parameters
+        student_id = request.query_params.get('student_id')
+        completed_only = request.query_params.get('completed', 'true').lower() == 'true'
+        
+        if teacher.role == 'speaking_mentor':
+            sessions = SpeakingSession.objects.all()
+        else:
+            sessions = SpeakingSession.objects.filter(teacher=teacher)
+        sessions = sessions.select_related('student', 'teacher')
+        
+        if student_id:
+            sessions = sessions.filter(student__student_id=student_id)
+        
+        if completed_only:
+            sessions = sessions.filter(completed=True)
+        
+        sessions = sessions.order_by('-conducted_at')
+        serializer = SpeakingSessionHistorySerializer(sessions, many=True)
+        return Response({'sessions': serializer.data})
+    
+    def post(self, request):
+        """Create new speaking session"""
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        data = request.data.copy()
+        
+        # Get student and validate they belong to this teacher
+        student_id = data.get('student_id')
+        if not student_id:
+            return Response({'error': 'Student ID is required'}, status=400)
+        
+        try:
+            student = User.objects.get(student_id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+        
+        # Check if student belongs to this teacher
+        if teacher.role != 'speaking_mentor':
+            teacher_name = teacher.first_name or teacher.student_id
+            if student.teacher != teacher_name:
+                return Response({'error': 'Student does not belong to this teacher'}, status=403)
+        
+        # Set student and teacher
+        data['student'] = student.id
+        data['teacher'] = teacher.id
+        
+        serializer = SpeakingSessionCreateSerializer(data=data, context={'request': request})
+        if serializer.is_valid():
+            session = serializer.save(teacher=teacher, student=student)
+            return Response(SpeakingSessionSerializer(session).data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class TeacherSpeakingSessionDetailView(APIView):
+    """Get, update, or complete a specific speaking session"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request, session_id):
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        try:
+            if teacher.role == 'speaking_mentor':
+                session = SpeakingSession.objects.get(id=session_id)
+            else:
+                session = SpeakingSession.objects.get(id=session_id, teacher=teacher)
+        except SpeakingSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+        
+        serializer = SpeakingSessionSerializer(session)
+        return Response(serializer.data)
+    
+    def put(self, request, session_id):
+        """Update speaking session"""
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        try:
+            if teacher.role == 'speaking_mentor':
+                session = SpeakingSession.objects.get(id=session_id)
+            else:
+                session = SpeakingSession.objects.get(id=session_id, teacher=teacher)
+        except SpeakingSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+        
+        serializer = SpeakingSessionUpdateSerializer(session, data=request.data, partial=True)
+        if serializer.is_valid():
+            session = serializer.save()
+            return Response(SpeakingSessionSerializer(session).data)
+        return Response(serializer.errors, status=400)
+    
+    def post(self, request, session_id):
+        """Complete/submit speaking session"""
+        teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
+        if error_response:
+            return error_response
+        
+        try:
+            if teacher.role == 'speaking_mentor':
+                session = SpeakingSession.objects.get(id=session_id)
+            else:
+                session = SpeakingSession.objects.get(id=session_id, teacher=teacher)
+        except SpeakingSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+        
+        # Update session data and mark as completed
+        serializer = SpeakingSessionUpdateSerializer(session, data=request.data, partial=True)
+        if serializer.is_valid():
+            session = serializer.save(completed=True)
+            return Response(SpeakingSessionSerializer(session).data)
+        return Response(serializer.errors, status=400)
+
+
+# ------------------------------
+# Student Speaking Views
+# ------------------------------
+
+class StudentSpeakingSessionsView(APIView):
+    """Get speaking sessions for student (only completed ones)"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        
+        # Only return completed sessions
+        sessions = SpeakingSession.objects.filter(student=user, completed=True).order_by('-conducted_at')
+        serializer = SpeakingSessionStudentSerializer(sessions, many=True)
+        return Response({'sessions': serializer.data})
+
+
+class StudentSpeakingSessionDetailView(APIView):
+    """Get specific speaking session details for student"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        
+        try:
+            # Only allow access to completed sessions by the student
+            session = SpeakingSession.objects.get(id=session_id, student=user, completed=True)
+        except SpeakingSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+        
+        serializer = SpeakingSessionStudentSerializer(session)
+        return Response(serializer.data)
+
+
+class TeachersListView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        return User.objects.filter(role='teacher').order_by('first_name', 'last_name')
 
 class FirebaseLoginView(APIView):
     permission_classes = [AllowAny]
@@ -62,6 +1181,7 @@ class FirebaseLoginView(APIView):
     def post(self, request, *args, **kwargs):
         # 1. Забираем токен из body — либо под ключом 'token', либо 'idToken'
         id_token = request.data.get('token') or request.data.get('idToken')
+        
         if not id_token:
             return Response(
                 {"detail": "ID token is required"},
@@ -76,15 +1196,39 @@ class FirebaseLoginView(APIView):
                 {"detail": str(e)},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+        except Exception as e:
+            return Response(
+                {"detail": f"Token verification failed: {str(e)}"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not decoded:
+            return Response(
+                {"detail": "Invalid Firebase token"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
         uid = decoded.get('uid')
         email = decoded.get('email')
         student_id = request.data.get('student_id')
         role = request.data.get('role', 'student')
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        group = request.data.get('group')
 
         # 3. Ищем пользователя по uid
         try:
             user = User.objects.get(uid=uid)
+            # Обновляем данные если они переданы
+            if first_name and user.first_name != first_name:
+                user.first_name = first_name
+            if last_name and user.last_name != last_name:
+                user.last_name = last_name
+            if group and user.group != group:
+                user.group = group
+            if student_id and user.student_id != student_id:
+                user.student_id = student_id
+            user.save()
             created = False
         except User.DoesNotExist:
             # 4. Если не нашли — ищем по email
@@ -94,6 +1238,12 @@ class FirebaseLoginView(APIView):
                 user.role = role
                 if student_id and user.student_id != student_id:
                     user.student_id = student_id
+                if first_name and user.first_name != first_name:
+                    user.first_name = first_name
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                if group and user.group != group:
+                    user.group = group
                 user.save()
                 created = False
             except User.DoesNotExist:
@@ -103,6 +1253,9 @@ class FirebaseLoginView(APIView):
                     email=email,
                     role=role,
                     student_id=student_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    group=group,
                     username=email,
                 )
                 created = True
@@ -112,6 +1265,10 @@ class FirebaseLoginView(APIView):
             "message": "Login successful",
             "uid": uid,
             "role": user.role,
+            "student_id": user.student_id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "group": user.group,
             "created": created,
         }, status=status.HTTP_200_OK)
 
@@ -159,7 +1316,7 @@ class EssayListView(ListAPIView):
         try:
             user = User.objects.get(uid=uid)
             session_id = self.request.query_params.get("session_id")
-            queryset = Essay.objects.filter(user=user)
+            queryset = Essay.objects.filter(user=user).select_related('test_session__test', 'task', 'prompt')
             if session_id:
                 queryset = queryset.filter(test_session_id=session_id)
             return queryset.order_by('task_type')
@@ -232,7 +1389,7 @@ class EssayDetailView(RetrieveAPIView):
 class StartWritingSessionView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, test_id=None):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         if not auth_header.startswith('Bearer '):
             return Response({'error': 'Authentication required'}, status=401)
@@ -246,16 +1403,57 @@ class StartWritingSessionView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=401)
 
-        session = WritingTestSession.objects.create(user=user)
-        task1_prompt = WritingPrompt.objects.filter(task_type="task1", is_active=True).order_by("?").first()
-        task2_prompt = WritingPrompt.objects.filter(task_type="task2", is_active=True).order_by("?").first()
+        # Get test_id from URL parameter or request data
+        if not test_id:
+            test_id = request.data.get('test_id')
+        
+        if not test_id:
+            return Response({'error': 'test_id is required'}, status=400)
+
+        try:
+            test = WritingTest.objects.get(id=test_id, is_active=True)
+        except WritingTest.DoesNotExist:
+            return Response({'error': 'Test not found or not active'}, status=404)
+
+        # Diagnostic flag
+        diagnostic_flag = False
+        try:
+            diagnostic_flag = str(request.query_params.get('diagnostic', request.data.get('diagnostic', ''))).lower() in ['1','true','yes']
+        except Exception:
+            diagnostic_flag = False
+
+        if diagnostic_flag:
+            # Lock if any regular completed test exists in any module
+            if (
+                ListeningTestSession.objects.filter(user=user, submitted=True, is_diagnostic=False).exists() or
+                ReadingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists() or
+                WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=False).exists()
+            ):
+                return Response({'detail': 'Diagnostic flow is locked because regular tests already exist.'}, status=status.HTTP_403_FORBIDDEN)
+            if not getattr(test, 'is_diagnostic_template', False):
+                return Response({'detail': 'Selected test is not configured as a diagnostic template.'}, status=status.HTTP_400_BAD_REQUEST)
+            if WritingTestSession.objects.filter(user=user, completed=True, is_diagnostic=True).exists():
+                return Response({'detail': 'Diagnostic writing already completed.'}, status=status.HTTP_409_CONFLICT)
+
+        # Create session with test reference
+        session = WritingTestSession.objects.create(user=user, test=test, is_diagnostic=diagnostic_flag)
+
+        # Get tasks for this test
+        task1 = test.tasks.filter(task_type="task1").first()
+        task2 = test.tasks.filter(task_type="task2").first()
+
+        if not task1 or not task2:
+            return Response({'error': 'Test must have both Task 1 and Task 2'}, status=400)
 
         return Response({
             'session_id': session.id,
-            'task1_prompt_id': task1_prompt.id if task1_prompt else None,
-            'task2_prompt_id': task2_prompt.id if task2_prompt else None,
-            'task1_text': task1_prompt.prompt_text if task1_prompt else "No Task 1 available",
-            'task2_text': task2_prompt.prompt_text if task2_prompt else "No Task 2 available"
+            'test_title': test.title,
+            'task1_id': task1.id,
+            'task2_id': task2.id,
+            'task1_text': task1.task_text,
+            'task2_text': task2.task_text,
+            'task1_image': task1.image.url if task1.image else None,
+            'task2_image': task2.image.url if task2.image else None
         })
 
 
@@ -286,24 +1484,37 @@ class SubmitTaskView(APIView):
         except WritingTestSession.DoesNotExist:
             return Response({'error': 'Session not found'}, status=404)
 
-        prompt_id = request.data.get('prompt_id')
-        prompt = None
-        if prompt_id:
-            prompt = WritingPrompt.objects.filter(id=prompt_id).first()
-        print('SubmitTaskView:', 'task_type:', task_type, 'question_text:', question_text, 'prompt:', prompt)
-        if prompt and getattr(prompt, 'image', None):
-            print('Prompt image url:', prompt.image.url)
-        # SubmitTaskView: только сохраняем эссе, никаких AI, никаких image_url
+        # Get WritingTask for this session's test
+        task_id = request.data.get('task_id')
+        task = None
+        if task_id:
+            task = WritingTask.objects.filter(id=task_id, test=session.test).first()
+        
+        # If task not found by ID, try to find by type in the test
+        if not task and session.test:
+            task = session.test.tasks.filter(task_type=task_type).first()
+
+        # SubmitTaskView: save essay with WritingTask reference
         essay = Essay.objects.create(
             user=user,
             test_session=session,
             task_type=task_type,
             question_text=question_text,
             submitted_text=submitted_text,
-            prompt=prompt
+            task=task
         )
         essay.submitted_at = timezone.now()
         essay.save()
+
+        # Check if all required essays are submitted and mark session as completed
+        essays_in_session = Essay.objects.filter(test_session=session)
+        task1_essay = essays_in_session.filter(task_type='task1').first()
+        task2_essay = essays_in_session.filter(task_type='task2').first()
+        
+        # If both task1 and task2 are submitted, mark session as completed
+        if task1_essay and task2_essay and not session.completed:
+            session.completed = True
+            session.save()
 
         return Response(EssaySerializer(essay).data)
 
@@ -342,24 +1553,26 @@ class FinishWritingSessionView(APIView):
         from .utils import ai_score_essay
         for essay in essays:
             if essay.overall_band is None or essay.feedback is None:
-                prompt = essay.prompt
+                # Use WritingTask instead of WritingPrompt
+                task = essay.task
                 image_url = None
-                if prompt and getattr(prompt, 'image', None):
+                if task and getattr(task, 'image', None):
                     try:
-                        image_url = request.build_absolute_uri(prompt.image.url)
-                        if not image_url.startswith('http'):  # safety check
-                            image_url = None
+                        # Формируем полный URL
+                        if task.image.url.startswith('http'):
+                            image_url = task.image.url
+                        else:
+                            # Убираем лишние слэши и корректно формируем URL
+                            base_url = "https://ielts.mastereducation.kz"
+                            clean_path = task.image.url.lstrip('/')
+                            image_url = f"{base_url}/{clean_path}"
                     except Exception as e:
                         image_url = None
-                print('AI image_url:', image_url)
                 try:
                     ai_result = ai_score_essay(essay.question_text, essay.submitted_text, essay.task_type, image_url)
                     
-                    # Обрабатываем разные поля для Task 1 и Task 2
-                    if essay.task_type == 'task1':
-                        essay.score_task = ai_result.get('task_achievement')  # Task 1 использует task_achievement
-                    else:
-                        essay.score_task = ai_result.get('task_response')     # Task 2 использует task_response
+                    # AI функция всегда возвращает task_response (даже для Task 1)
+                    essay.score_task = ai_result.get('task_response')
                     
                     essay.score_coherence = ai_result.get('coherence')
                     essay.score_lexical = ai_result.get('lexical')
@@ -391,34 +1604,24 @@ class FinishWritingSessionView(APIView):
         for essay in essays:
             if essay.task_type == 'task1':
                 band1 = essay.overall_band
-                print(f'DEBUG: Task 1 band = {band1}')
             elif essay.task_type == 'task2':
                 band2 = essay.overall_band
-                print(f'DEBUG: Task 2 band = {band2}')
-        
-        print(f'DEBUG: band1 = {band1}, band2 = {band2}')
         
         if band1 is not None and band2 is not None:
             # Правильная формула IELTS: простое среднее арифметическое
             raw_score = (band1 + band2) / 2
-            print(f'DEBUG: raw_score = ({band1} + {band2}) / 2 = {raw_score}')
             
             # IELTS округление: < 0.25 → вниз, ≥ 0.25 и < 0.75 → 0.5, ≥ 0.75 → вверх
             decimal_part = raw_score - int(raw_score)
-            print(f'DEBUG: decimal_part = {decimal_part}')
             
             if decimal_part < 0.25:
                 overall_band = int(raw_score)
-                print(f'DEBUG: decimal_part < 0.25, overall_band = {overall_band}')
             elif decimal_part < 0.75:
                 overall_band = int(raw_score) + 0.5
-                print(f'DEBUG: 0.25 <= decimal_part < 0.75, overall_band = {overall_band}')
             else:
                 overall_band = int(raw_score) + 1.0
-                print(f'DEBUG: decimal_part >= 0.75, overall_band = {overall_band}')
         else:
             overall_band = None
-            print(f'DEBUG: One of bands is None, overall_band = None')
 
         return Response({
             'session_id': session.id,
@@ -508,6 +1711,251 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Prompt activated', 'id': prompt.id})
 
 
+class WritingTestViewSet(viewsets.ModelViewSet):
+    serializer_class = WritingTestSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
+        
+        # For students, show only active tests
+        if not auth_header.startswith('Bearer '):
+            return WritingTest.objects.filter(is_active=True).order_by('-created_at')
+            
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return WritingTest.objects.filter(is_active=True).order_by('-created_at')
+            
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role == 'admin':
+                # Admins see all tests
+                return WritingTest.objects.all().order_by('-created_at')
+            else:
+                # Students see only active tests
+                return WritingTest.objects.filter(is_active=True).order_by('-created_at')
+        except User.DoesNotExist:
+            return WritingTest.objects.filter(is_active=True).order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        # Enrich with user_completed if user is authenticated
+        try:
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                decoded = verify_firebase_token(auth_header.split(' ')[1])
+                if decoded:
+                    uid = decoded['uid']
+                    user = User.objects.get(uid=uid)
+                    test_ids = [item['id'] for item in response.data]
+                    completed_sessions = set(
+                        WritingTestSession.objects.filter(user=user, test_id__in=test_ids, completed=True).values_list('test_id', flat=True)
+                    )
+                    for item in response.data:
+                        item['user_completed'] = item['id'] in completed_sessions
+                else:
+                    for item in response.data:
+                        item['user_completed'] = False
+            else:
+                for item in response.data:
+                    item['user_completed'] = False
+        except Exception:
+            for item in response.data:
+                item['user_completed'] = False
+        return response
+
+    def create(self, request):
+        # Only admins can create tests
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        return super().create(request)
+
+    @action(detail=True, methods=['post'], url_path='toggle-active')
+    def toggle_active(self, request, pk=None):
+        # Only admins can toggle active status
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        test = self.get_object()
+        test.is_active = not test.is_active
+        test.save()
+        return Response({'message': f'Test {"activated" if test.is_active else "deactivated"}', 'is_active': test.is_active})
+
+
+class WritingTaskViewSet(viewsets.ModelViewSet):
+    queryset = WritingTask.objects.all()
+    serializer_class = WritingTaskSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        # Filter by test if specified
+        test_id = self.request.query_params.get('test_id')
+        if test_id:
+            return WritingTask.objects.filter(test_id=test_id).order_by('task_type')
+        return WritingTask.objects.all().order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        # Only admins can create tasks
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        # Only admins can update tasks
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        return super().update(request, *args, **kwargs)
+
+
+class WritingTestSessionDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = WritingTestSession.objects.get(id=session_id, user=user)
+            serializer = WritingTestSessionSerializer(session)
+            return Response(serializer.data)
+        except WritingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+
+class WritingTestExportCSVView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, test_id):
+        # Check admin access
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            test = WritingTest.objects.get(id=test_id)
+        except WritingTest.DoesNotExist:
+            return Response({'error': 'Test not found'}, status=404)
+
+        # Get all essays for this test
+        essays = Essay.objects.filter(
+            test_session__test=test
+        ).select_related('user', 'test_session', 'task').order_by('user__student_id', '-submitted_at')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="writing_test_{test.id}_{test.title.replace(" ", "_")}_results.csv"'
+        response.write('\ufeff'.encode('utf8'))  # UTF-8 BOM
+        
+        writer = csv.writer(response)
+
+        header = [
+            'Student ID', 'First Name', 'Last Name', 'Group', 'Teacher',
+            'Test Title', 'Task Type', 'Essay Text', 'Task Text', 'Word Count',
+            'Task Response Score', 'Coherence Score', 'Lexical Score', 'Grammar Score',
+            'Overall Band', 'AI Feedback', 'Date Submitted'
+        ]
+        writer.writerow(header)
+
+        for essay in essays:
+            user = essay.user
+            word_count = len(essay.submitted_text.split()) if essay.submitted_text else 0
+            
+            writer.writerow([
+                user.student_id or '',
+                user.first_name or '',
+                user.last_name or '',
+                user.group or '',
+                user.teacher or '',
+                test.title,
+                essay.task.task_type.upper() if essay.task else essay.task_type or '',
+                essay.submitted_text or '',
+                essay.task.task_text if essay.task else essay.question_text or '',
+                word_count,
+                essay.score_task or '',
+                essay.score_coherence or '',
+                essay.score_lexical or '',
+                essay.score_grammar or '',
+                essay.overall_band or '',
+                essay.feedback or '',
+                essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else ''
+            ])
+
+        return response
+
+
 
 class ListeningTestListView(ListAPIView):
     serializer_class = ListeningTestListSerializer
@@ -573,8 +2021,8 @@ class StartListeningTestView(APIView):
             completed=False
         ).first()
 
-        from .serializers import ListeningTestFullSerializer
-        test_data = ListeningTestFullSerializer(test).data
+        from .serializers import ListeningTestReadSerializer
+        test_data = ListeningTestReadSerializer(test).data
 
         if existing_session:
             return Response({
@@ -620,22 +2068,23 @@ class SubmitListeningTestView(APIView):
         session.answers = request.data.get("answers", {})
         session.completed = True
         session.completed_at = timezone.now()
-        raw_score = session.calculate_score()
-        band_score = session.convert_to_band(raw_score)
-        session.raw_score = raw_score
-        session.band_score = band_score
+        
+        # Используем функцию из serializers для правильного расчета результатов
+        from .serializers import create_listening_detailed_breakdown
+        results = create_listening_detailed_breakdown(session)
+        
+        session.score = results['raw_score']
+        session.correct_answers_count = results['raw_score']
+        session.total_questions_count = results['total_score']
         session.save()
-        session.score = raw_score
-        session.correct_answers_count = raw_score
-        session.total_questions_count = session.total_questions_count
-        session.save()
+        
         from .models import ListeningTestResult
         ListeningTestResult.objects.update_or_create(
             session=session,
             defaults={
-                'raw_score': raw_score,
-                'band_score': band_score,
-                'breakdown': session.breakdown
+                'raw_score': results['raw_score'],
+                'band_score': results['band_score'],
+                'breakdown': results['detailed_breakdown']
             }
         )
         from .serializers import ListeningTestSessionResultSerializer
@@ -661,7 +2110,7 @@ class ListeningTestSessionListView(ListAPIView):
             return ListeningTestSession.objects.filter(
                 user=user,
                 submitted=True
-            ).select_related('test')
+            ).select_related('test').prefetch_related('listeningtestresult')
         except User.DoesNotExist:
             return ListeningTestSession.objects.none()
 
@@ -683,7 +2132,7 @@ class ListeningTestSessionDetailView(RetrieveAPIView):
             user = User.objects.get(uid=uid)
             return ListeningTestSession.objects.filter(
                 user=user
-            ).select_related('test')
+            ).select_related('test').prefetch_related('listeningtestresult')
         except User.DoesNotExist:
             return ListeningTestSession.objects.none()
 
@@ -721,6 +2170,32 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ListeningTest.objects.all().order_by('-created_at')
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        try:
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                decoded = verify_firebase_token(auth_header.split(' ')[1])
+                if decoded:
+                    uid = decoded['uid']
+                    user = User.objects.get(uid=uid)
+                    test_ids = [item['id'] for item in response.data]
+                    completed = set(
+                        ListeningTestSession.objects.filter(user=user, test_id__in=test_ids, submitted=True).values_list('test_id', flat=True)
+                    )
+                    for item in response.data:
+                        item['user_completed'] = item['id'] in completed
+                else:
+                    for item in response.data:
+                        item['user_completed'] = False
+            else:
+                for item in response.data:
+                    item['user_completed'] = False
+        except Exception:
+            for item in response.data:
+                item['user_completed'] = False
+        return response
+
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
         test = self.get_object()
@@ -747,7 +2222,7 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
         )
         
         # Clone all parts and their questions
-        for part in source_test.parts.all():
+        for part in source_test.parts.all().order_by('part_number'):
             cloned_part = ListeningPart.objects.create(
                 test=cloned_test,
                 part_number=part.part_number,
@@ -757,14 +2232,21 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
             )
             
             # Clone questions for this part
-            for question in part.questions.all():
+            for question in part.questions.all().order_by('order'):
                 cloned_question = ListeningQuestion.objects.create(
                     part=cloned_part,
                     question_type=question.question_type,
                     question_text=question.question_text,
                     order=question.order,
                     extra_data=question.extra_data,
-                    correct_answers=question.correct_answers
+                    correct_answers=question.correct_answers,
+                    header=question.header,
+                    instruction=question.instruction,
+                    task_prompt=question.task_prompt,
+                    image=question.image,
+                    image_file=question.image_file,  # Reference to same image file
+                    points=question.points,
+                    scoring_mode=question.scoring_mode
                 )
                 
                 # Clone answer options
@@ -772,7 +2254,8 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
                     ListeningAnswerOption.objects.create(
                         question=cloned_question,
                         label=option.label,
-                        text=option.text
+                        text=option.text,
+                        points=option.points
                     )
         
         # Create clone record
@@ -795,7 +2278,7 @@ class ListeningPartViewSet(viewsets.ModelViewSet):
 
 # --- ListeningQuestion CRUD ---
 class ListeningQuestionViewSet(viewsets.ModelViewSet):
-    queryset = ListeningQuestion.objects.all().order_by('part')
+    queryset = ListeningQuestion.objects.all().order_by('part', 'order')
     serializer_class = ListeningQuestionSerializer
     permission_classes = [AllowAny]
 
@@ -808,6 +2291,28 @@ class ListeningTestSessionView(APIView):
         # Если test_id есть - это старт.
         if test_id:
             test = get_object_or_404(ListeningTest, pk=test_id)
+            # Diagnostic flag from query/body
+            diagnostic_flag = False
+            try:
+                diagnostic_flag = str(request.query_params.get('diagnostic', request.data.get('diagnostic', ''))).lower() in ['1','true','yes']
+            except Exception:
+                diagnostic_flag = False
+
+            if diagnostic_flag:
+                # Block if user has ANY completed non-diagnostic session in any module
+                has_regular = (
+                    ListeningTestSession.objects.filter(user=request.user, submitted=True, is_diagnostic=False).exists() or
+                    ReadingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=False).exists() or
+                    WritingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=False).exists()
+                )
+                if has_regular:
+                    return Response({'detail': 'Diagnostic flow is locked because regular tests already exist.'}, status=status.HTTP_403_FORBIDDEN)
+                # Ensure diagnostic template
+                if not getattr(test, 'is_diagnostic_template', False):
+                    return Response({'detail': 'Selected test is not configured as a diagnostic template.'}, status=status.HTTP_400_BAD_REQUEST)
+                # Only one diagnostic per module
+                if ListeningTestSession.objects.filter(user=request.user, submitted=True, is_diagnostic=True).exists():
+                    return Response({'detail': 'Diagnostic listening already completed.'}, status=status.HTTP_409_CONFLICT)
             
             # Ищем последние незавершенные сессии
             sessions = ListeningTestSession.objects.filter(
@@ -818,14 +2323,30 @@ class ListeningTestSessionView(APIView):
 
             if sessions.exists():
                 # Берем самую последнюю сессию
-                session = sessions.first()
+                last_session = sessions.first()
+                # If diagnostic requested but last session is not diagnostic, start a fresh diagnostic session
+                if diagnostic_flag and not last_session.is_diagnostic:
+                    session = ListeningTestSession.objects.create(
+                        user=request.user,
+                        test=test,
+                        time_left=2400,
+                        is_diagnostic=True
+                    )
+                    created = True
+                else:
+                    session = last_session
+                    # If diagnostic requested and session is diagnostic but flag not set, set it
+                    if diagnostic_flag and not session.is_diagnostic:
+                        session.is_diagnostic = True
+                        session.save(update_fields=['is_diagnostic'])
                 created = False
             else:
                 # Если нет - создаем новую
                 session = ListeningTestSession.objects.create(
                     user=request.user,
                     test=test,
-                    time_left=2400 # 40 минут по стандарту
+                    time_left=2400, # 40 минут по стандарту IELTS
+                    is_diagnostic=diagnostic_flag
                 )
                 created = True
 
@@ -853,12 +2374,38 @@ class ListeningTestSessionView(APIView):
                 session.time_taken = (session.completed_at - session.started_at).total_seconds()
             
             session.save()
-            
-            # Всю логику подсчета и формирования результата доверяем новому сериализатору
-            # Создаем контекст, чтобы сериализатор не пересчитывал данные, если они уже есть
+
+            # Считаем результат детально и сохраняем в БД (чтобы дашборд видел реальные значения)
+            try:
+                results = create_listening_detailed_breakdown(session)
+                raw_score = results.get('raw_score') or 0
+                total_score = results.get('total_score') or 0
+                band_score = results.get('band_score')
+                breakdown = results.get('detailed_breakdown') or []
+
+                # Обновляем счётчики сессии
+                session.correct_answers_count = raw_score
+                session.total_questions_count = total_score
+                session.score = raw_score
+                session.save(update_fields=['correct_answers_count', 'total_questions_count', 'score'])
+
+                # Сохраняем/обновляем ListeningTestResult
+                from .models import ListeningTestResult
+                ListeningTestResult.objects.update_or_create(
+                    session=session,
+                    defaults={
+                        'raw_score': raw_score,
+                        'band_score': band_score if band_score is not None else 0,
+                        'breakdown': breakdown,
+                    }
+                )
+            except Exception:
+                # Не падаем, просто вернем рассчитанное представление
+                pass
+
+            # Возвращаем вычисленный результат пользователю
             context = {'request': request}
             result_serializer = ListeningTestSessionResultSerializer(session, context=context)
-            
             return Response(result_serializer.data, status=status.HTTP_200_OK)
 
         return Response({'detail': 'Invalid request. Provide test_id to start or session_id to submit.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -881,7 +2428,7 @@ class ListeningTestResultView(APIView):
         if not session.submitted:
             return Response({'detail': 'Session not submitted yet'}, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = ListeningTestResultSerializer(session)
+        serializer = ListeningTestSessionResultSerializer(session)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 # --- ListeningTestClone: admin view ---
@@ -903,7 +2450,7 @@ class ListeningTestCloneViewSet(viewsets.ModelViewSet):
         )
         
         # Clone all parts and their questions
-        for part in source_test.parts.all():
+        for part in source_test.parts.all().order_by('part_number'):
             cloned_part = ListeningPart.objects.create(
                 test=cloned_test,
                 part_number=part.part_number,
@@ -913,14 +2460,21 @@ class ListeningTestCloneViewSet(viewsets.ModelViewSet):
             )
             
             # Clone questions for this part
-            for question in part.questions.all():
+            for question in part.questions.all().order_by('order'):
                 cloned_question = ListeningQuestion.objects.create(
                     part=cloned_part,
                     question_type=question.question_type,
                     question_text=question.question_text,
                     order=question.order,
                     extra_data=question.extra_data,
-                    correct_answers=question.correct_answers
+                    correct_answers=question.correct_answers,
+                    header=question.header,
+                    instruction=question.instruction,
+                    task_prompt=question.task_prompt,
+                    image=question.image,
+                    image_file=question.image_file,  # Reference to same image file
+                    points=question.points,
+                    scoring_mode=question.scoring_mode
                 )
                 
                 # Clone answer options
@@ -928,7 +2482,8 @@ class ListeningTestCloneViewSet(viewsets.ModelViewSet):
                     ListeningAnswerOption.objects.create(
                         question=cloned_question,
                         label=option.label,
-                        text=option.text
+                        text=option.text,
+                        points=option.points
                     )
         
         # Create clone record
@@ -1065,13 +2620,28 @@ class ListeningTestExportCSVView(APIView):
     def get(self, request, test_id):
         try:
             user = User.objects.get(uid=request.user.uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            if user.role not in ['admin', 'curator']:
+                return Response({'error': 'Admin or Curator access required'}, status=status.HTTP_403_FORBIDDEN)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+
         test = get_object_or_404(ListeningTest, pk=test_id)
-        sessions = ListeningTestSession.objects.filter(test=test, submitted=True).select_related('user').order_by('user__student_id')
+        sessions = ListeningTestSession.objects.filter(
+            test=test, 
+            submitted=True, 
+            user__in=students
+        ).select_related('user').order_by('user__student_id')
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="listening_test_{test_id}_results.csv"'
@@ -1153,23 +2723,35 @@ class ReadingTestExportCSVView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, test_id):
-        # Проверяем права админа
+        # Проверяем права админа или куратора
         try:
             user = User.objects.get(uid=request.user.uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
+            if user.role not in ['admin', 'curator']:
+                return Response({'error': 'Admin or Curator access required'}, status=403)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
+
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
 
         try:
             test = ReadingTest.objects.get(id=test_id)
         except ReadingTest.DoesNotExist:
             return Response({'error': 'Test not found'}, status=404)
 
-        # Получаем все завершенные сессии по этому тесту
+        # Получаем все завершенные сессии по этому тесту с фильтрами
         sessions = ReadingTestSession.objects.filter(
             test=test, 
-            completed=True
+            completed=True,
+            user__in=students
         ).select_related('user', 'result').order_by('-end_time')
 
         response = HttpResponse(content_type='text/csv')
@@ -1272,6 +2854,162 @@ class AdminCreateStudentView(APIView):
         )
         return Response(UserSerializer(user).data, status=201)
 
+
+class AdminBulkImportStudentsView(APIView):
+    permission_classes = [IsAdmin]
+    
+    def post(self, request):
+        if 'file' not in request.FILES:
+            return Response({'error': 'No file provided'}, status=400)
+        
+        uploaded_file = request.FILES['file']
+        file_name = uploaded_file.name.lower()
+        
+        # Определение типа файла
+        if file_name.endswith('.csv'):
+            file_type = 'csv'
+            file_content = uploaded_file.read().decode('utf-8')
+        elif file_name.endswith(('.xlsx', '.xls')):
+            file_type = 'xlsx' if file_name.endswith('.xlsx') else 'xls'
+            file_content = uploaded_file.read()
+        else:
+            return Response({'error': 'Unsupported file type. Please use CSV or Excel files.'}, status=400)
+        
+        # Проверка размера файла (максимум 5MB)
+        if len(file_content) > 5 * 1024 * 1024:
+            return Response({'error': 'File too large. Maximum size is 5MB.'}, status=400)
+        
+        from .bulk_import import process_students_file, create_students_batch
+        
+        # Обработка файла
+        result = process_students_file(file_content, file_type)
+        
+        if 'error' in result:
+            return Response(result, status=400)
+        
+        # Если mode=validate, только валидация без создания
+        mode = request.data.get('mode', 'create')
+        if mode == 'validate':
+            return Response({
+                'success': True,
+                'message': f'File validated successfully. {result["count"]} students ready to import.',
+                'count': result['count'],
+                'preview': result['students'][:5]  # Показать первые 5 для предварительного просмотра
+            })
+        
+        # Создание студентов
+        creation_result = create_students_batch(result['students'])
+        
+        return Response({
+            'success': True,
+            'message': f'Bulk import completed. Created {creation_result["created_count"]} students.',
+            'created_count': creation_result['created_count'],
+            'error_count': creation_result['error_count'],
+            'created_students': creation_result['created_students'],
+            'errors': creation_result['errors']
+        })
+
+class AdminCreateTeacherView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        data = request.data.copy()
+        
+        # Принудительно устанавливаем роль teacher
+        data['role'] = 'teacher'
+        
+        # Валидация входных данных
+        serializer = UserSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        password = data.get('password')
+        
+        if not password or len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=400)
+        
+        # Проверка уникальности email и teacher_id (используем student_id как универсальный ID)
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'Email already exists.'}, status=400)
+        
+        teacher_id = serializer.validated_data.get('student_id')  # Используем student_id как teacher_id
+        if teacher_id and User.objects.filter(student_id=teacher_id).exists():
+            return Response({'error': 'Teacher ID already exists.'}, status=400)
+        
+        # Создание пользователя в Firebase
+        try:
+            firebase_user = firebase_auth.create_user(
+                email=email,
+                password=password,
+                display_name=f"{serializer.validated_data.get('first_name', '')} {serializer.validated_data.get('last_name', '')}",
+            )
+        except firebase_admin._auth_utils.EmailAlreadyExistsError:
+            return Response({'error': 'Email already exists in Firebase.'}, status=400)
+        except Exception as e:
+            return Response({'error': f'Firebase error: {str(e)}'}, status=400)
+        
+        # Создание учителя в Django
+        teacher = User.objects.create(
+            uid=firebase_user.uid,
+            role='teacher',
+            student_id=teacher_id,  # Используем как teacher_id
+            first_name=serializer.validated_data.get('first_name'),
+            last_name=serializer.validated_data.get('last_name'),
+            email=email,
+            group=serializer.validated_data.get('group'),  # Может содержать группы которые ведет
+            teacher=serializer.validated_data.get('teacher'),  # Может содержать предметы которые ведет
+        )
+        
+        return Response(UserSerializer(teacher).data, status=201)
+
+class AdminCreateCuratorView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['role'] = 'curator'
+        serializer = UserSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        password = data.get('password')
+        curator_id = serializer.validated_data.get('curator_id')
+        
+        if not password or len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=400)
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'Email already exists.'}, status=400)
+        if curator_id and User.objects.filter(curator_id=curator_id).exists():
+            return Response({'error': 'Curator ID already exists.'}, status=400)
+            
+        try:
+            firebase_user = firebase_auth.create_user(
+                email=email,
+                password=password,
+                display_name=f"{serializer.validated_data.get('first_name', '')} {serializer.validated_data.get('last_name', '')}",
+            )
+        except firebase_admin._auth_utils.EmailAlreadyExistsError:
+            return Response({'error': 'Email already exists in Firebase.'}, status=400)
+        except Exception as e:
+            return Response({'error': f'Firebase error: {str(e)}'}, status=400)
+        curator = User.objects.create(
+            uid=firebase_user.uid,
+            role='curator',
+            curator_id=curator_id,
+            first_name=serializer.validated_data.get('first_name'),
+            last_name=serializer.validated_data.get('last_name'),
+            email=email,
+        )
+        return Response(UserSerializer(curator).data, status=201)
+
+
+class AdminCuratorsListView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        curators = User.objects.filter(role='curator').order_by('curator_id', 'first_name', 'last_name')
+        serializer = UserSerializer(curators, many=True)
+        return Response(serializer.data)
+
 class AdminStudentListView(ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = UserSerializer
@@ -1314,6 +3052,32 @@ class ReadingTestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return ReadingTest.objects.all().order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        try:
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if auth_header.startswith('Bearer '):
+                decoded = verify_firebase_token(auth_header.split(' ')[1])
+                if decoded:
+                    uid = decoded['uid']
+                    user = User.objects.get(uid=uid)
+                    test_ids = [item['id'] for item in response.data]
+                    completed = set(
+                        ReadingTestSession.objects.filter(user=user, test_id__in=test_ids, completed=True).values_list('test_id', flat=True)
+                    )
+                    for item in response.data:
+                        item['user_completed'] = item['id'] in completed
+                else:
+                    for item in response.data:
+                        item['user_completed'] = False
+            else:
+                for item in response.data:
+                    item['user_completed'] = False
+        except Exception:
+            for item in response.data:
+                item['user_completed'] = False
+        return response
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -1379,8 +3143,30 @@ class ReadingTestSessionView(APIView):
         """
         test = get_object_or_404(ReadingTest, pk=test_id)
         
+        # Diagnostic flag
+        diagnostic_flag = False
+        try:
+            diagnostic_flag = str(request.query_params.get('diagnostic', request.data.get('diagnostic', ''))).lower() in ['1','true','yes']
+        except Exception:
+            diagnostic_flag = False
+
+        if diagnostic_flag:
+            # Lock if any regular completed test exists in any module
+            if (
+                ListeningTestSession.objects.filter(user=request.user, submitted=True, is_diagnostic=False).exists() or
+                ReadingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=False).exists() or
+                WritingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=False).exists()
+            ):
+                return Response({'detail': 'Diagnostic flow is locked because regular tests already exist.'}, status=status.HTTP_403_FORBIDDEN)
+            # Ensure template
+            if not getattr(test, 'is_diagnostic_template', False):
+                return Response({'detail': 'Selected test is not configured as a diagnostic template.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Only one diagnostic reading per user
+            if ReadingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=True).exists():
+                return Response({'detail': 'Diagnostic reading already completed.'}, status=status.HTTP_409_CONFLICT)
+        
         # Всегда создаем новую сессию для IELTS (каждый тест - отдельная попытка)
-        session = ReadingTestSession.objects.create(user=request.user, test=test)
+        session = ReadingTestSession.objects.create(user=request.user, test=test, is_diagnostic=diagnostic_flag)
             
         serializer = ReadingTestSessionSerializer(session)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1423,35 +3209,88 @@ class ReadingTestSessionView(APIView):
         return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
 
     def _calculate_and_save_results(self, session):
-        # Используем новую универсальную функцию формирования breakdown
-        from .serializers import get_test_render_structure, count_correct_subanswers
+        # Используем новую функцию create_detailed_breakdown для правильного подсчета баллов
+        from .serializers import create_detailed_breakdown
         
-        # Получаем структуру теста с правильными типами и опциями
-        test_structure = get_test_render_structure(None, session)
+        # Используем create_detailed_breakdown для правильного подсчета
+        breakdown_result = create_detailed_breakdown(session, 'reading')
         
-        raw_score = 0
+        raw_score = breakdown_result['raw_score']
+        total_possible_score = breakdown_result['total_score']
+        
+        # Преобразуем массив частей в объект с вопросами для фронтенда
         full_breakdown = {}
-        
-        # Преобразуем структуру в breakdown формат и считаем очки
-        for part in test_structure:
-            for question_data in part['questions']:
-                question_id = question_data['id']
-                sub_questions = question_data['sub_questions']
+        for part in breakdown_result['breakdown']:
+            for question in part['questions']:
+                question_id = str(question['question_id'])
                 
-                # Считаем правильные ответы для этого вопроса
-                correct_count = sum(1 for sub in sub_questions if sub.get('is_correct', False))
-                raw_score += correct_count
-                
-                full_breakdown[question_id] = {
-                    'question_text': question_data['question_text'],
-                    'question_type': question_data['type'], 
-                    'header': question_data['header'],
-                    'instruction': question_data['instruction'],
-                    'sub_questions': sub_questions,
-                }
-
-        # Подсчитываем total_possible_score как общее количество подвопросов
-        total_possible_score = sum(len(data['sub_questions']) for data in full_breakdown.values())
+                # Для multiple_response вопросов создаем специальную структуру
+                if question['question_type'] == 'multiple_response':
+                    # Обрабатываем новую структуру multiple_response (один элемент с опциями)
+                    multiple_response_data = None
+                    for sub_question in question['sub_questions']:
+                        if sub_question.get('type') == 'multiple_response':
+                            multiple_response_data = sub_question
+                            break
+                    
+                    if multiple_response_data:
+                        # Используем данные из нового формата
+                        full_breakdown[question_id] = {
+                            'question_text': question['question_text'],
+                            'question_type': question['question_type'],
+                            'header': question['header'],
+                            'instruction': question['instruction'],
+                            'part_number': part.get('part_number'),
+                            'sub_questions': [{
+                                'id': question_id,
+                                'question_text': question['question_text'],
+                                'type': 'multiple_response',
+                                'options': multiple_response_data.get('options', []),
+                                'scoring_mode': multiple_response_data.get('scoring_mode', 'total'),
+                                'final_score': question['correct_sub_questions'],
+                                'max_score': question['total_sub_questions'],
+                                'is_correct': multiple_response_data.get('is_correct', False)
+                            }]
+                        }
+                    else:
+                        # Fallback для старой структуры (если она еще используется)
+                        full_breakdown[question_id] = {
+                            'question_text': question['question_text'],
+                            'question_type': question['question_type'],
+                            'header': question['header'],
+                            'instruction': question['instruction'],
+                            'part_number': part.get('part_number'),
+                            'sub_questions': [{
+                                'id': question_id,
+                                'question_text': question['question_text'],
+                                'type': 'multiple_response',
+                                'options': [],
+                                'scoring_mode': question.get('scoring_mode', 'total'),
+                                'final_score': question['correct_sub_questions'],
+                                'max_score': question['total_sub_questions']
+                            }]
+                        }
+                        
+                        # Добавляем опции из старой структуры
+                        for sub_question in question['sub_questions']:
+                            if 'sub_id' in sub_question:  # Проверяем что это старая структура
+                                full_breakdown[question_id]['sub_questions'][0]['options'].append({
+                                    'label': sub_question['sub_id'],
+                                    'text': sub_question['label'],
+                                    'is_correct_option': sub_question['correct_answer'] == 'Should be selected',
+                                    'student_selected': sub_question['user_answer'] == 'Selected',
+                                    'points': sub_question.get('points', 1)
+                                })
+                else:
+                    # Для обычных вопросов используем стандартную структуру
+                    full_breakdown[question_id] = {
+                        'question_text': question['question_text'],
+                        'question_type': question['question_type'],
+                        'header': question['header'],
+                        'instruction': question['instruction'],
+                        'part_number': part.get('part_number'),
+                        'sub_questions': question['sub_questions']
+                    }
 
         def get_reading_band_score(raw_score, total_score=40):
             # Официальная таблица IELTS Reading band score
@@ -1520,9 +3359,36 @@ class GetEmailBySIDView(APIView):
             user = User.objects.get(student_id=sid)
             if not user.email:
                 return Response({'error': 'Email not set for this user'}, status=404)
-            return Response({'email': user.email})
+            return Response({
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'group': user.group,
+                'role': user.role
+            })
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
+
+
+class GetEmailByCuratorIDView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        curator_id = request.query_params.get('curator_id')
+        if not curator_id:
+            return Response({'error': 'curator_id required'}, status=400)
+        try:
+            user = User.objects.get(curator_id=curator_id, role='curator')
+            if not user.email:
+                return Response({'error': 'Email not set for this user'}, status=404)
+            return Response({
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'role': user.role
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'Curator not found'}, status=404)
 
 # --- Reading Test Session List для Dashboard ---
 class ReadingTestSessionListView(ListAPIView):
@@ -1541,60 +3407,6 @@ class ReadingTestSessionListView(ListAPIView):
 
 # Добавляем в конец файла
 
-class WritingTestExportCSVView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        try:
-            user = User.objects.get(uid=request.user.uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Получаем все эссе
-        essays = Essay.objects.all().select_related('user', 'test_session').order_by('user__student_id', '-submitted_at')
-
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="writing_essays.csv"'
-        response.write(u'\ufeff'.encode('utf8'))
-        
-        writer = csv.writer(response)
-
-        header = [
-            'Student ID', 'First Name', 'Last Name', 'Group', 'Teacher',
-            'Task Type', 'Essay Text', 'Question Text', 'Word Count',
-            'Task Response Score', 'Coherence Score', 'Lexical Score', 'Grammar Score',
-            'Overall Band', 'AI Feedback', 'Date Submitted'
-        ]
-        writer.writerow(header)
-
-        for essay in essays:
-            user = essay.user
-            
-            # Подсчитываем слова в эссе
-            word_count = len(essay.submitted_text.split()) if essay.submitted_text else 0
-            
-            writer.writerow([
-                user.student_id or '',
-                user.first_name or '',
-                user.last_name or '',
-                user.group or '',
-                user.teacher or '',
-                essay.task_type.upper() if essay.task_type else '',
-                essay.submitted_text or '',
-                essay.question_text or '',
-                word_count,
-                essay.score_task or 'Not scored',
-                essay.score_coherence or 'Not scored',
-                essay.score_lexical or 'Not scored',
-                essay.score_grammar or 'Not scored',
-                essay.overall_band or 'Not scored',
-                essay.feedback or 'No feedback available',
-                essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else ''
-            ])
-
-        return response
 
 class WritingPromptExportCSVView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1669,3 +3481,2698 @@ class EssaySubmissionView(CsrfExemptAPIView):
             return Response({'message': 'Essay submitted successfully.'})
         else:
             return Response(serializer.errors, status=400)
+
+class AdminStudentResultsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({'error': 'student_id parameter required'}, status=400)
+
+        try:
+            student = User.objects.get(student_id=student_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+
+        # Получаем все тесты студента
+        essays = Essay.objects.filter(user=student).order_by('-submitted_at')
+        listening_sessions = ListeningTestSession.objects.filter(
+            user=student, 
+            submitted=True
+        ).select_related('test').order_by('-completed_at')
+        reading_sessions = ReadingTestSession.objects.filter(
+            user=student, 
+            completed=True
+        ).select_related('test').order_by('-end_time')
+
+        # Формируем ответ в том же формате что и Dashboard студента
+        all_sessions = []
+
+        # Writing essays
+        for essay in essays:
+            all_sessions.append({
+                'type': 'Writing',
+                'item': {
+                    'id': essay.id,
+                    'test_session': essay.test_session.id if essay.test_session else None,
+                    'task_type': essay.task_type,
+                    'overall_band': essay.overall_band,
+                    'submitted_at': essay.submitted_at,
+                    'question_text': essay.question_text,
+                    'submitted_text': essay.submitted_text,
+                    'feedback': essay.feedback,
+                    'score_task': essay.score_task,
+                    'score_coherence': essay.score_coherence,
+                    'score_lexical': essay.score_lexical,
+                    'score_grammar': essay.score_grammar
+                },
+                'date': essay.submitted_at,
+                'band_score': essay.overall_band,
+                'test_title': f"Writing Task {essay.task_type.upper()}"
+            })
+
+        # Listening sessions
+        for session in listening_sessions:
+            # Получаем band_score из связанной модели ListeningTestResult
+            # У ListeningTestResult нет related_name, поэтому используем listeningtestresult
+            result = getattr(session, 'listeningtestresult', None)
+            band_score = result.band_score if result else None
+            
+            # Используем completed_at если есть, иначе started_at
+            session_date = session.completed_at or session.started_at
+            
+            all_sessions.append({
+                'type': 'Listening',
+                'item': {
+                    'id': session.id,
+                    'test_title': session.test.title,
+                    'correct_answers_count': session.correct_answers_count,
+                    'total_questions_count': session.total_questions_count,
+                    'band_score': band_score,
+                    'completed_at': session.completed_at,
+                    'raw_score': getattr(session, 'raw_score', session.correct_answers_count)
+                },
+                'date': session_date,
+                'band_score': band_score,
+                'test_title': session.test.title
+            })
+
+        # Reading sessions
+        for session in reading_sessions:
+            result = getattr(session, 'result', None)
+            all_sessions.append({
+                'type': 'Reading',
+                'item': {
+                    'id': session.id,
+                    'test_title': session.test.title,
+                    'band_score': result.band_score if result else None,
+                    'raw_score': result.raw_score if result else None,
+                    'total_score': result.total_score if result else None,
+                    'end_time': session.end_time
+                },
+                'date': session.end_time,
+                'band_score': result.band_score if result else None,
+                'test_title': session.test.title
+            })
+
+        # Сортируем по дате (новые сначала)
+        all_sessions.sort(key=lambda x: x['date'] or timezone.now(), reverse=True)
+
+        return Response({
+            'student': {
+                'student_id': student.student_id,
+                'first_name': student.first_name,
+                'last_name': student.last_name,
+                'email': student.email
+            },
+            'sessions': all_sessions
+        })
+
+
+class AdminReadingSessionListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({'error': 'student_id parameter required'}, status=400)
+
+        try:
+            student = User.objects.get(student_id=student_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+
+        sessions = ReadingTestSession.objects.filter(
+            user=student, 
+            completed=True
+        ).select_related('test', 'result').order_by('-end_time')
+
+        data = []
+        for session in sessions:
+            result = getattr(session, 'result', None)
+            data.append({
+                'id': session.id,
+                'test_title': session.test.title,
+                'band_score': result.band_score if result else None,
+                'raw_score': result.raw_score if result else None,
+                'total_score': result.total_score if result else None,
+                'end_time': session.end_time,
+                'completed': session.completed
+            })
+
+        return Response(data)
+
+
+class AdminReadingSessionResultView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = ReadingTestSession.objects.get(id=session_id, completed=True)
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        if hasattr(session, 'result'):
+            serializer = ReadingTestResultSerializer(session.result)
+            return Response(serializer.data)
+        else:
+            return Response({'error': 'Result not found'}, status=404)
+
+
+class AdminListeningSessionResultView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = ListeningTestSession.objects.get(id=session_id)
+        except ListeningTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        # Получаем связанный результат
+        result = getattr(session, 'listeningtestresult', None)
+        
+        # Форматируем данные как в Dashboard
+        session_data = {
+            'id': session.id,
+            'test_title': session.test.title,
+            'correct_answers_count': session.correct_answers_count,
+            'total_questions_count': session.total_questions_count,
+            'band_score': result.band_score if result else None,
+            'completed_at': session.completed_at,
+            'started_at': session.started_at,
+            'score': session.score,
+            'answers': session.answers
+        }
+
+        return Response(session_data)
+
+
+class AdminListeningSessionListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        student_id = request.GET.get('student_id')
+        if not student_id:
+            return Response({'error': 'student_id parameter is required'}, status=400)
+
+        try:
+            student = User.objects.get(student_id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+
+        sessions = ListeningTestSession.objects.filter(
+            user=student
+        ).select_related('test', 'listeningtestresult').order_by('-completed_at')
+
+        # Форматируем данные как в Dashboard
+        sessions_data = []
+        for session in sessions:
+            result = getattr(session, 'listeningtestresult', None)
+            sessions_data.append({
+                'id': session.id,
+                'test_title': session.test.title,
+                'correct_answers_count': session.correct_answers_count,
+                'total_questions_count': session.total_questions_count,
+                'band_score': result.band_score if result else None,
+                'completed_at': session.completed_at,
+                'started_at': session.started_at,
+                'score': session.score
+            })
+
+        return Response(sessions_data)
+
+
+class AdminEssayListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        student_id = request.GET.get('student_id')
+        if not student_id:
+            return Response({'error': 'student_id parameter is required'}, status=400)
+
+        try:
+            student = User.objects.get(student_id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+
+        essays = Essay.objects.filter(
+            user=student
+        ).order_by('-submitted_at')
+
+        # Форматируем данные как в Dashboard
+        essays_data = []
+        for essay in essays:
+            essays_data.append({
+                'id': essay.id,
+                'task_type': essay.task_type,
+                'question_text': essay.question_text,
+                'submitted_text': essay.submitted_text,
+                'overall_band': essay.overall_band,
+                'score_task': essay.score_task,
+                'score_coherence': essay.score_coherence,
+                'score_lexical': essay.score_lexical,
+                'score_grammar': essay.score_grammar,
+                'feedback': essay.feedback,
+                'submitted_at': essay.submitted_at,
+                'test_session': essay.test_session.id if essay.test_session else None
+            })
+
+        return Response(essays_data)
+
+
+class AdminListeningSessionDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = ListeningTestSession.objects.get(id=session_id)
+        except ListeningTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        # Получаем связанный результат
+        result = getattr(session, 'listeningtestresult', None)
+        
+        # Форматируем данные как в Dashboard
+        session_data = {
+            'id': session.id,
+            'test_title': session.test.title,
+            'correct_answers_count': session.correct_answers_count,
+            'total_questions_count': session.total_questions_count,
+            'band_score': result.band_score if result else None,
+            'completed_at': session.completed_at,
+            'started_at': session.started_at,
+            'score': session.score,
+            'answers': session.answers
+        }
+
+        return Response(session_data)
+
+
+class AdminReadingSessionDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = ReadingTestSession.objects.get(id=session_id)
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        result = getattr(session, 'readingtestresult', None)
+        
+        session_data = {
+            'id': session.id,
+            'test_title': session.test.title,
+            'correct_answers_count': session.correct_answers_count,
+            'total_questions_count': session.total_questions_count,
+            'band_score': result.band_score if result else None,
+            'completed_at': session.completed_at,
+            'started_at': session.started_at,
+            'score': session.score,
+            'answers': session.answers
+        }
+
+        return Response(session_data)
+
+# ------------------------------
+# Teacher Satisfaction Survey Views
+# ------------------------------
+
+class TeacherSatisfactionSurveyView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get survey status for current student"""
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            student = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        
+        # Check if student already submitted this week
+        from django.utils import timezone
+        now = timezone.now()
+        
+        # Правильное определение начала недели (понедельник = 0, воскресенье = 6)
+        # Если сегодня понедельник (weekday=0), то week_start = сегодня
+        # Если сегодня среда (weekday=2), то week_start = понедельник этой недели
+        week_start = now - timedelta(days=now.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        try:
+            existing_survey = TeacherSatisfactionSurvey.objects.get(
+                student=student,
+                submitted_at__gte=week_start
+            )
+            return Response({
+                'submittedThisWeek': True,
+                'submission': {
+                    'is_satisfied': existing_survey.is_satisfied,
+                    'reason': existing_survey.reason
+                },
+                'weekStart': week_start.isoformat()
+            })
+        except TeacherSatisfactionSurvey.DoesNotExist:
+            return Response({
+                'submittedThisWeek': False,
+                'weekStart': week_start.isoformat()
+            })
+    
+    def post(self, request):
+        """Submit survey"""
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            student = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        
+        # Check if already submitted this week
+        from django.utils import timezone
+        now = timezone.now()
+        
+        # Правильное определение начала недели (понедельник = 0, воскресенье = 6)
+        # Если сегодня понедельник (weekday=0), то week_start = сегодня
+        # Если сегодня среда (weekday=2), то week_start = понедельник этой недели
+        week_start = now - timedelta(days=now.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        try:
+            existing_survey = TeacherSatisfactionSurvey.objects.get(
+                student=student,
+                submitted_at__gte=week_start
+            )
+            return Response({
+                'error': "You already submitted this week's survey"
+            }, status=409)
+        except TeacherSatisfactionSurvey.DoesNotExist:
+            pass
+        
+        # Create new survey
+        is_satisfied = request.data.get('is_satisfied')
+        reason = request.data.get('reason', '')
+        
+        if is_satisfied is None:
+            return Response({'error': 'is_satisfied field is required'}, status=400)
+        
+        if not is_satisfied and not reason.strip():
+            return Response({'error': 'Reason is required when not satisfied'}, status=400)
+        
+        survey = TeacherSatisfactionSurvey.objects.create(
+            student=student,
+            is_satisfied=is_satisfied,
+            reason=reason if not is_satisfied else None
+        )
+        
+        serializer = TeacherSatisfactionSurveySerializer(survey)
+        return Response(serializer.data, status=201)
+
+
+class AdminTeacherSurveyResultsView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get all survey results for admin"""
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        
+        uid = decoded['uid']
+        try:
+            admin_user = User.objects.get(uid=uid)
+            if admin_user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=403)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+        
+        # Get all surveys with student info
+        surveys = TeacherSatisfactionSurvey.objects.select_related('student').all()
+        serializer = TeacherSatisfactionSurveySerializer(surveys, many=True)
+        
+        # Calculate statistics
+        total_surveys = surveys.count()
+        satisfied_count = surveys.filter(is_satisfied=True).count()
+        satisfaction_rate = (satisfied_count / total_surveys * 100) if total_surveys > 0 else 0
+        
+        return Response({
+            'surveys': serializer.data,
+            'statistics': {
+                'total_surveys': total_surveys,
+                'satisfied_count': satisfied_count,
+                'not_satisfied_count': total_surveys - satisfied_count,
+                'satisfaction_rate': round(satisfaction_rate, 1)
+            }
+        })
+
+
+# ==================== CURATOR VIEWS ====================
+
+class CuratorStudentsView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get all students with filtering options for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
+        writing_prompt_id = request.query_params.get('writing')
+        writing_test_id = request.query_params.get('writing_test')
+        writing_test_id = request.query_params.get('writing_test')
+        listening_test_id = request.query_params.get('listening')
+        reading_test_id = request.query_params.get('reading')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        
+        # Apply filters
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        if search:
+            students = students.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+        
+        # Get unique groups and teachers for filter options
+        groups = User.objects.filter(role='student').values_list('group', flat=True).distinct().exclude(group__isnull=True).exclude(group='')
+        teachers = User.objects.filter(role='student').values_list('teacher', flat=True).distinct().exclude(teacher__isnull=True).exclude(teacher='')
+        
+        # Get active tests for filtering
+        active_writing_prompts = WritingPrompt.objects.filter(is_active=True)
+        active_listening_tests = ListeningTest.objects.filter(is_active=True)
+        active_reading_tests = ReadingTest.objects.filter(is_active=True)
+        
+        # Apply specific test filters if provided
+        if writing_prompt_id:
+            active_writing_prompts = active_writing_prompts.filter(id=writing_prompt_id)
+        if listening_test_id:
+            active_listening_tests = active_listening_tests.filter(id=listening_test_id)
+        if reading_test_id:
+            active_reading_tests = active_reading_tests.filter(id=reading_test_id)
+        
+        # Get basic student info with last activity
+        students_data = []
+        for student in students:
+            writing_qs = apply_date_range_filter(
+                Essay.objects.filter(user=student, prompt__in=active_writing_prompts),
+                request,
+                'submitted_at'
+            )
+            listening_qs = apply_date_range_filter(
+                ListeningTestSession.objects.filter(user=student, test__in=active_listening_tests, submitted=True),
+                request,
+                'completed_at'
+            )
+            reading_qs = apply_date_range_filter(
+                ReadingTestSession.objects.filter(user=student, test__in=active_reading_tests, completed=True),
+                request,
+                'end_time'
+            )
+            writing_count = writing_qs.count()
+            listening_count = listening_qs.count()
+            reading_count = reading_qs.count()
+            
+            last_writing = writing_qs.order_by('-submitted_at').first()
+            last_listening = listening_qs.order_by('-completed_at').first()
+            last_reading = reading_qs.order_by('-end_time').first()
+            
+            # Find the most recent activity
+            last_activities = []
+            if last_writing:
+                last_activities.append(('writing', last_writing.submitted_at))
+            if last_listening:
+                last_activities.append(('listening', last_listening.completed_at))
+            if last_reading:
+                last_activities.append(('reading', last_reading.end_time))
+            
+            last_activity = None
+            if last_activities:
+                last_activity = max(last_activities, key=lambda x: x[1])
+            
+            students_data.append({
+                'id': student.id,
+                'student_id': student.student_id,
+                'first_name': student.first_name,
+                'last_name': student.last_name,
+                'email': student.email,
+                'group': student.group,
+                'teacher': student.teacher,
+                'test_counts': {
+                    'writing': writing_count,
+                    'listening': listening_count,
+                    'reading': reading_count
+                },
+                'last_activity': {
+                    'type': last_activity[0] if last_activity else None,
+                    'date': last_activity[1] if last_activity else None
+                }
+            })
+        
+        return Response({
+            'students': students_data,
+            'filter_options': {
+                'groups': list(groups),
+                'teachers': list(teachers)
+            }
+        })
+
+
+class CuratorMissingTestsView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+
+    def get(self, request):
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+
+        missing_list = []
+        for student in students:
+            writing_qs = apply_date_range_filter(
+                Essay.objects.filter(user=student),
+                request,
+                'submitted_at'
+            )
+            listening_qs = apply_date_range_filter(
+                ListeningTestSession.objects.filter(user=student, submitted=True),
+                request,
+                'completed_at'
+            )
+            reading_qs = apply_date_range_filter(
+                ReadingTestSession.objects.filter(user=student, completed=True),
+                request,
+                'end_time'
+            )
+            speaking_qs = apply_date_range_filter(
+                SpeakingSession.objects.filter(student=student),
+                request,
+                'conducted_at'
+            )
+
+            missing = []
+            if writing_qs.count() == 0:
+                missing.append('writing')
+            if listening_qs.count() == 0:
+                missing.append('listening')
+            if reading_qs.count() == 0:
+                missing.append('reading')
+            if speaking_qs.count() == 0:
+                missing.append('speaking')
+
+            if missing:
+                last_activity = self._last_activity(student)
+                missing_list.append({
+                    'id': student.id,
+                    'student_id': student.student_id,
+                    'name': f"{student.first_name} {student.last_name}",
+                    'group': student.group,
+                    'teacher': student.teacher,
+                    'missing_modules': missing,
+                    'last_activity': last_activity
+                })
+
+        return Response({
+            'students': missing_list,
+            'count': len(missing_list)
+        })
+
+    def _last_activity(self, student):
+        activity_times = []
+        essays = Essay.objects.filter(user=student).order_by('-submitted_at').first()
+        if essays and essays.submitted_at:
+            activity_times.append(essays.submitted_at)
+        listen = ListeningTestSession.objects.filter(user=student).order_by('-completed_at').first()
+        if listen and listen.completed_at:
+            activity_times.append(listen.completed_at)
+        read = ReadingTestSession.objects.filter(user=student).order_by('-end_time').first()
+        if read and read.end_time:
+            activity_times.append(read.end_time)
+        speak = SpeakingSession.objects.filter(student=student).order_by('-conducted_at').first()
+        if speak and speak.conducted_at:
+            activity_times.append(speak.conducted_at)
+        if not activity_times:
+            return None
+        latest = max(activity_times)
+        return timezone.localtime(latest).isoformat()
+
+
+class CuratorStudentDetailView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+
+    def get(self, request, student_id):
+        student = get_object_or_404(User, id=student_id, role='student', is_active=True)
+        time_range = {
+            'date_from': request.query_params.get('date_from'),
+            'date_to': request.query_params.get('date_to')
+        }
+
+        def wrap_queryset(qs, field):
+            return apply_date_range_filter(qs, request, field)
+
+        writing_qs = wrap_queryset(Essay.objects.filter(user=student), 'submitted_at')
+        listening_qs = wrap_queryset(ListeningTestSession.objects.filter(user=student, submitted=True), 'completed_at')
+        reading_qs = wrap_queryset(ReadingTestSession.objects.filter(user=student, completed=True), 'end_time')
+        speaking_qs = wrap_queryset(SpeakingSession.objects.filter(student=student), 'conducted_at')
+
+        def latest_result(qs, result_model, attr):
+            session = qs.order_by(f'-{attr}').first()
+            if not session:
+                return None
+            return result_model.objects.filter(session=session).first()
+
+        detail = {
+            'student': {
+                'id': student.id,
+                'student_id': student.student_id,
+                'first_name': student.first_name,
+                'last_name': student.last_name,
+                'email': student.email,
+                'group': student.group,
+                'teacher': student.teacher,
+            },
+            'modules': {
+                'writing': {
+                    'essays': writing_qs.count(),
+                    'latest': writing_qs.order_by('-submitted_at').values('task_type', 'score_task', 'overall_band', 'submitted_at').first(),
+                    'with_feedback': writing_qs.filter(teacher_feedback__isnull=False).exists()
+                },
+                'listening': {
+                    'sessions': listening_qs.count(),
+                    'latest': {
+                        'score': latest_result(listening_qs, ListeningTestResult, 'completed_at').score if latest_result(listening_qs, ListeningTestResult, 'completed_at') else None,
+                        'band': latest_result(listening_qs, ListeningTestResult, 'completed_at').band_score if latest_result(listening_qs, ListeningTestResult, 'completed_at') else None,
+                        'completed_at': listening_qs.order_by('-completed_at').values_list('completed_at', flat=True).first()
+                    }
+                },
+                'reading': {
+                    'sessions': reading_qs.count(),
+                    'latest': {
+                        'raw_score': latest_result(reading_qs, ReadingTestResult, 'end_time').raw_score if latest_result(reading_qs, ReadingTestResult, 'end_time') else None,
+                        'band_score': latest_result(reading_qs, ReadingTestResult, 'end_time').band_score if latest_result(reading_qs, ReadingTestResult, 'end_time') else None,
+                        'end_time': reading_qs.order_by('-end_time').values_list('end_time', flat=True).first()
+                    }
+                },
+                'speaking': {
+                    'sessions': speaking_qs.count(),
+                    'latest': speaking_qs.order_by('-conducted_at').values(
+                        'overall_band_score',
+                        'fluency_coherence_score',
+                        'lexical_resource_score',
+                        'grammatical_range_score',
+                        'pronunciation_score',
+                        'conducted_at'
+                    ).first()
+                }
+            },
+            'missing_tests': []
+        }
+
+        # Determine modules without data
+        for module in ['writing', 'listening', 'reading', 'speaking']:
+            if module == 'writing' and writing_qs.count() == 0:
+                detail['missing_tests'].append('writing')
+            if module == 'listening' and listening_qs.count() == 0:
+                detail['missing_tests'].append('listening')
+            if module == 'reading' and reading_qs.count() == 0:
+                detail['missing_tests'].append('reading')
+            if module == 'speaking' and speaking_qs.count() == 0:
+                detail['missing_tests'].append('speaking')
+
+        return Response(detail)
+
+
+class CuratorWritingOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get Writing test overview for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        writing_test_id = request.query_params.get('writing_test')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        total_students = students.count()
+        # Новый режим: отталкиваемся от WritingTestSession
+        sessions = WritingTestSession.objects.filter(user__in=students)
+        if writing_test_id:
+            sessions = sessions.filter(test_id=writing_test_id)
+        sessions = apply_date_range_filter(sessions, request, 'started_at')
+        # Собираем связанные эссе по сессиям
+        essays = Essay.objects.filter(user__in=students, test_session__in=sessions)
+        essays = apply_date_range_filter(essays, request, 'submitted_at')
+        
+        # Calculate meaningful statistics
+        submitted_essays = essays.count()
+        task1_count = essays.filter(task_type='task1').count()
+        task2_count = essays.filter(task_type='task2').count()
+        
+        # Teacher feedback statistics
+        essays_with_feedback = essays.filter(teacher_feedback__isnull=False).count()
+        essays_published = essays.filter(teacher_feedback__published=True).count()
+        essays_draft = essays.filter(teacher_feedback__published=False).count()
+        essays_pending_feedback = essays.filter(teacher_feedback__isnull=True).count()
+        
+        # Calculate average scores
+        avg_task_score = essays.aggregate(avg=models.Avg('score_task'))['avg'] or 0
+        avg_coherence_score = essays.aggregate(avg=models.Avg('score_coherence'))['avg'] or 0
+        avg_lexical_score = essays.aggregate(avg=models.Avg('score_lexical'))['avg'] or 0
+        avg_grammar_score = essays.aggregate(avg=models.Avg('score_grammar'))['avg'] or 0
+        avg_overall_score = essays.aggregate(avg=models.Avg('overall_band'))['avg'] or 0
+        
+        # Score distribution analysis
+        high_scores = essays.filter(overall_band__gte=7.0).count()
+        medium_scores = essays.filter(overall_band__gte=5.0, overall_band__lt=7.0).count()
+        low_scores = essays.filter(overall_band__lt=5.0).count()
+        
+        # Students with multiple attempts
+        students_with_essays = essays.values('user').distinct().count()
+        avg_essays_per_student = round(submitted_essays / students_with_essays, 1) if students_with_essays > 0 else 0
+        
+        # Get recent essays with feedback info (paginated) — агрегируем по сессии
+        recent_sessions_qs = sessions.select_related('user', 'test').order_by('-started_at')
+        try:
+            page = int(request.query_params.get('page', '1'))
+            page_size = int(request.query_params.get('page_size', '30'))
+        except ValueError:
+            page, page_size = 1, 30
+        if page_size <= 0: page_size = 30
+        if page <= 0: page = 1
+        total = recent_sessions_qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        recent_sessions = recent_sessions_qs[start:end]
+        recent_data = []
+        # Для каждой сессии берём два эссе (task1/task2) если они есть
+        essays_by_session = {}
+        for es in essays.select_related('prompt', 'user'):
+            essays_by_session.setdefault(es.test_session_id, []).append(es)
+        for sess in recent_sessions:
+            pair = essays_by_session.get(sess.id, [])
+            # Найдём task1/task2
+            task1 = next((e for e in pair if e.task_type == 'task1'), None)
+            task2 = next((e for e in pair if e.task_type == 'task2'), None)
+            def fb_info(e):
+                if not e: return None
+                fb = getattr(e, 'teacher_feedback', None)
+                # Если эссе сдано, но нет учительского фидбека - это Draft
+                # Published только если есть фидбек И он опубликован
+                return {
+                    'published': bool(fb and fb.published),
+                    'overall': fb.teacher_overall_score if fb else None,
+                    'has_feedback': bool(fb)  # Есть ли вообще фидбек от учителя
+                }
+            recent_data.append({
+                'session_id': sess.id,
+                'student_name': f"{sess.user.first_name} {sess.user.last_name}",
+                'student_id': sess.user.student_id,
+                'group': sess.user.group,
+                'teacher': sess.user.teacher,
+                'test_title': sess.test.title if sess.test else '-',
+                'task1': {
+                    'exists': task1 is not None,
+                    'overall_band': task1.overall_band if task1 else None,
+                    'feedback': fb_info(task1)
+                },
+                'task2': {
+                    'exists': task2 is not None,
+                    'overall_band': task2.overall_band if task2 else None,
+                    'feedback': fb_info(task2)
+                },
+                'submitted_at': max([e.submitted_at for e in pair]) if pair else None
+            })
+        
+        # Teacher performance analytics
+        teacher_analytics = []
+        # Get unique teachers from students (not from User table with role='teacher')
+        teacher_names = students.values('teacher').distinct().exclude(teacher__isnull=True).exclude(teacher='')
+        
+        for teacher_data in teacher_names:
+            teacher_name = teacher_data['teacher']
+            teacher_students = students.filter(teacher=teacher_name)
+            teacher_essays = essays.filter(user__in=teacher_students)
+            teacher_feedbacks = TeacherFeedback.objects.filter(essay__in=teacher_essays)
+            
+            teacher_analytics.append({
+                'teacher_name': teacher_name,
+                'students_count': teacher_students.count(),
+                'essays_count': teacher_essays.count(),
+                'feedbacks_given': teacher_feedbacks.count(),
+                'feedbacks_published': teacher_feedbacks.filter(published=True).count(),
+                'avg_score': ielts_round_score(teacher_feedbacks.aggregate(avg=models.Avg('teacher_overall_score'))['avg']),
+                'feedback_rate': round((teacher_feedbacks.count() / teacher_essays.count() * 100), 1) if teacher_essays.count() > 0 else 0,
+                'publish_rate': round((teacher_feedbacks.filter(published=True).count() / teacher_essays.count() * 100), 1) if teacher_essays.count() > 0 else 0
+            })
+        
+        # Group performance analytics
+        group_analytics = []
+        groups = students.values('group').distinct().exclude(group__isnull=True).exclude(group='')
+        for group_data in groups:
+            group_name = group_data['group']
+            group_students = students.filter(group=group_name)
+            group_essays = essays.filter(user__in=group_students)
+            group_feedbacks = TeacherFeedback.objects.filter(essay__in=group_essays)
+            
+            group_analytics.append({
+                'group_name': group_name,
+                'students_count': group_students.count(),
+                'essays_count': group_essays.count(),
+                'feedbacks_given': group_feedbacks.count(),
+                'feedbacks_published': group_feedbacks.filter(published=True).count(),
+                'avg_score': ielts_round_score(group_feedbacks.aggregate(avg=models.Avg('teacher_overall_score'))['avg']),
+                'feedback_rate': round((group_feedbacks.count() / group_essays.count() * 100), 1) if group_essays.count() > 0 else 0,
+                'publish_rate': round((group_feedbacks.filter(published=True).count() / group_essays.count() * 100), 1) if group_essays.count() > 0 else 0
+            })
+        
+        return Response({
+            'statistics': {
+                'total_students': total_students,
+                'submitted_essays': submitted_essays,
+                'task1_count': task1_count,
+                'task2_count': task2_count,
+                'students_with_essays': students_with_essays,
+                'avg_essays_per_student': avg_essays_per_student,
+                'teacher_feedback': {
+                    'essays_with_feedback': essays_with_feedback,
+                    'essays_published': essays_published,
+                    'essays_draft': essays_draft,
+                    'essays_pending_feedback': essays_pending_feedback,
+                    'feedback_rate': round((essays_with_feedback / submitted_essays * 100), 1) if submitted_essays > 0 else 0,
+                    'publish_rate': round((essays_published / submitted_essays * 100), 1) if submitted_essays > 0 else 0
+                },
+                'score_distribution': {
+                    'high_scores': high_scores,
+                    'medium_scores': medium_scores,
+                    'low_scores': low_scores
+                },
+                'average_scores': {
+                    'task': ielts_round_score(avg_task_score),
+                    'coherence': ielts_round_score(avg_coherence_score),
+                    'lexical': ielts_round_score(avg_lexical_score),
+                    'grammar': ielts_round_score(avg_grammar_score),
+                    'overall': ielts_round_score(avg_overall_score)
+                }
+            },
+            'teacher_analytics': teacher_analytics,
+            'group_analytics': group_analytics,
+            'recent_sessions': recent_data,
+            'recent_pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total': total,
+                'total_pages': (total + page_size - 1) // page_size
+            }
+        })
+
+
+class CuratorListeningOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get Listening test overview for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        listening_test_id = request.query_params.get('listening')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get Listening statistics
+        total_students = students.count()
+        # Get only sessions from active tests
+        active_tests = ListeningTest.objects.filter(is_active=True)
+        if listening_test_id:
+            active_tests = active_tests.filter(id=listening_test_id)
+        sessions = ListeningTestSession.objects.filter(user__in=students, test__in=active_tests, submitted=True)
+        sessions = apply_date_range_filter(sessions, request, 'completed_at')
+        
+        # Calculate meaningful statistics
+        completed_sessions = sessions.count()
+        total_questions = sessions.aggregate(total=models.Sum('total_questions_count'))['total'] or 0
+        correct_answers = sessions.aggregate(total=models.Sum('correct_answers_count'))['total'] or 0
+        
+        # Student engagement
+        students_with_sessions = sessions.values('user').distinct().count()
+        avg_sessions_per_student = round(completed_sessions / students_with_sessions, 1) if students_with_sessions > 0 else 0
+        
+        # Calculate average scores
+        avg_score = sessions.aggregate(avg=models.Avg('score'))['avg'] or 0
+        avg_correct_answers = sessions.aggregate(avg=models.Avg('correct_answers_count'))['avg'] or 0
+        # Average band from results
+        listen_results = ListeningTestResult.objects.filter(session__in=sessions)
+        avg_band_score = listen_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        
+        # Performance analysis
+        high_performers = sessions.filter(score__gte=30).count()  # Assuming 30+ is high
+        medium_performers = sessions.filter(score__gte=20, score__lt=30).count()
+        low_performers = sessions.filter(score__lt=20).count()
+        
+        # Accuracy analysis
+        high_accuracy = sessions.filter(
+            models.Q(correct_answers_count__gte=models.F('total_questions_count') * 0.8)
+        ).count()
+        medium_accuracy = sessions.filter(
+            models.Q(correct_answers_count__gte=models.F('total_questions_count') * 0.6) &
+            models.Q(correct_answers_count__lt=models.F('total_questions_count') * 0.8)
+        ).count()
+        low_accuracy = sessions.filter(
+            models.Q(correct_answers_count__lt=models.F('total_questions_count') * 0.6)
+        ).count()
+        
+        # Overall accuracy rate
+        overall_accuracy = round((correct_answers / total_questions * 100), 1) if total_questions > 0 else 0
+        
+        # Get recent sessions (paginated)
+        recent_qs = sessions.select_related('test').order_by('-completed_at')
+        try:
+            page = int(request.query_params.get('page', '1'))
+            page_size = int(request.query_params.get('page_size', '30'))
+        except ValueError:
+            page, page_size = 1, 30
+        if page_size <= 0: page_size = 30
+        if page <= 0: page = 1
+        total = recent_qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        recent_sessions = recent_qs[start:end]
+        recent_data = []
+        for session in recent_sessions:
+            # try to fetch result band
+            res = ListeningTestResult.objects.filter(session=session).first()
+            band = res.band_score if res else None
+            # accuracy percent
+            acc = None
+            if session.total_questions_count:
+                acc = round(100.0 * (session.correct_answers_count or 0) / max(1, session.total_questions_count), 1)
+            recent_data.append({
+                'id': session.id,
+                'student_name': f"{session.user.first_name} {session.user.last_name}",
+                'student_id': session.user.student_id,
+                'group': session.user.group,
+                'teacher': session.user.teacher,
+                'test_title': session.test.title,
+                'score': session.score,
+                'band_score': band,
+                'correct_answers': session.correct_answers_count,
+                'total_questions': session.total_questions_count,
+                'accuracy_percent': acc,
+                'completed_at': session.completed_at
+            })
+        
+        return Response({
+            'statistics': {
+                'total_students': total_students,
+                'completed_sessions': completed_sessions,
+                'students_with_sessions': students_with_sessions,
+                'avg_sessions_per_student': avg_sessions_per_student,
+                'total_questions': total_questions,
+                'correct_answers': correct_answers,
+                'overall_accuracy': overall_accuracy,
+                'performance_distribution': {
+                    'high_performers': high_performers,
+                    'medium_performers': medium_performers,
+                    'low_performers': low_performers
+                },
+                'accuracy_distribution': {
+                    'high_accuracy': high_accuracy,
+                    'medium_accuracy': medium_accuracy,
+                    'low_accuracy': low_accuracy
+                },
+                'average_scores': {
+                    'score': round(avg_score, 1),
+                    'correct_answers': round(avg_correct_answers, 1),
+                    'band': ielts_round_score(avg_band_score)
+                }
+            },
+            'recent_sessions': recent_data,
+            'recent_pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total': total,
+                'total_pages': (total + page_size - 1) // page_size
+            }
+        })
+
+
+class CuratorReadingOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get Reading test overview for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        reading_test_id = request.query_params.get('reading')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get Reading statistics
+        total_students = students.count()
+        # Get only sessions from active tests
+        active_tests = ReadingTest.objects.filter(is_active=True)
+        if reading_test_id:
+            active_tests = active_tests.filter(id=reading_test_id)
+        sessions = ReadingTestSession.objects.filter(user__in=students, test__in=active_tests, completed=True)
+        sessions = apply_date_range_filter(sessions, request, 'end_time')
+        
+        # Calculate meaningful statistics
+        completed_sessions = sessions.count()
+        
+        # Student engagement
+        students_with_sessions = sessions.values('user').distinct().count()
+        avg_sessions_per_student = round(completed_sessions / students_with_sessions, 1) if students_with_sessions > 0 else 0
+        
+        # Get results
+        results = ReadingTestResult.objects.filter(session__in=sessions)
+        total_score = results.aggregate(total=models.Sum('total_score'))['total'] or 0
+        raw_score = results.aggregate(total=models.Sum('raw_score'))['total'] or 0
+        
+        # Calculate average scores
+        avg_raw_score = results.aggregate(avg=models.Avg('raw_score'))['avg'] or 0
+        avg_total_score = results.aggregate(avg=models.Avg('total_score'))['avg'] or 0
+        avg_band_score = results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        
+        # Performance analysis
+        high_performers = results.filter(band_score__gte=7.0).count()
+        medium_performers = results.filter(band_score__gte=5.0, band_score__lt=7.0).count()
+        low_performers = results.filter(band_score__lt=5.0).count()
+        
+        # Score distribution analysis
+        high_scores = results.filter(raw_score__gte=models.F('total_score') * 0.8).count()
+        medium_scores = results.filter(
+            models.Q(raw_score__gte=models.F('total_score') * 0.6) &
+            models.Q(raw_score__lt=models.F('total_score') * 0.8)
+        ).count()
+        low_scores = results.filter(raw_score__lt=models.F('total_score') * 0.6).count()
+        
+        # Overall accuracy rate
+        overall_accuracy = round((raw_score / total_score * 100), 1) if total_score > 0 else 0
+        
+        # Get recent sessions (paginated)
+        recent_qs = sessions.select_related('test').order_by('-end_time')
+        try:
+            page = int(request.query_params.get('page', '1'))
+            page_size = int(request.query_params.get('page_size', '30'))
+        except ValueError:
+            page, page_size = 1, 30
+        if page_size <= 0: page_size = 30
+        if page <= 0: page = 1
+        total = recent_qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        recent_sessions = recent_qs[start:end]
+        recent_data = []
+        for session in recent_sessions:
+            result = getattr(session, 'result', None)
+            recent_data.append({
+                'id': session.id,
+                'student_name': f"{session.user.first_name} {session.user.last_name}",
+                'student_id': session.user.student_id,
+                'group': session.user.group,
+                'teacher': session.user.teacher,
+                'test_title': session.test.title,
+                'raw_score': result.raw_score if result else None,
+                'total_score': result.total_score if result else None,
+                'band_score': result.band_score if result else None,
+                'completed_at': session.end_time
+            })
+        
+        return Response({
+            'statistics': {
+                'total_students': total_students,
+                'completed_sessions': completed_sessions,
+                'students_with_sessions': students_with_sessions,
+                'avg_sessions_per_student': avg_sessions_per_student,
+                'total_score': total_score,
+                'raw_score': raw_score,
+                'overall_accuracy': overall_accuracy,
+                'performance_distribution': {
+                    'high_performers': high_performers,
+                    'medium_performers': medium_performers,
+                    'low_performers': low_performers
+                },
+                'score_distribution': {
+                    'high_scores': high_scores,
+                    'medium_scores': medium_scores,
+                    'low_scores': low_scores
+                },
+                'average_scores': {
+                    'raw_score': round(avg_raw_score, 1),
+                    'total_score': round(avg_total_score, 1),
+                    'band_score': ielts_round_score(avg_band_score)
+                }
+            },
+            'recent_sessions': recent_data,
+            'recent_pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total': total,
+                'total_pages': (total + page_size - 1) // page_size
+            }
+        })
+
+
+class CuratorOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get overall overview for curator with meaningful KPIs"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        writing_test_id = request.query_params.get('writing')
+        listening_test_id = request.query_params.get('listening')
+        reading_test_id = request.query_params.get('reading')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        total_students = students.count()
+        
+        # Get active tests
+        active_writing_tests = WritingTest.objects.filter(is_active=True)
+        active_listening_tests = ListeningTest.objects.filter(is_active=True)
+        active_reading_tests = ReadingTest.objects.filter(is_active=True)
+        
+        # Apply specific test filters if provided
+        if writing_test_id:
+            active_writing_tests = active_writing_tests.filter(id=writing_test_id)
+        if listening_test_id:
+            active_listening_tests = active_listening_tests.filter(id=listening_test_id)
+        if reading_test_id:
+            active_reading_tests = active_reading_tests.filter(id=reading_test_id)
+        
+        # Get test sessions
+        writing_sessions = WritingTestSession.objects.filter(user__in=students, test__in=active_writing_tests)
+        writing_sessions = apply_date_range_filter(writing_sessions, request, 'started_at')
+        listening_sessions = ListeningTestSession.objects.filter(user__in=students, test__in=active_listening_tests, submitted=True)
+        listening_sessions = apply_date_range_filter(listening_sessions, request, 'completed_at')
+        reading_sessions = ReadingTestSession.objects.filter(user__in=students, test__in=active_reading_tests, completed=True)
+        reading_sessions = apply_date_range_filter(reading_sessions, request, 'end_time')
+        
+        # Get essays from writing sessions
+        essays = Essay.objects.filter(test_session__in=writing_sessions)
+        
+        # Calculate meaningful KPIs
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Student engagement KPIs
+        students_with_any_activity = User.objects.filter(
+            id__in=writing_sessions.values('user').union(
+                listening_sessions.values('user'),
+                reading_sessions.values('user')
+            )
+        ).count()
+        
+        # Recent activity (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_writing = writing_sessions.filter(started_at__gte=week_ago).count()
+        recent_listening = listening_sessions.filter(completed_at__gte=week_ago).count()
+        recent_reading = reading_sessions.filter(end_time__gte=week_ago).count()
+        
+        # Teacher performance KPIs
+        teachers_with_students = User.objects.filter(role='teacher').filter(
+            teacher__in=students.values('teacher')
+        ).count()
+        
+        # Writing feedback KPIs
+        essays_with_feedback = essays.filter(teacher_feedback__isnull=False).count()
+        essays_published = essays.filter(teacher_feedback__published=True).count()
+        
+        # Speaking assessment KPIs
+        speaking_sessions = SpeakingSession.objects.filter(student__in=students)
+        speaking_sessions = apply_date_range_filter(speaking_sessions, request, 'conducted_at')
+        speaking_completed = speaking_sessions.filter(completed=True).count()
+        speaking_pending = speaking_sessions.filter(completed=False).count()
+        
+        # Average scores
+        avg_writing_score = essays.aggregate(avg=models.Avg('overall_band'))['avg'] or 0
+        # Use band_score from ListeningTestResult instead of raw score from session
+        listening_results = ListeningTestResult.objects.filter(session__in=listening_sessions)
+        avg_listening_score = listening_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        avg_reading_score = ReadingTestResult.objects.filter(session__in=reading_sessions).aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        avg_speaking_score = speaking_sessions.aggregate(avg=models.Avg('overall_band_score'))['avg'] or 0
+        
+        # Submission statistics by test
+        writing_submissions = writing_sessions.count()
+        listening_submissions = listening_sessions.count()
+        reading_submissions = reading_sessions.count()
+        speaking_submissions = speaking_sessions.filter(completed=True).count()
+        
+        # Teacher performance details
+        teachers_with_writing_feedback = User.objects.filter(role='teacher').filter(
+            id__in=essays.filter(teacher_feedback__isnull=False).values('teacher_feedback__teacher')
+        ).count()
+        
+        teachers_with_speaking_sessions = User.objects.filter(role='teacher').filter(
+            id__in=speaking_sessions.values('teacher')
+        ).count()
+        
+        # Score distributions
+        writing_score_distribution = {
+            'high': essays.filter(overall_band__gte=7.0).count(),
+            'medium': essays.filter(overall_band__gte=5.0, overall_band__lt=7.0).count(),
+            'low': essays.filter(overall_band__lt=5.0).count()
+        }
+        
+        listening_score_distribution = {
+            'high': listening_sessions.filter(score__gte=30).count(),
+            'medium': listening_sessions.filter(score__gte=20, score__lt=30).count(),
+            'low': listening_sessions.filter(score__lt=20).count()
+        }
+        
+        reading_score_distribution = {
+            'high': ReadingTestResult.objects.filter(session__in=reading_sessions, band_score__gte=7.0).count(),
+            'medium': ReadingTestResult.objects.filter(session__in=reading_sessions, band_score__gte=5.0, band_score__lt=7.0).count(),
+            'low': ReadingTestResult.objects.filter(session__in=reading_sessions, band_score__lt=5.0).count()
+        }
+        
+        speaking_score_distribution = {
+            'high': speaking_sessions.filter(completed=True, overall_band_score__gte=7.0).count(),
+            'medium': speaking_sessions.filter(completed=True, overall_band_score__gte=5.0, overall_band_score__lt=7.0).count(),
+            'low': speaking_sessions.filter(completed=True, overall_band_score__lt=5.0).count()
+        }
+        
+        # Completion rates - count unique students who completed each test
+        writing_completed_students = students.filter(
+            id__in=essays.filter(overall_band__isnull=False).values('user')
+        ).count()
+        listening_completed_students = students.filter(
+            id__in=listening_sessions.filter(submitted=True).values('user')
+        ).count()
+        reading_completed_students = students.filter(
+            id__in=reading_sessions.filter(completed=True).values('user')
+        ).count()
+        speaking_completed_students = students.filter(
+            id__in=speaking_sessions.filter(completed=True).values('student')
+        ).count()
+        
+        writing_rate = round((writing_completed_students / total_students * 100), 1) if total_students > 0 else 0
+        listening_rate = round((listening_completed_students / total_students * 100), 1) if total_students > 0 else 0
+        reading_rate = round((reading_completed_students / total_students * 100), 1) if total_students > 0 else 0
+        speaking_rate = round((speaking_completed_students / total_students * 100), 1) if total_students > 0 else 0
+        
+        # Detailed test information
+        detailed_tests = {}
+        
+        # Writing test details
+        if writing_test_id:
+            try:
+                selected_writing_test = WritingTest.objects.get(id=writing_test_id)
+                test_writing_sessions = writing_sessions.filter(test=selected_writing_test)
+                test_essays = essays.filter(test_session__test=selected_writing_test)
+            except WritingTest.DoesNotExist:
+                selected_writing_test = None
+            
+            if selected_writing_test:
+                detailed_tests['writing'] = {
+                    'test_id': selected_writing_test.id,
+                    'test_title': selected_writing_test.title,
+                    'total_sessions': test_writing_sessions.count(),
+                    'completed_sessions': test_essays.filter(overall_band__isnull=False).count(),
+                    'total_essays': test_essays.count(),
+                    'essays_with_feedback': test_essays.filter(teacher_feedback__isnull=False).count(),
+                    'essays_published': test_essays.filter(teacher_feedback__published=True).count(),
+                    'average_score': ielts_round_score(test_essays.aggregate(avg=models.Avg('overall_band'))['avg']),
+                    'students': []
+                }
+            
+                # Get student details for this writing test
+                for student in students:
+                    student_sessions = test_writing_sessions.filter(user=student)
+                    student_essays = test_essays.filter(user=student)
+                    if student_sessions.exists():
+                        latest_session = student_sessions.order_by('-started_at').first()
+                        latest_essay = student_essays.order_by('-submitted_at').first()
+                        
+                        # Check if essay has feedback safely
+                        has_feedback = False
+                        published = False
+                        if latest_essay:
+                            try:
+                                has_feedback = latest_essay.teacher_feedback is not None
+                                if has_feedback:
+                                    published = latest_essay.teacher_feedback.published
+                            except:
+                                has_feedback = False
+                                published = False
+                        
+                        # Check if student has completed essays (has scores)
+                        has_completed_essays = student_essays.filter(overall_band__isnull=False).exists()
+                        
+                        detailed_tests['writing']['students'].append({
+                            'student_id': student.student_id,
+                            'name': f"{student.first_name} {student.last_name}",
+                            'group': student.group,
+                            'teacher': student.teacher,
+                            'sessions_count': student_sessions.count(),
+                            'completed': has_completed_essays,
+                            'essays_count': student_essays.count(),
+                            'has_feedback': has_feedback,
+                            'published': published,
+                            'score': ielts_round_score(latest_essay.overall_band) if latest_essay else None,
+                            'last_activity': latest_session.started_at.strftime('%Y-%m-%d %H:%M:%S') if latest_session else None
+                        })
+        
+        # Listening test details
+        if listening_test_id:
+            try:
+                selected_listening_test = ListeningTest.objects.get(id=listening_test_id)
+                test_listening_sessions = listening_sessions.filter(test=selected_listening_test)
+            except ListeningTest.DoesNotExist:
+                selected_listening_test = None
+            
+            if selected_listening_test:
+                detailed_tests['listening'] = {
+                    'test_id': selected_listening_test.id,
+                    'test_title': selected_listening_test.title,
+                    'total_sessions': test_listening_sessions.count(),
+                    'submitted_sessions': test_listening_sessions.filter(submitted=True).count(),
+                    'average_score': round(test_listening_sessions.aggregate(avg=models.Avg('score'))['avg'] or 0, 1),
+                    'average_band': ielts_round_score(
+                        ListeningTestResult.objects.filter(session__in=test_listening_sessions).aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                    ),
+                    'students': []
+                }
+            
+                # Get student details for this listening test
+                for student in students:
+                    student_sessions = test_listening_sessions.filter(user=student)
+                    if student_sessions.exists():
+                        latest_session = student_sessions.order_by('-completed_at').first()
+                        latest_result = ListeningTestResult.objects.filter(session=latest_session).first()
+                        
+                        detailed_tests['listening']['students'].append({
+                            'student_id': student.student_id,
+                            'name': f"{student.first_name} {student.last_name}",
+                            'group': student.group,
+                            'teacher': student.teacher,
+                            'sessions_count': student_sessions.count(),
+                            'submitted': latest_session.submitted if latest_session else False,
+                            'score': latest_session.score if latest_session else None,
+                            'band_score': ielts_round_score(latest_result.band_score) if latest_result else None,
+                            'last_activity': latest_session.completed_at.strftime('%Y-%m-%d %H:%M:%S') if latest_session and latest_session.completed_at else None
+                        })
+        
+        # Reading test details
+        if reading_test_id:
+            try:
+                selected_reading_test = ReadingTest.objects.get(id=reading_test_id)
+                test_reading_sessions = reading_sessions.filter(test=selected_reading_test)
+            except ReadingTest.DoesNotExist:
+                selected_reading_test = None
+            
+            if selected_reading_test:
+                detailed_tests['reading'] = {
+                    'test_id': selected_reading_test.id,
+                    'test_title': selected_reading_test.title,
+                    'total_sessions': test_reading_sessions.count(),
+                    'completed_sessions': test_reading_sessions.filter(completed=True).count(),
+                    'average_raw_score': round(
+                        ReadingTestResult.objects.filter(session__in=test_reading_sessions).aggregate(avg=models.Avg('raw_score'))['avg'] or 0, 1
+                    ),
+                    'average_band': ielts_round_score(
+                        ReadingTestResult.objects.filter(session__in=test_reading_sessions).aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                    ),
+                    'students': []
+                }
+            
+                # Get student details for this reading test
+                for student in students:
+                    student_sessions = test_reading_sessions.filter(user=student)
+                    if student_sessions.exists():
+                        latest_session = student_sessions.order_by('-end_time').first()
+                        latest_result = ReadingTestResult.objects.filter(session=latest_session).first()
+                        
+                        detailed_tests['reading']['students'].append({
+                            'student_id': student.student_id,
+                            'name': f"{student.first_name} {student.last_name}",
+                            'group': student.group,
+                            'teacher': student.teacher,
+                            'sessions_count': student_sessions.count(),
+                            'completed': latest_session.completed if latest_session else False,
+                            'raw_score': latest_result.raw_score if latest_result else None,
+                            'band_score': ielts_round_score(latest_result.band_score) if latest_result else None,
+                            'last_activity': latest_session.end_time.strftime('%Y-%m-%d %H:%M:%S') if latest_session and latest_session.end_time else None
+                        })
+
+        # Group statistics
+        group_stats = []
+        for group_name in students.values_list('group', flat=True).distinct():
+            if group_name:
+                group_students = students.filter(group=group_name)
+                # Count unique students who completed each test type
+                group_writing_students = group_students.filter(
+                    id__in=essays.filter(overall_band__isnull=False).values('user')
+                ).count()
+                group_listening_students = group_students.filter(
+                    id__in=listening_sessions.filter(submitted=True).values('user')
+                ).count()
+                group_reading_students = group_students.filter(
+                    id__in=reading_sessions.filter(completed=True).values('user')
+                ).count()
+                group_speaking_students = group_students.filter(
+                    id__in=speaking_sessions.filter(completed=True).values('student')
+                ).count()
+                
+                group_stats.append({
+                    'group': group_name,
+                    'total_students': group_students.count(),
+                    'writing_completed': group_writing_students,
+                    'listening_completed': group_listening_students,
+                    'reading_completed': group_reading_students,
+                    'speaking_completed': group_speaking_students,
+                    'writing_rate': round((group_writing_students / group_students.count() * 100), 1) if group_students.count() > 0 else 0,
+                    'listening_rate': round((group_listening_students / group_students.count() * 100), 1) if group_students.count() > 0 else 0,
+                    'reading_rate': round((group_reading_students / group_students.count() * 100), 1) if group_students.count() > 0 else 0,
+                    'speaking_rate': round((group_speaking_students / group_students.count() * 100), 1) if group_students.count() > 0 else 0
+                })
+        
+        # Teacher statistics
+        teacher_stats = []
+        for teacher_name in students.values_list('teacher', flat=True).distinct():
+            if teacher_name:
+                teacher_students = students.filter(teacher=teacher_name)
+                # Count unique students who completed each test type
+                teacher_writing_students = teacher_students.filter(
+                    id__in=essays.filter(overall_band__isnull=False).values('user')
+                ).count()
+                teacher_listening_students = teacher_students.filter(
+                    id__in=listening_sessions.filter(submitted=True).values('user')
+                ).count()
+                teacher_reading_students = teacher_students.filter(
+                    id__in=reading_sessions.filter(completed=True).values('user')
+                ).count()
+                teacher_speaking_students = teacher_students.filter(
+                    id__in=speaking_sessions.filter(completed=True).values('student')
+                ).count()
+                
+                teacher_stats.append({
+                    'teacher': teacher_name,
+                    'total_students': teacher_students.count(),
+                    'writing_completed': teacher_writing_students,
+                    'listening_completed': teacher_listening_students,
+                    'reading_completed': teacher_reading_students,
+                    'speaking_completed': teacher_speaking_students,
+                    'writing_rate': round((teacher_writing_students / teacher_students.count() * 100), 1) if teacher_students.count() > 0 else 0,
+                    'listening_rate': round((teacher_listening_students / teacher_students.count() * 100), 1) if teacher_students.count() > 0 else 0,
+                    'reading_rate': round((teacher_reading_students / teacher_students.count() * 100), 1) if teacher_students.count() > 0 else 0,
+                    'speaking_rate': round((teacher_speaking_students / teacher_students.count() * 100), 1) if teacher_students.count() > 0 else 0
+                })
+        
+        return Response({
+            'overview': {
+                'total_students': total_students,
+                'completion_rates': {
+                    'writing': writing_rate,
+                    'listening': listening_rate,
+                    'reading': reading_rate,
+                    'speaking': speaking_rate
+                },
+                'average_scores': {
+                    'writing': ielts_round_score(avg_writing_score) if avg_writing_score > 0 else 0,
+                    'listening': ielts_round_score(avg_listening_score) if avg_listening_score > 0 else 0,
+                    'reading': ielts_round_score(avg_reading_score) if avg_reading_score > 0 else 0,
+                    'speaking': ielts_round_score(avg_speaking_score) if avg_speaking_score > 0 else 0
+                },
+                'score_distributions': {
+                    'writing': writing_score_distribution,
+                    'listening': listening_score_distribution,
+                    'reading': reading_score_distribution,
+                    'speaking': speaking_score_distribution
+                }
+            },
+            'group_statistics': group_stats,
+            'teacher_statistics': teacher_stats,
+            'detailed_tests': detailed_tests
+        })
+
+
+class CuratorActiveTestsView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get list of active tests for curator"""
+        active_writing_tests = WritingTest.objects.filter(is_active=True).values('id', 'title', 'description')
+        active_listening_tests = ListeningTest.objects.filter(is_active=True).values('id', 'title', 'description')
+        active_reading_tests = ReadingTest.objects.filter(is_active=True).values('id', 'title', 'description')
+        
+        return Response({
+            'writing_tests': list(active_writing_tests),
+            'listening_tests': list(active_listening_tests),
+            'reading_tests': list(active_reading_tests)
+        })
+
+
+class CuratorSpeakingOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Get Speaking sessions overview for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 30))
+        
+        # Base students queryset - only students with assigned teachers
+        students = User.objects.filter(role='student', is_active=True).exclude(teacher__isnull=True).exclude(teacher='')
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher__icontains=teacher)
+        
+        total_students = students.count()
+        
+        # Stats from all sessions among these students
+        all_sessions = SpeakingSession.objects.filter(student__in=students)
+        all_sessions = apply_date_range_filter(all_sessions, request, 'conducted_at')
+        total_sessions = all_sessions.count()
+        completed_sessions = all_sessions.filter(completed=True).count()
+        pending_sessions = all_sessions.filter(completed=False).count()
+        
+        # Teacher assessment performance
+        teachers_with_sessions = all_sessions.values('teacher').distinct().count()
+        avg_sessions_per_teacher = round(total_sessions / teachers_with_sessions, 1) if teachers_with_sessions > 0 else 0
+        
+        # Average scores
+        avg_overall = all_sessions.filter(completed=True, overall_band_score__isnull=False).aggregate(avg=models.Avg('overall_band_score'))['avg']
+        avg_fluency = all_sessions.filter(completed=True, fluency_coherence_score__isnull=False).aggregate(avg=models.Avg('fluency_coherence_score'))['avg']
+        avg_lexical = all_sessions.filter(completed=True, lexical_resource_score__isnull=False).aggregate(avg=models.Avg('lexical_resource_score'))['avg']
+        avg_grammar = all_sessions.filter(completed=True, grammatical_range_score__isnull=False).aggregate(avg=models.Avg('grammatical_range_score'))['avg']
+        avg_pronunciation = all_sessions.filter(completed=True, pronunciation_score__isnull=False).aggregate(avg=models.Avg('pronunciation_score'))['avg']
+        
+        # Performance distribution
+        high_performers = all_sessions.filter(completed=True, overall_band_score__gte=7.0).count()
+        medium_performers = all_sessions.filter(completed=True, overall_band_score__gte=5.0, overall_band_score__lt=7.0).count()
+        low_performers = all_sessions.filter(completed=True, overall_band_score__lt=5.0).count()
+        
+        # Students with multiple sessions
+        students_with_sessions = all_sessions.values('student').distinct().count()
+        avg_sessions_per_student = round(total_sessions / students_with_sessions, 1) if students_with_sessions > 0 else 0
+        
+        # Paginate students, and for each get latest session
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paged_students = students.order_by('first_name', 'last_name')[start_idx:end_idx]
+        
+        students_data = []
+        for student in paged_students:
+            # Ищем последний завершенный session с баллами
+            last_completed_session = apply_date_range_filter(
+                SpeakingSession.objects.filter(
+                student=student, 
+                completed=True,
+                overall_band_score__isnull=False
+            ),
+                request,
+                'conducted_at'
+            ).order_by('-conducted_at').first()
+            
+            # Если нет завершенного, берем последний любой
+            last_session = last_completed_session or apply_date_range_filter(
+                SpeakingSession.objects.filter(student=student),
+                request,
+                'conducted_at'
+            ).order_by('-conducted_at').first()
+            
+            students_data.append({
+                'student_id': student.student_id,
+                'student_name': f"{student.first_name} {student.last_name}",
+                'group': student.group,
+                'teacher': student.teacher,
+                'latest_session': {
+                    'session_id': last_session.id if last_session else None,
+                    'completed': last_session.completed if last_session else None,
+                    'overall_band': last_session.overall_band_score if last_session else None,
+                    'fluency_score': last_session.fluency_coherence_score if last_session else None,
+                    'lexical_score': last_session.lexical_resource_score if last_session else None,
+                    'grammar_score': last_session.grammatical_range_score if last_session else None,
+                    'pronunciation_score': last_session.pronunciation_score if last_session else None,
+                    'conducted_at': last_session.conducted_at if last_session else None
+                }
+            })
+        
+        total_pages = (total_students + page_size - 1) // page_size
+        
+        return Response({
+            'statistics': {
+                'total_students': total_students,
+                'total_sessions': total_sessions,
+                'completed_sessions': completed_sessions,
+                'pending_sessions': pending_sessions,
+                'students_with_sessions': students_with_sessions,
+                'avg_sessions_per_student': avg_sessions_per_student,
+                'teachers_with_sessions': teachers_with_sessions,
+                'avg_sessions_per_teacher': avg_sessions_per_teacher,
+                'performance_distribution': {
+                    'high_performers': high_performers,
+                    'medium_performers': medium_performers,
+                    'low_performers': low_performers
+                },
+                'average_scores': {
+                    'overall': ielts_round_score(avg_overall),
+                    'fluency': ielts_round_score(avg_fluency),
+                    'lexical': ielts_round_score(avg_lexical),
+                    'grammar': ielts_round_score(avg_grammar),
+                    'pronunciation': ielts_round_score(avg_pronunciation)
+                }
+            },
+            'students': students_data,
+            'recent_pagination': {
+                'current_page': page,
+                'total_pages': total_pages,
+                'page_size': page_size,
+                'total_count': total_students
+            }
+        })
+
+
+class CuratorSpeakingExportCSVView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Export Speaking sessions data to CSV"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        
+        # Base students queryset - only students with assigned teachers
+        students = User.objects.filter(role='student', is_active=True).exclude(teacher__isnull=True).exclude(teacher='')
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher__icontains=teacher)
+        
+        # Get all speaking sessions
+        sessions = SpeakingSession.objects.filter(student__in=students).select_related('student', 'teacher').order_by('-conducted_at')
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="speaking_sessions_export.csv"'
+        response.write('\ufeff'.encode('utf8'))  # UTF-8 BOM
+        
+        writer = csv.writer(response)
+        
+        header = [
+            'Student ID', 'Student Name', 'Group', 'Teacher',
+            'Session ID', 'Completed', 'Overall Band', 'Fluency Score', 'Lexical Score', 
+            'Grammar Score', 'Pronunciation Score', 'Duration (seconds)', 'Conducted At'
+        ]
+        writer.writerow(header)
+        
+        for session in sessions:
+            writer.writerow([
+                session.student.student_id or '',
+                f"{session.student.first_name} {session.student.last_name}",
+                session.student.group or '',
+                session.student.teacher or '',
+                session.id,
+                'Yes' if session.completed else 'No',
+                ielts_round_score(session.overall_band_score) or '',
+                ielts_round_score(session.fluency_coherence_score) or '',
+                ielts_round_score(session.lexical_resource_score) or '',
+                ielts_round_score(session.grammatical_range_score) or '',
+                ielts_round_score(session.pronunciation_score) or '',
+                session.duration_seconds or '',
+                session.conducted_at.strftime('%Y-%m-%d %H:%M:%S') if session.conducted_at else ''
+            ])
+        
+        return response
+
+
+class CuratorOverviewExportCSVView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Export comprehensive overview data to CSV"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        writing_test_id = request.query_params.get('writing')
+        listening_test_id = request.query_params.get('listening')
+        reading_test_id = request.query_params.get('reading')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get active tests
+        active_writing_tests = WritingTest.objects.filter(is_active=True)
+        active_listening_tests = ListeningTest.objects.filter(is_active=True)
+        active_reading_tests = ReadingTest.objects.filter(is_active=True)
+        
+        # Apply specific test filters if provided
+        if writing_test_id:
+            active_writing_tests = active_writing_tests.filter(id=writing_test_id)
+        if listening_test_id:
+            active_listening_tests = active_listening_tests.filter(id=listening_test_id)
+        if reading_test_id:
+            active_reading_tests = active_reading_tests.filter(id=reading_test_id)
+        
+        # Get test sessions
+        writing_sessions = WritingTestSession.objects.filter(user__in=students, test__in=active_writing_tests)
+        listening_sessions = ListeningTestSession.objects.filter(user__in=students, test__in=active_listening_tests, submitted=True)
+        reading_sessions = ReadingTestSession.objects.filter(user__in=students, test__in=active_reading_tests, completed=True)
+        speaking_sessions = SpeakingSession.objects.filter(student__in=students)
+        
+        # Get essays from writing sessions
+        essays = Essay.objects.filter(test_session__in=writing_sessions)
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="curator_overview_export.csv"'
+        response.write('\ufeff'.encode('utf8'))  # UTF-8 BOM
+        
+        writer = csv.writer(response)
+        
+        header = [
+            'Student ID', 'Student Name', 'Group', 'Teacher',
+            'Writing Sessions', 'Writing Completed', 'Writing Avg Score',
+            'Listening Sessions', 'Listening Submitted', 'Listening Avg Score', 'Listening Avg Band',
+            'Reading Sessions', 'Reading Completed', 'Reading Avg Score', 'Reading Avg Band',
+            'Speaking Sessions', 'Speaking Completed', 'Speaking Avg Score',
+            'Last Activity Date', 'Last Activity Type'
+        ]
+        writer.writerow(header)
+        
+        for student in students:
+            # Writing data
+            student_writing_sessions = writing_sessions.filter(user=student)
+            student_essays = essays.filter(user=student)
+            writing_completed = student_essays.filter(overall_band__isnull=False).count()
+            writing_avg = ielts_round_score(student_essays.aggregate(avg=models.Avg('overall_band'))['avg'])
+            
+            # Listening data
+            student_listening_sessions = listening_sessions.filter(user=student)
+            listening_submitted = student_listening_sessions.filter(submitted=True).count()
+            listening_avg_score = student_listening_sessions.aggregate(avg=models.Avg('score'))['avg'] or 0
+            listening_results = ListeningTestResult.objects.filter(session__in=student_listening_sessions)
+            listening_avg_band = ielts_round_score(listening_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0)
+            
+            # Reading data
+            student_reading_sessions = reading_sessions.filter(user=student)
+            reading_completed = student_reading_sessions.filter(completed=True).count()
+            reading_results = ReadingTestResult.objects.filter(session__in=student_reading_sessions)
+            reading_avg_score = reading_results.aggregate(avg=models.Avg('raw_score'))['avg'] or 0
+            reading_avg_band = ielts_round_score(reading_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0)
+            
+            # Speaking data
+            student_speaking_sessions = speaking_sessions.filter(student=student)
+            speaking_completed = student_speaking_sessions.filter(completed=True).count()
+            speaking_avg = ielts_round_score(student_speaking_sessions.aggregate(avg=models.Avg('overall_band_score'))['avg'] or 0)
+            
+            # Last activity
+            last_activities = []
+            if student_writing_sessions.exists():
+                last_writing = student_writing_sessions.order_by('-started_at').first()
+                last_activities.append(('Writing', last_writing.started_at))
+            if student_listening_sessions.exists():
+                last_listening = student_listening_sessions.order_by('-completed_at').first()
+                if last_listening and last_listening.completed_at:
+                    last_activities.append(('Listening', last_listening.completed_at))
+            if student_reading_sessions.exists():
+                last_reading = student_reading_sessions.order_by('-end_time').first()
+                if last_reading and last_reading.end_time:
+                    last_activities.append(('Reading', last_reading.end_time))
+            if student_speaking_sessions.exists():
+                last_speaking = student_speaking_sessions.order_by('-conducted_at').first()
+                if last_speaking and last_speaking.conducted_at:
+                    last_activities.append(('Speaking', last_speaking.conducted_at))
+            
+            last_activity = max(last_activities, key=lambda x: x[1]) if last_activities else (None, None)
+            
+            writer.writerow([
+                student.student_id or '',
+                f"{student.first_name} {student.last_name}",
+                student.group or '',
+                student.teacher or '',
+                student_writing_sessions.count(),
+                writing_completed,
+                writing_avg or 0,
+                student_listening_sessions.count(),
+                listening_submitted,
+                round(listening_avg_score, 1),
+                listening_avg_band or 0,
+                student_reading_sessions.count(),
+                reading_completed,
+                round(reading_avg_score, 1),
+                reading_avg_band or 0,
+                student_speaking_sessions.count(),
+                speaking_completed,
+                speaking_avg or 0,
+                last_activity[1].strftime('%Y-%m-%d %H:%M:%S') if last_activity[1] else '',
+                last_activity[0] or ''
+            ])
+        
+        return response
+
+
+class CuratorWritingExportCSVView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Export Writing data with student submissions and feedback for curator"""
+        # Get filter parameters
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        writing_test_id = request.query_params.get('writing_test')
+        
+        # Base queryset
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get writing sessions
+        sessions = WritingTestSession.objects.filter(user__in=students)
+        if writing_test_id:
+            sessions = sessions.filter(test_id=writing_test_id)
+        
+        # Get essays from writing sessions
+        essays = Essay.objects.filter(test_session__in=sessions).select_related('user', 'test_session', 'teacher_feedback')
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="curator_writing_export.csv"'
+        response.write('\ufeff'.encode('utf8'))  # UTF-8 BOM
+        
+        writer = csv.writer(response)
+        
+        header = [
+            'Student ID', 'Student Name', 'Group', 'Teacher',
+            'Test Title', 'Task Type', 'Submitted At', 'Word Count',
+            'AI Task Score', 'AI Coherence Score', 'AI Lexical Score', 'AI Grammar Score', 'AI Overall Band',
+            'Teacher Task Score', 'Teacher Coherence Score', 'Teacher Lexical Score', 'Teacher Grammar Score', 'Teacher Overall Score',
+            'Feedback Status', 'Feedback Published', 'Teacher Name', 'Feedback Created At', 'Feedback Published At'
+        ]
+        writer.writerow(header)
+        
+        for essay in essays:
+            user = essay.user
+            word_count = len(essay.submitted_text.split()) if essay.submitted_text else 0
+            feedback = getattr(essay, 'teacher_feedback', None)
+            
+            writer.writerow([
+                user.student_id or '',
+                f"{user.first_name} {user.last_name}",
+                user.group or '',
+                user.teacher or '',
+                essay.test_session.test.title if essay.test_session and essay.test_session.test else '',
+                essay.task_type.upper(),
+                essay.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if essay.submitted_at else '',
+                word_count,
+                ielts_round_score(essay.score_task) or '',
+                ielts_round_score(essay.score_coherence) or '',
+                ielts_round_score(essay.score_lexical) or '',
+                ielts_round_score(essay.score_grammar) or '',
+                ielts_round_score(essay.overall_band) or '',
+                ielts_round_score(feedback.teacher_task_score) if feedback else '',
+                ielts_round_score(feedback.teacher_coherence_score) if feedback else '',
+                ielts_round_score(feedback.teacher_lexical_score) if feedback else '',
+                ielts_round_score(feedback.teacher_grammar_score) if feedback else '',
+                ielts_round_score(feedback.teacher_overall_score) if feedback else '',
+                'Published' if feedback and feedback.published else ('Draft' if feedback else 'No Feedback'),
+                'Yes' if feedback and feedback.published else 'No',
+                f"{feedback.teacher.first_name} {feedback.teacher.last_name}" if feedback and feedback.teacher else '',
+                feedback.created_at.strftime('%Y-%m-%d %H:%M:%S') if feedback and feedback.created_at else '',
+                feedback.published_at.strftime('%Y-%m-%d %H:%M:%S') if feedback and feedback.published_at else ''
+            ])
+        
+        return response
+
+
+class ReadingTestResultView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = ReadingTestSession.objects.get(
+                id=session_id, 
+                user=user
+            )
+            
+            # Debug info
+            print(f"Reading session found: completed={session.completed}")
+            has_result = hasattr(session, 'result')
+            print(f"Session has result: {has_result}")
+            
+            if not session.completed:
+                return Response({'error': 'Session not completed yet.'}, status=400)
+                
+            if not has_result or not session.result:
+                return Response({'error': 'Session result not found.'}, status=404)
+                
+            serializer = ReadingTestResultSerializer(session.result)
+            return Response(serializer.data)
+        except ReadingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found.'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class CuratorTestComparisonView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Compare multiple tests within the same category"""
+        # Get parameters
+        category = request.GET.get('category', 'writing')
+        test_ids = request.GET.getlist('test_ids')
+        group = request.GET.get('group')
+        teacher = request.GET.get('teacher')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Validate parameters
+        if not test_ids:
+            return Response({'error': 'At least one test_id is required'}, status=400)
+        
+        if len(test_ids) < 2:
+            return Response({'error': 'At least 2 tests are required for comparison'}, status=400)
+        
+        if category not in ['writing', 'listening', 'reading']:
+            return Response({'error': 'Invalid category. Must be writing, listening, or reading'}, status=400)
+        
+        # Base queryset for students
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get test data for each test
+        tests_data = []
+        for test_id in test_ids:
+            try:
+                test_data = self.get_test_comparison_data(category, test_id, students, date_from, date_to)
+                tests_data.append(test_data)
+            except Exception as e:
+                return Response({'error': f'Error processing test {test_id}: {str(e)}'}, status=400)
+        
+        # Calculate comparison metrics
+        comparison = self.calculate_test_comparison(tests_data)
+        
+        return Response({
+            'category': category,
+            'tests': tests_data,
+            'comparison': comparison,
+            'filters': {
+                'group': group,
+                'teacher': teacher,
+                'date_from': date_from,
+                'date_to': date_to
+            }
+        })
+    
+    def get_test_comparison_data(self, category, test_id, students, date_from=None, date_to=None):
+        """Get detailed data for a specific test"""
+        from django.db import models
+        from django.utils import timezone
+        from datetime import datetime
+        
+        # Date filtering
+        date_filter = {}
+        if date_from:
+            try:
+                date_filter['gte'] = datetime.strptime(date_from, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                date_filter['lte'] = datetime.strptime(date_to, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        
+        if category == 'writing':
+            return self.get_writing_test_data(test_id, students, date_filter)
+        elif category == 'listening':
+            return self.get_listening_test_data(test_id, students, date_filter)
+        elif category == 'reading':
+            return self.get_reading_test_data(test_id, students, date_filter)
+    
+    def get_writing_test_data(self, test_id, students, date_filter):
+        """Get writing test comparison data"""
+        from django.db import models
+        
+        try:
+            test = WritingTest.objects.get(id=test_id)
+        except WritingTest.DoesNotExist:
+            raise ValueError(f"Writing test {test_id} not found")
+        
+        # Get writing sessions for this test
+        writing_sessions = WritingTestSession.objects.filter(
+            user__in=students,
+            test=test
+        )
+        
+        if date_filter:
+            if 'gte' in date_filter:
+                writing_sessions = writing_sessions.filter(started_at__date__gte=date_filter['gte'])
+            if 'lte' in date_filter:
+                writing_sessions = writing_sessions.filter(started_at__date__lte=date_filter['lte'])
+        
+        # Get essays from these sessions
+        essays = Essay.objects.filter(test_session__in=writing_sessions)
+        
+        # Calculate metrics - count unique students who completed the test
+        total_students = students.count()
+        completed_students = students.filter(
+            id__in=essays.filter(overall_band__isnull=False).values('user')
+        ).count()
+        completion_rate = round((completed_students / total_students * 100), 1) if total_students > 0 else 0
+        
+        # Average scores
+        avg_overall = essays.aggregate(avg=models.Avg('overall_band'))['avg'] or 0
+        avg_task_response = essays.aggregate(avg=models.Avg('score_task'))['avg'] or 0
+        avg_coherence = essays.aggregate(avg=models.Avg('score_coherence'))['avg'] or 0
+        avg_lexical = essays.aggregate(avg=models.Avg('score_lexical'))['avg'] or 0
+        avg_grammar = essays.aggregate(avg=models.Avg('score_grammar'))['avg'] or 0
+        
+        # Score distribution
+        score_distribution = {
+            'high': essays.filter(overall_band__gte=7.0).count(),
+            'medium': essays.filter(overall_band__gte=5.0, overall_band__lt=7.0).count(),
+            'low': essays.filter(overall_band__lt=5.0).count()
+        }
+        
+        # Group statistics
+        group_stats = []
+        for group_name in students.values_list('group', flat=True).distinct():
+            if group_name:
+                group_students = students.filter(group=group_name)
+                group_sessions = writing_sessions.filter(user__in=group_students)
+                group_essays = essays.filter(test_session__in=group_sessions)
+                group_completed = group_essays.filter(overall_band__isnull=False).count()
+                group_completion_rate = round((group_completed / group_sessions.count() * 100), 1) if group_sessions.count() > 0 else 0
+                group_avg_score = group_essays.aggregate(avg=models.Avg('overall_band'))['avg'] or 0
+                
+                group_stats.append({
+                    'group': group_name,
+                    'total_students': group_sessions.count(),
+                    'completed': group_completed,
+                    'completion_rate': group_completion_rate,
+                    'avg_score': ielts_round_score(group_avg_score) if group_avg_score > 0 else 0
+                })
+        
+        # Teacher statistics
+        teacher_stats = []
+        for teacher_name in students.values_list('teacher', flat=True).distinct():
+            if teacher_name:
+                teacher_students = students.filter(teacher=teacher_name)
+                teacher_sessions = writing_sessions.filter(user__in=teacher_students)
+                teacher_essays = essays.filter(test_session__in=teacher_sessions)
+                teacher_completed = teacher_essays.filter(overall_band__isnull=False).count()
+                teacher_completion_rate = round((teacher_completed / teacher_sessions.count() * 100), 1) if teacher_sessions.count() > 0 else 0
+                teacher_avg_score = teacher_essays.aggregate(avg=models.Avg('overall_band'))['avg'] or 0
+                
+                teacher_stats.append({
+                    'teacher': teacher_name,
+                    'total_students': teacher_sessions.count(),
+                    'completed': teacher_completed,
+                    'completion_rate': teacher_completion_rate,
+                    'avg_score': ielts_round_score(teacher_avg_score) if teacher_avg_score > 0 else 0
+                })
+        
+        return {
+            'id': test.id,
+            'title': test.title,
+            'description': test.description,
+            'total_students': total_students,
+            'completed_students': completed_students,
+            'completion_rate': completion_rate,
+            'average_scores': {
+                'overall': ielts_round_score(avg_overall) if avg_overall > 0 else 0,
+                'task_response': ielts_round_score(avg_task_response) if avg_task_response > 0 else 0,
+                'coherence': ielts_round_score(avg_coherence) if avg_coherence > 0 else 0,
+                'lexical': ielts_round_score(avg_lexical) if avg_lexical > 0 else 0,
+                'grammar': ielts_round_score(avg_grammar) if avg_grammar > 0 else 0
+            },
+            'score_distribution': score_distribution,
+            'group_statistics': group_stats,
+            'teacher_statistics': teacher_stats
+        }
+    
+    def get_listening_test_data(self, test_id, students, date_filter):
+        """Get listening test comparison data"""
+        from django.db import models
+        
+        try:
+            test = ListeningTest.objects.get(id=test_id)
+        except ListeningTest.DoesNotExist:
+            raise ValueError(f"Listening test {test_id} not found")
+        
+        # Get listening sessions for this test
+        listening_sessions = ListeningTestSession.objects.filter(
+            user__in=students,
+            test=test,
+            submitted=True
+        )
+        
+        if date_filter:
+            if 'gte' in date_filter:
+                listening_sessions = listening_sessions.filter(completed_at__date__gte=date_filter['gte'])
+            if 'lte' in date_filter:
+                listening_sessions = listening_sessions.filter(completed_at__date__lte=date_filter['lte'])
+        
+        # Get results
+        listening_results = ListeningTestResult.objects.filter(session__in=listening_sessions)
+        
+        # Calculate metrics - count unique students who completed the test
+        total_students = students.count()
+        completed_students = students.filter(
+            id__in=listening_sessions.filter(submitted=True).values('user')
+        ).count()
+        completion_rate = round((completed_students / total_students * 100), 1) if total_students > 0 else 0
+        
+        # Average scores
+        avg_raw_score = listening_results.aggregate(avg=models.Avg('raw_score'))['avg'] or 0
+        avg_band_score = listening_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        
+        # Score distribution
+        score_distribution = {
+            'high': listening_results.filter(band_score__gte=7.0).count(),
+            'medium': listening_results.filter(band_score__gte=5.0, band_score__lt=7.0).count(),
+            'low': listening_results.filter(band_score__lt=5.0).count()
+        }
+        
+        # Group statistics
+        group_stats = []
+        for group_name in students.values_list('group', flat=True).distinct():
+            if group_name:
+                group_students = students.filter(group=group_name)
+                group_sessions = listening_sessions.filter(user__in=group_students)
+                group_results = listening_results.filter(session__in=group_sessions)
+                group_completed = group_results.count()
+                group_completion_rate = round((group_completed / group_sessions.count() * 100), 1) if group_sessions.count() > 0 else 0
+                group_avg_score = group_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                
+                group_stats.append({
+                    'group': group_name,
+                    'total_students': group_sessions.count(),
+                    'completed': group_completed,
+                    'completion_rate': group_completion_rate,
+                    'avg_score': ielts_round_score(group_avg_score) if group_avg_score > 0 else 0
+                })
+        
+        # Teacher statistics
+        teacher_stats = []
+        for teacher_name in students.values_list('teacher', flat=True).distinct():
+            if teacher_name:
+                teacher_students = students.filter(teacher=teacher_name)
+                teacher_sessions = listening_sessions.filter(user__in=teacher_students)
+                teacher_results = listening_results.filter(session__in=teacher_sessions)
+                teacher_completed = teacher_results.count()
+                teacher_completion_rate = round((teacher_completed / teacher_sessions.count() * 100), 1) if teacher_sessions.count() > 0 else 0
+                teacher_avg_score = teacher_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                
+                teacher_stats.append({
+                    'teacher': teacher_name,
+                    'total_students': teacher_sessions.count(),
+                    'completed': teacher_completed,
+                    'completion_rate': teacher_completion_rate,
+                    'avg_score': ielts_round_score(teacher_avg_score) if teacher_avg_score > 0 else 0
+                })
+        
+        return {
+            'id': test.id,
+            'title': test.title,
+            'description': test.description,
+            'total_students': total_students,
+            'completed_students': completed_students,
+            'completion_rate': completion_rate,
+            'average_scores': {
+                'raw_score': round(avg_raw_score, 1),
+                'band_score': ielts_round_score(avg_band_score) if avg_band_score > 0 else 0
+            },
+            'score_distribution': score_distribution,
+            'group_statistics': group_stats,
+            'teacher_statistics': teacher_stats
+        }
+    
+    def get_reading_test_data(self, test_id, students, date_filter):
+        """Get reading test comparison data"""
+        from django.db import models
+        
+        try:
+            test = ReadingTest.objects.get(id=test_id)
+        except ReadingTest.DoesNotExist:
+            raise ValueError(f"Reading test {test_id} not found")
+        
+        # Get reading sessions for this test
+        reading_sessions = ReadingTestSession.objects.filter(
+            user__in=students,
+            test=test,
+            completed=True
+        )
+        
+        if date_filter:
+            if 'gte' in date_filter:
+                reading_sessions = reading_sessions.filter(end_time__date__gte=date_filter['gte'])
+            if 'lte' in date_filter:
+                reading_sessions = reading_sessions.filter(end_time__date__lte=date_filter['lte'])
+        
+        # Get results
+        reading_results = ReadingTestResult.objects.filter(session__in=reading_sessions)
+        
+        # Calculate metrics - count unique students who completed the test
+        total_students = students.count()
+        completed_students = students.filter(
+            id__in=reading_sessions.filter(completed=True).values('user')
+        ).count()
+        completion_rate = round((completed_students / total_students * 100), 1) if total_students > 0 else 0
+        
+        # Average scores
+        avg_raw_score = reading_results.aggregate(avg=models.Avg('raw_score'))['avg'] or 0
+        avg_band_score = reading_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+        
+        # Score distribution
+        score_distribution = {
+            'high': reading_results.filter(band_score__gte=7.0).count(),
+            'medium': reading_results.filter(band_score__gte=5.0, band_score__lt=7.0).count(),
+            'low': reading_results.filter(band_score__lt=5.0).count()
+        }
+        
+        # Group statistics
+        group_stats = []
+        for group_name in students.values_list('group', flat=True).distinct():
+            if group_name:
+                group_students = students.filter(group=group_name)
+                group_sessions = reading_sessions.filter(user__in=group_students)
+                group_results = reading_results.filter(session__in=group_sessions)
+                group_completed = group_results.count()
+                group_completion_rate = round((group_completed / group_sessions.count() * 100), 1) if group_sessions.count() > 0 else 0
+                group_avg_score = group_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                
+                group_stats.append({
+                    'group': group_name,
+                    'total_students': group_sessions.count(),
+                    'completed': group_completed,
+                    'completion_rate': group_completion_rate,
+                    'avg_score': ielts_round_score(group_avg_score) if group_avg_score > 0 else 0
+                })
+        
+        # Teacher statistics
+        teacher_stats = []
+        for teacher_name in students.values_list('teacher', flat=True).distinct():
+            if teacher_name:
+                teacher_students = students.filter(teacher=teacher_name)
+                teacher_sessions = reading_sessions.filter(user__in=teacher_students)
+                teacher_results = reading_results.filter(session__in=teacher_sessions)
+                teacher_completed = teacher_results.count()
+                teacher_completion_rate = round((teacher_completed / teacher_sessions.count() * 100), 1) if teacher_sessions.count() > 0 else 0
+                teacher_avg_score = teacher_results.aggregate(avg=models.Avg('band_score'))['avg'] or 0
+                
+                teacher_stats.append({
+                    'teacher': teacher_name,
+                    'total_students': teacher_sessions.count(),
+                    'completed': teacher_completed,
+                    'completion_rate': teacher_completion_rate,
+                    'avg_score': ielts_round_score(teacher_avg_score) if teacher_avg_score > 0 else 0
+                })
+        
+        return {
+            'id': test.id,
+            'title': test.title,
+            'description': test.description,
+            'total_students': total_students,
+            'completed_students': completed_students,
+            'completion_rate': completion_rate,
+            'average_scores': {
+                'raw_score': round(avg_raw_score, 1),
+                'band_score': ielts_round_score(avg_band_score) if avg_band_score > 0 else 0
+            },
+            'score_distribution': score_distribution,
+            'group_statistics': group_stats,
+            'teacher_statistics': teacher_stats
+        }
+    
+    def calculate_test_comparison(self, tests_data):
+        """Calculate comparison metrics between tests"""
+        if len(tests_data) < 2:
+            return {}
+        
+        # Find best and worst performing tests
+        best_test = max(tests_data, key=lambda x: x['average_scores'].get('overall', x['average_scores'].get('band_score', 0)))
+        worst_test = min(tests_data, key=lambda x: x['average_scores'].get('overall', x['average_scores'].get('band_score', 0)))
+        
+        # Calculate score differences
+        score_differences = []
+        for i, test1 in enumerate(tests_data):
+            for j, test2 in enumerate(tests_data[i+1:], i+1):
+                score1 = test1['average_scores'].get('overall', test1['average_scores'].get('band_score', 0))
+                score2 = test2['average_scores'].get('overall', test2['average_scores'].get('band_score', 0))
+                difference = score1 - score2
+                
+                score_differences.append({
+                    'test1': test1['title'],
+                    'test2': test2['title'],
+                    'difference': round(difference, 1),
+                    'better_test': test1['title'] if difference > 0 else test2['title']
+                })
+        
+        # Calculate completion rate differences
+        completion_differences = []
+        for i, test1 in enumerate(tests_data):
+            for j, test2 in enumerate(tests_data[i+1:], i+1):
+                rate1 = test1['completion_rate']
+                rate2 = test2['completion_rate']
+                difference = rate1 - rate2
+                
+                completion_differences.append({
+                    'test1': test1['title'],
+                    'test2': test2['title'],
+                    'difference': round(difference, 1),
+                    'better_test': test1['title'] if difference > 0 else test2['title']
+                })
+        
+        return {
+            'best_performing_test': {
+                'id': best_test['id'],
+                'title': best_test['title'],
+                'score': best_test['average_scores'].get('overall', best_test['average_scores'].get('band_score', 0))
+            },
+            'worst_performing_test': {
+                'id': worst_test['id'],
+                'title': worst_test['title'],
+                'score': worst_test['average_scores'].get('overall', worst_test['average_scores'].get('band_score', 0))
+            },
+            'score_differences': score_differences,
+            'completion_differences': completion_differences,
+            'total_tests_compared': len(tests_data)
+        }
+
+
+class CuratorTestComparisonExportCSVView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+    
+    def get(self, request):
+        """Export test comparison data as CSV"""
+        import csv
+        from django.http import HttpResponse
+        
+        # Get parameters
+        category = request.GET.get('category', 'writing')
+        test_ids = request.GET.getlist('test_ids')
+        group = request.GET.get('group')
+        teacher = request.GET.get('teacher')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Validate parameters
+        if not test_ids or len(test_ids) < 2:
+            return Response({'error': 'At least 2 tests are required for comparison'}, status=400)
+        
+        if category not in ['writing', 'listening', 'reading']:
+            return Response({'error': 'Invalid category'}, status=400)
+        
+        # Base queryset for students
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        
+        # Get comparison data
+        comparison_view = CuratorTestComparisonView()
+        tests_data = []
+        for test_id in test_ids:
+            try:
+                test_data = comparison_view.get_test_comparison_data(category, test_id, students, date_from, date_to)
+                tests_data.append(test_data)
+            except Exception as e:
+                return Response({'error': f'Error processing test {test_id}: {str(e)}'}, status=400)
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        from datetime import datetime
+        response['Content-Disposition'] = f'attachment; filename="test_comparison_{category}_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+        response.write('\ufeff'.encode('utf8'))  # UTF-8 BOM
+        
+        writer = csv.writer(response)
+        
+        # Write header
+        if category == 'writing':
+            header = [
+                'Test ID', 'Test Title', 'Total Students', 'Completed Students', 'Completion Rate (%)',
+                'Avg Overall Score', 'Avg Task', 'Avg Coherence', 'Avg Lexical', 'Avg Grammar',
+                'High Scores (≥7.0)', 'Medium Scores (5.0-7.0)', 'Low Scores (<5.0)'
+            ]
+        else:  # listening or reading
+            header = [
+                'Test ID', 'Test Title', 'Total Students', 'Completed Students', 'Completion Rate (%)',
+                'Avg Raw Score', 'Avg Band Score',
+                'High Scores (≥7.0)', 'Medium Scores (5.0-7.0)', 'Low Scores (<5.0)'
+            ]
+        writer.writerow(header)
+        
+        # Write test data
+        for test in tests_data:
+            if category == 'writing':
+                row = [
+                    test['id'],
+                    test['title'],
+                    test['total_students'],
+                    test['completed_students'],
+                    test['completion_rate'],
+                    test['average_scores']['overall'],
+                    test['average_scores']['task_response'],
+                    test['average_scores']['coherence'],
+                    test['average_scores']['lexical'],
+                    test['average_scores']['grammar'],
+                    test['score_distribution']['high'],
+                    test['score_distribution']['medium'],
+                    test['score_distribution']['low']
+                ]
+            else:  # listening or reading
+                row = [
+                    test['id'],
+                    test['title'],
+                    test['total_students'],
+                    test['completed_students'],
+                    test['completion_rate'],
+                    test['average_scores']['raw_score'],
+                    test['average_scores']['band_score'],
+                    test['score_distribution']['high'],
+                    test['score_distribution']['medium'],
+                    test['score_distribution']['low']
+                ]
+            writer.writerow(row)
+        
+        # Add comparison summary
+        writer.writerow([])  # Empty row
+        writer.writerow(['COMPARISON SUMMARY'])
+        
+        if len(tests_data) >= 2:
+            # Find best and worst performing tests
+            best_test = max(tests_data, key=lambda x: x['average_scores'].get('overall', x['average_scores'].get('band_score', 0)))
+            worst_test = min(tests_data, key=lambda x: x['average_scores'].get('overall', x['average_scores'].get('band_score', 0)))
+            
+            writer.writerow(['Best Performing Test', best_test['title'], f"Score: {best_test['average_scores'].get('overall', best_test['average_scores'].get('band_score', 0))}"])
+            writer.writerow(['Worst Performing Test', worst_test['title'], f"Score: {worst_test['average_scores'].get('overall', worst_test['average_scores'].get('band_score', 0))}"])
+            
+            # Score differences
+            writer.writerow([])
+            writer.writerow(['SCORE DIFFERENCES'])
+            writer.writerow(['Test 1', 'Test 2', 'Difference', 'Better Test'])
+            
+            for i, test1 in enumerate(tests_data):
+                for j, test2 in enumerate(tests_data[i+1:], i+1):
+                    score1 = test1['average_scores'].get('overall', test1['average_scores'].get('band_score', 0))
+                    score2 = test2['average_scores'].get('overall', test2['average_scores'].get('band_score', 0))
+                    difference = score1 - score2
+                    better_test = test1['title'] if difference > 0 else test2['title']
+                    
+                    writer.writerow([
+                        test1['title'],
+                        test2['title'],
+                        round(difference, 1),
+                        better_test
+                    ])
+        
+        return response

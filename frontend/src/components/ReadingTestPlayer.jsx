@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase-config';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import api from '../api';
@@ -20,11 +20,26 @@ const ReadingTimer = ({ timeLeft, color = 'text-green-600' }) => {
     );
 };
 
+const PassageContent = React.memo(({ passageHtml, onMouseUp }) => {
+    return (
+        <div 
+            className="prose prose-base lg:prose-lg max-w-none text-black leading-relaxed text-sm sm:text-base lg:text-lg whitespace-pre-wrap" 
+            style={{ lineHeight: '1.6' }}
+            onMouseUp={onMouseUp}
+            suppressContentEditableWarning={true}
+            dangerouslySetInnerHTML={{ __html: passageHtml }}
+        />
+    );
+}, (prevProps, nextProps) => {
+    return prevProps.passageHtml === nextProps.passageHtml;
+});
+
 
 const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const { id: paramTestId } = useParams();
     const testId = propTestId || paramTestId;
     const navigate = useNavigate();
+    const location = useLocation();
     const [user, loading] = useAuthState(auth);
 
     // Test state
@@ -38,6 +53,12 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Highlighting state
+    const [highlights, setHighlights] = useState({});
+    const [isHighlightMode, setIsHighlightMode] = useState(false);
+    const passageRef = useRef(null);
+    const highlightModeRef = useRef(false);
 
     // Effect to start session and load test
     useEffect(() => {
@@ -72,10 +93,15 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             return;
         }
         try {
-            const sessionResponse = await api.post(`/reading-tests/${testId}/start/`);
-            const newSession = sessionResponse.data;
-            setSession(newSession);
-            setTimeLeft(newSession.time_left_seconds || 3600);
+      const isDiagnostic = location.pathname.includes('/dashboard') ? false : 
+                          new URLSearchParams(location.search).get('diagnostic');
+      const url = isDiagnostic ? 
+        `/reading-tests/${testId}/start/?diagnostic=true` : 
+        `/reading-tests/${testId}/start/`;
+      const sessionResponse = await api.post(url);
+      const newSession = sessionResponse.data;
+      setSession(newSession);
+      setTimeLeft(newSession.time_left_seconds || 3600);
             
             // Загружаем ответы для всех сессий (включая завершенные для отображения результатов)
             setAnswers(newSession.answers || {});
@@ -91,7 +117,13 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setTest(testData);
 
         } catch (err) {
-            if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+            if (err.response?.status === 409) {
+                setError('You have already completed the diagnostic test for Reading.');
+            } else if (err.response?.status === 403) {
+                setError('Diagnostic tests are not available if you have completed any regular tests.');
+            } else if (err.response?.status === 400) {
+                setError('This test is not marked as a diagnostic template.');
+            } else if (err.response && (err.response.status === 401 || err.response.status === 403)) {
                 setError('Session expired, please login again.');
                 setTimeout(() => navigate('/login'), 1500);
             } else {
@@ -118,6 +150,15 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 } else {
                     newAnswers[qIdStr] = currentSelection.filter(item => item !== value.text);
                 }
+            } else if (type === 'multiple_choice_group') {
+                const currentGroupAnswers = (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr]))
+                    ? { ...newAnswers[qIdStr] }
+                    : {};
+                if (subKey) {
+                    currentGroupAnswers[subKey] = value;
+                    newAnswers[qIdStr] = currentGroupAnswers;
+                    newAnswers[`${qIdStr}__${subKey}`] = value;
+                }
             } else { // For gap_fill, matching, table... which use a subKey
                 const currentSubAnswers = newAnswers[qIdStr] || {};
                 newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
@@ -125,7 +166,22 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
             return newAnswers;
         });
+        
+        // Auto-sync after a delay
+        setTimeout(syncAnswers, 1000);
     };
+
+    const syncAnswers = async () => {
+        if (!session) return;
+        try {
+            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers, time_left: timeLeft });
+        } catch (err) {
+            // Silent error for sync
+        }
+    };
+
+    const sortedParts = test?.parts?.sort((a, b) => a.part_number - b.part_number) || [];
+    const currentPart = sortedParts[currentPartIndex];
 
     const submitTest = async () => {
         if (isSubmitting) return;
@@ -155,9 +211,102 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     };
 
-    // Сортируем части и получаем текущую часть
-    const sortedParts = test?.parts?.sort((a, b) => a.part_number - b.part_number) || [];
-    const currentPart = sortedParts[currentPartIndex];
+    const toggleHighlightMode = useCallback(() => {
+        setIsHighlightMode(prev => {
+            const newMode = !prev;
+            highlightModeRef.current = newMode;
+            return newMode;
+        });
+    }, []);
+
+    const handleTextSelection = useCallback(() => {
+        const currentMode = highlightModeRef.current;
+        
+        if (!currentMode) return;
+        
+        const selection = window.getSelection();
+        const selectedText = selection.toString().trim();
+        
+        if (selectedText.length === 0) return;
+        
+        const range = selection.getRangeAt(0);
+        const partId = currentPart?.id;
+        
+        if (!partId) return;
+
+        const highlightId = `highlight-${Date.now()}-${Math.random()}`;
+        
+        const newHighlight = {
+            id: highlightId,
+            text: selectedText
+        };
+
+        setHighlights(prev => ({
+            ...prev,
+            [partId]: [...(prev[partId] || []), newHighlight]
+        }));
+
+        try {
+            const mark = document.createElement('mark');
+            mark.style.backgroundColor = '#fef08a';
+            mark.style.cursor = 'pointer';
+            mark.style.padding = '2px 0';
+            mark.style.borderRadius = '2px';
+            mark.dataset.highlightId = highlightId;
+            mark.onclick = () => removeHighlight(partId, highlightId);
+            mark.onmouseenter = () => { mark.style.backgroundColor = '#fde047'; };
+            mark.onmouseleave = () => { mark.style.backgroundColor = '#fef08a'; };
+            
+            const documentFragment = range.extractContents();
+            mark.appendChild(documentFragment);
+            range.insertNode(mark);
+            
+            selection.removeAllRanges();
+        } catch (e) {
+            console.error('Ошибка хайлайтинга:', e);
+            selection.removeAllRanges();
+        }
+    }, [currentPart]);
+
+    const removeHighlight = (partId, highlightId) => {
+        setHighlights(prev => ({
+            ...prev,
+            [partId]: (prev[partId] || []).filter(h => h.id !== highlightId)
+        }));
+
+        const markElement = document.querySelector(`[data-highlight-id="${highlightId}"]`);
+        if (markElement) {
+            const parent = markElement.parentNode;
+            while (markElement.firstChild) {
+                parent.insertBefore(markElement.firstChild, markElement);
+            }
+            parent.removeChild(markElement);
+            parent.normalize();
+        }
+    };
+
+    const clearAllHighlights = () => {
+        const partId = currentPart?.id;
+        if (!partId) return;
+
+        const currentHighlights = highlights[partId] || [];
+        currentHighlights.forEach(highlight => {
+            const markElement = document.querySelector(`[data-highlight-id="${highlight.id}"]`);
+            if (markElement) {
+                const parent = markElement.parentNode;
+                while (markElement.firstChild) {
+                    parent.insertBefore(markElement.firstChild, markElement);
+                }
+                parent.removeChild(markElement);
+            }
+        });
+
+        setHighlights(prev => ({
+            ...prev,
+            [partId]: []
+        }));
+    };
+
 
     const renderQuestion = (question) => {
         const type = question.question_type?.toLowerCase();
@@ -173,6 +322,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 {question.instruction && (
                     <div className="text-gray-600 italic mt-1 bg-green-50/30 p-3 rounded-lg text-sm lg:text-base" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                         {question.instruction}
+                    </div>
+                )}
+                {question.task_prompt && (
+                    <div className="font-semibold text-xl text-black text-center mb-3 whitespace-pre-wrap">
+                        {question.task_prompt}
                     </div>
                 )}
                 {question.image_url && (
@@ -223,6 +377,66 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             );
         }
 
+        // --- Multiple Choice Group ---
+        if (type === 'multiple_choice_group') {
+            const groupItems = Array.isArray(question.extra_data?.group_items) && question.extra_data.group_items.length
+                ? question.extra_data.group_items
+                : (Array.isArray(question.group_items) ? question.group_items : []);
+            const groupedAnswers = (answers[question.id.toString()] && typeof answers[question.id.toString()] === 'object')
+                ? answers[question.id.toString()]
+                : {};
+
+            return (
+                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
+                    {headerBlock}
+                    {question.question_text && (
+                        <p className="font-semibold text-gray-800 mb-3 lg:mb-4 text-base lg:text-lg whitespace-pre-wrap">{question.question_text}</p>
+                    )}
+                    <div className="space-y-4">
+                        {groupItems.map((item, idx) => {
+                            const itemId = item.id || `item-${idx}`;
+                            const options = Array.isArray(item.options) ? item.options : [];
+                            const selectedLabel = groupedAnswers[itemId] ?? answers[`${question.id}__${itemId}`];
+
+                            return (
+                                <div key={itemId} className="p-3 lg:p-4 border border-green-100 rounded-xl bg-white/70 shadow-sm">
+                                    <div className="font-medium text-gray-800 mb-2 text-sm lg:text-base">
+                                        {item.prompt || `Question ${idx + 1}`}
+                                    </div>
+                                    <div className="space-y-2 lg:space-y-3">
+                                        {options.map((option, optIdx) => {
+                                            const label = option.label || String.fromCharCode(65 + optIdx);
+                                            const isSelected = selectedLabel === label;
+                                            return (
+                                                <label
+                                                    key={label}
+                                                    className={`flex items-center space-x-3 lg:space-x-4 cursor-pointer p-2 lg:p-3 rounded-xl transition ${
+                                                        isSelected ? 'bg-green-100 border-2 border-green-300 shadow-sm' : 'hover:bg-green-50 border-2 border-transparent'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name={`question-${question.id}-${itemId}`}
+                                                        value={label}
+                                                        checked={isSelected}
+                                                        onChange={(e) => handleAnswerChange(question.id, itemId, e.target.value, 'multiple_choice_group')}
+                                                        className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 border-gray-300 focus:ring-green-500 accent-green-600 flex-shrink-0"
+                                                    />
+                                                    <span className={`font-medium text-sm lg:text-lg ${
+                                                        isSelected ? 'text-green-700 font-semibold' : 'text-gray-700'
+                                                    }`}>{label}. {option.text}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
         // --- Multiple Response ---
         if (type === 'multiple_response' && Array.isArray(question.answer_options)) {
             const selectedAnswers = answers[question.id.toString()] || [];
@@ -266,7 +480,15 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
             let match;
             while ((match = gapRegex.exec(text)) !== null) {
-                parts.push(text.slice(lastIndex, match.index));
+                const before = text.slice(lastIndex, match.index);
+                if (before) {
+                    parts.push(
+                        <span
+                            key={`t${parts.length}`}
+                            dangerouslySetInnerHTML={{ __html: before }}
+                        />
+                    );
+                }
                 const gapNumber = match[1];
                 const subKey = `gap${gapNumber}`;
                 parts.push(
@@ -283,12 +505,22 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 );
                 lastIndex = gapRegex.lastIndex;
             }
-            parts.push(text.slice(lastIndex));
+            const remaining = text.slice(lastIndex);
+            if (remaining) {
+                parts.push(
+                    <span
+                        key="end"
+                        dangerouslySetInnerHTML={{ __html: remaining }}
+                    />
+                );
+            }
 
             return (
                 <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
-                    <div className="text-gray-800 leading-relaxed text-base lg:text-lg" style={{ whiteSpace: 'pre-wrap' }}>{parts}</div>
+                    <div className="text-gray-800 leading-relaxed text-base lg:text-lg gap-fill-html whitespace-pre-line">
+                        {parts}
+                    </div>
                 </div>
             );
         }
@@ -446,14 +678,62 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     <div className="lg:col-span-1 order-2 lg:order-1">
                         <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-green-100">
                             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-700 mb-3 sm:mb-4">
-                                {currentPart.passage_heading || 'Passage'}
+                                {currentPart?.passage_heading || 'Passage'}
                             </h1>
+                            
+                            {/* Highlighting Toolbar */}
+                            {currentPart && (
+                            <div className="flex items-center gap-3 mb-4 p-3 bg-green-50/50 rounded-xl border border-green-200">
+                                <button
+                                    onClick={toggleHighlightMode}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
+                                        isHighlightMode 
+                                            ? 'bg-yellow-200 border-2 border-yellow-400 shadow-sm' 
+                                            : 'bg-white border-2 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                    title={isHighlightMode ? "Highlighting enabled" : "Enable highlighting"}
+                                >
+                                    <svg 
+                                        xmlns="http://www.w3.org/2000/svg" 
+                                        className="h-5 w-5" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor"
+                                    >
+                                        <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" 
+                                        />
+                                    </svg>
+                                </button>
+                                <span className="text-sm text-gray-700 font-medium">
+                                    {isHighlightMode ? 'Select text to highlight' : 'Highlight keywords'}
+                                </span>
+                                {highlights[currentPart?.id]?.length > 0 && (
+                                    <button
+                                        onClick={clearAllHighlights}
+                                        className="ml-auto px-3 py-1.5 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded-lg border border-red-200 transition-colors duration-200"
+                                    >
+                                        Clear all
+                                    </button>
+                                )}
+                            </div>
+                            )}
+
                             {/* Passage content */}
-                            <div className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6">
+                            <div 
+                                ref={passageRef}
+                                className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6"
+                                style={{ userSelect: isHighlightMode ? 'text' : 'auto' }}
+                            >
                                 {currentPart ? (
-                                    <div className="prose prose-base lg:prose-lg max-w-none text-black leading-relaxed text-sm sm:text-base lg:text-lg whitespace-pre-wrap" style={{ lineHeight: '1.6' }}>
-                                        <div dangerouslySetInnerHTML={{ __html: currentPart.passage_text }} />
-                                    </div>
+                                    <PassageContent 
+                                        key={`passage-${currentPart.id}`}
+                                        passageHtml={currentPart.passage_text}
+                                        onMouseUp={handleTextSelection}
+                                    />
                                 ) : (
                                     <div className="text-gray-400 text-center">Loading passage...</div>
                                 )}
@@ -504,7 +784,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             {/* Submit Button */}
             <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-2 pb-8 sm:pb-16 lg:pb-[60px]">
                 <button
-                    onClick={() => { if(window.confirm('Are you sure you want to finish the test?')) submitTest(); }}
+                    onClick={submitTest}
                     disabled={isSubmitting}
                     className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-green-100 to-green-200 text-green-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-green-200 hover:to-green-300 transition-all duration-300 disabled:opacity-50 border border-green-200"
                 >

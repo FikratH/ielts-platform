@@ -4,7 +4,7 @@ import {
   Button, Paper, Typography, Box, IconButton, TextField, 
   Dialog, DialogTitle, DialogContent, DialogActions,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
-  Grid, Card, CardContent, Chip, Divider, Alert, Snackbar, CircularProgress
+  Grid, Card, CardContent, Chip, Divider, Alert, Snackbar, CircularProgress, Radio
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -24,6 +24,7 @@ import api from '../api';
 const QUESTION_TYPES = [
   { value: 'gap_fill', label: 'Fill in the blanks' },
   { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'multiple_choice_group', label: 'Multiple Choice (Group)' },
   { value: 'matching', label: 'Matching' },
   { value: 'map_diagram', label: 'Map/Diagram' },
   { value: 'short_answer', label: 'Short Answer' },
@@ -33,9 +34,35 @@ const QUESTION_TYPES = [
   { value: 'multiple_response', label: 'Multiple Response' },
 ];
 
+const convertFileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+const createGroupItem = (seed = '') => {
+  const id = `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${seed}`;
+  return {
+    id,
+    prompt: '',
+    options: [
+      { label: 'A', text: '' },
+      { label: 'B', text: '' },
+      { label: 'C', text: '' },
+      { label: 'D', text: '' },
+    ],
+    correct_answer: 'A',
+    points: 1,
+  };
+};
+
 const initialTest = {
   title: 'New Listening Test',
   is_active: false,
+  explanation_url: '',
   parts: [
     {
       id: 'part-1',
@@ -43,17 +70,18 @@ const initialTest = {
       audio: '',
       image: '',
       questions: [
-        { 
-          id: 'q-1', 
-          type: 'multiple_choice', 
-          text: 'What is the main topic of the conversation?', 
+        {
+          id: 'q-1',
+          type: 'multiple_choice',
+          text: 'What is the main topic of the conversation?',
           options: [
-            { text: 'Weather', image: '' },
-            { text: 'Transportation', image: '' },
-            { text: 'Shopping', image: '' },
-            { text: 'Entertainment', image: '' }
+            { text: '', label: 'A' },
+            { text: '', label: 'B' },
+            { text: '', label: 'C' },
+            { text: '', label: 'D' }
           ],
-          answer: 2,
+          answer: 0,
+          correct_answers: ['C'],
           image: '',
           audio_start: 0,
           audio_end: 30
@@ -63,14 +91,30 @@ const initialTest = {
   ],
 };
 
+// Helper function to get image URL
+const getImageUrl = (img) => {
+  if (!img) return null;
+  if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('data:')) {
+    return img;
+  }
+  if (img.startsWith('/media/')) {
+    return img;
+  }
+  if (img.startsWith('/')) {
+    return img;
+  }
+  return `/media/${img}`;
+};
+
 function normalizeTestFromAPI(apiTest) {
   return {
     ...apiTest,
+    explanation_url: apiTest.explanation_url || '',
     parts: (apiTest.parts || []).map((part, idx) => ({
       ...part,
       id: part.id && typeof part.id === 'string' ? part.id : `part-${part.part_number || Math.random()}`,
       title: part.title || `Part ${part.part_number || idx + 1}`,
-      questions: Array.isArray(part.questions) ? part.questions.map(q => {
+      questions: Array.isArray(part.questions) ? part.questions.map((q, qIdx) => {
         const normalizedType = q.type || q.question_type || '';
         let gaps = Array.isArray(q.gaps) ? q.gaps : (q.extra_data && Array.isArray(q.extra_data.gaps) ? q.extra_data.gaps : []);
         if (normalizedType === 'gap_fill') {
@@ -95,8 +139,39 @@ function normalizeTestFromAPI(apiTest) {
           id: q.id || `q-${Math.random()}`,
           type: normalizedType,
           text: q.text || q.question_text || '',
+          task_prompt: q.task_prompt || (q.extra_data?.task_prompt ?? ''),
+          image_remove: false,
+          image_base64: null,
+          image_original: (q.image && !q.image.startsWith('data:')) ? q.image : '',
+          group_items: Array.isArray(q.extra_data?.group_items)
+            ? q.extra_data.group_items.map((item, itemIdx) => {
+                const itemId = item.id || `item-${q.id || qIdx}-${itemIdx}`;
+                const optionsArray = Array.isArray(item.options) ? item.options : [];
+                return {
+                  id: itemId,
+                  prompt: item.prompt || '',
+                  points: item.points ?? 1,
+                  correct_answer: item.correct_answer || (optionsArray[0]?.label || 'A'),
+                  options: optionsArray.map((opt, optIdx) => ({
+                    label: opt.label || String.fromCharCode(65 + optIdx),
+                    text: opt.text || ''
+                  }))
+                };
+              })
+            : [],
           options: Array.isArray(q.options)
-            ? q.options.map(opt => typeof opt === 'string' ? { text: opt, image: '' } : opt)
+            ? q.options.map((opt, idx) => {
+                if (typeof opt === 'string') {
+                  return {
+                    text: opt,
+                    label: String.fromCharCode(65 + idx),
+                  };
+                }
+                return {
+                  ...opt,
+                  label: opt.label || String.fromCharCode(65 + idx),
+                };
+              })
             : [],
           correct_answers: q.correct_answers || (q.extra_data && q.extra_data.correct_answers) || [],
           extra_data: q.extra_data || {},
@@ -107,6 +182,7 @@ function normalizeTestFromAPI(apiTest) {
           right: q.right || (q.extra_data && q.extra_data.right) || undefined,
           answers: q.answers || (q.extra_data && q.extra_data.answers) || undefined,
           points: q.points || (q.extra_data && q.extra_data.points) || undefined,
+          scoring_mode: q.scoring_mode || (q.extra_data && q.extra_data.scoring_mode) || 'total',
           answer: q.answer !== undefined ? q.answer : (q.extra_data && q.extra_data.answer) || '',
         };
       }) : [],
@@ -132,6 +208,9 @@ const AdminListeningTestBuilder = () => {
   useEffect(() => {
     if (testId && testId !== 'new') {
       loadExistingTest();
+    } else if (testId === 'new') {
+      setTest(initialTest);
+      setIsNewTest(true);
     }
   }, [testId]);
 
@@ -179,14 +258,18 @@ const AdminListeningTestBuilder = () => {
       id: `q-${Date.now()}`,
       type: 'multiple_choice',
       text: '',
+      task_prompt: '',
       options: [
-        { text: '', image: '' },
-        { text: '', image: '' },
-        { text: '', image: '' },
-        { text: '', image: '' }
+        { text: '', label: 'A' },
+        { text: '', label: 'B' },
+        { text: '', label: 'C' },
+        { text: '', label: 'D' }
       ],
       answer: 0,
       image: '',
+      image_base64: null,
+      image_remove: false,
+      image_original: '',
       audio_start: 0,
       audio_end: 30,
     });
@@ -267,10 +350,27 @@ const AdminListeningTestBuilder = () => {
     const handleTypeChange = (e) => {
       const newType = e.target.value;
       // Сброс специфичных полей при смене типа
-      const base = { type: newType, text: '', image: '', audio_start: 0, audio_end: 30 };
+      const base = { type: newType, text: '', task_prompt: '', image: '', image_base64: null, image_remove: false, audio_start: 0, audio_end: 30 };
       if (newType === 'multiple_choice') {
-        base.options = [{ text: '', image: '' }, { text: '', image: '' }];
-        base.answer = 0;
+        base.options = [
+          { text: '', label: 'A' },
+          { text: '', label: 'B' },
+        ];
+        base.answer = 'A';
+        base.correct_answers = ['A'];
+      }
+      if (newType === 'multiple_choice_group') {
+        const firstItem = createGroupItem();
+        base.group_items = [firstItem];
+      }
+      if (newType === 'multiple_response') {
+        base.options = [
+          { text: '', label: 'A', points: 1, isCorrect: false },
+          { text: '', label: 'B', points: 1, isCorrect: false },
+        ];
+        base.answer = [];
+        base.correct_answers = [];
+        base.scoring_mode = 'total';
       }
       if (newType === 'matching') {
         base.left = [''];
@@ -339,31 +439,74 @@ const AdminListeningTestBuilder = () => {
         sx={{ mb: 2 }}
         placeholder="Введите инструкцию, можно с абзацами и переносами строк"
       />
-      {/* Новый блок для ввода URL картинки */}
       <TextField
         fullWidth
-        label="Image URL (optional)"
-        value={question.image || ''}
-        onChange={e => updateQ({ image: e.target.value })}
+        multiline
+        minRows={2}
+        label="Task Prompt (optional)"
+        value={question.task_prompt || ''}
+        onChange={e => updateQ({ task_prompt: e.target.value })}
         sx={{ mb: 2 }}
-        placeholder="https://..."
+        placeholder="Введите текст задания, который увидит студент перед вопросом"
       />
-      {question.image && (
-        <Box sx={{ mt: 1, position: 'relative', width: 120, height: 120 }}>
-          <img
-            src={question.image}
-            alt="Question"
-            style={{ width: '100%', height: '100%', objectFit: 'contain', border: '1px solid #ccc', borderRadius: 4 }}
-          />
-          <IconButton
-            size="small"
-            onClick={() => updateQ({ image: '' })}
-            sx={{ position: 'absolute', top: 0, right: 0, bgcolor: 'rgba(255,255,255,0.7)' }}
+      {/* Новый блок для ввода URL картинки */}
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>Question Image (optional)</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            component="label"
+            startIcon={<UploadIcon />}
           >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
+            Upload image
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const base64 = await convertFileToBase64(file);
+                  updateQ({ image: base64, image_base64: base64, image_remove: false });
+                } catch (error) {
+                  console.error('Failed to read image file', error);
+                  alert('Failed to read image file');
+                } finally {
+                  e.target.value = '';
+                }
+              }}
+            />
+          </Button>
+          {(question.image || question.image_original) && !question.image_remove && (
+            <Button
+              variant="text"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => updateQ({ image: '', image_base64: 'null', image_remove: true })}
+            >
+              Remove image
+            </Button>
+          )}
         </Box>
-      )}
+        {(() => {
+          const previewSrc = question.image
+            ? getImageUrl(question.image)
+            : (!question.image_remove && question.image_original
+                ? getImageUrl(question.image_original)
+                : null);
+          if (!previewSrc) return null;
+          return (
+            <Box sx={{ mt: 1 }}>
+              <img
+                src={previewSrc}
+                alt="Question"
+                style={{ width: '100%', maxWidth: 320, height: 'auto', display: 'block', border: '1px solid #ccc', borderRadius: 6 }}
+              />
+            </Box>
+          );
+        })()}
+      </Box>
     </>;
 
     // Далее — только специфичные для типа поля (варианты, таблицы и т.д.)
@@ -397,7 +540,7 @@ const AdminListeningTestBuilder = () => {
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {safeOptions.length > 0 ? safeOptions.map((option, idx) => (
-                    <Box display="flex" alignItems="center" gap={1}>
+                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid #e5e7eb', borderRadius: 2 }}>
                       <TextField
                         label="Label"
                         value={option.label || String.fromCharCode(65 + idx)}
@@ -420,9 +563,6 @@ const AdminListeningTestBuilder = () => {
                         size="small"
                         sx={{ flex: 2 }}
                       />
-                      {option.image && (
-                        <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
-                      )}
                       <Button
                         variant={question.answer === (option.label || String.fromCharCode(65 + idx)) ? 'contained' : 'outlined'}
                         color="success"
@@ -446,9 +586,174 @@ const AdminListeningTestBuilder = () => {
                     </Box>
                   )) : <Typography color="text.secondary">No options yet</Typography>}
                 </Box>
-                <Button size="small" onClick={() => updateQ({ options: [...safeOptions, { text: '', image: '' }] })} startIcon={<AddIcon />} sx={{ mt: 2 }}>Add Option</Button>
+                <Button
+                  size="small"
+                  onClick={() => updateQ({
+                    options: [
+                      ...safeOptions,
+                      {
+                        text: '',
+                        label: String.fromCharCode(65 + safeOptions.length),
+                      },
+                    ],
+                  })}
+                  startIcon={<AddIcon />}
+                  sx={{ mt: 2 }}
+                >
+                  Add Option
+                </Button>
               </Grid>
             </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditingQuestion(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      );
+    }
+
+    if (question.type === 'multiple_choice_group') {
+      const groupItems = Array.isArray(question.group_items) ? question.group_items : [];
+      const updateGroupItems = (items) => updateQ({ group_items: items });
+
+      const updateItem = (idx, updates) => {
+        const items = [...groupItems];
+        items[idx] = { ...items[idx], ...updates };
+        updateGroupItems(items);
+      };
+
+      const updateOption = (itemIdx, optIdx, value) => {
+        const items = [...groupItems];
+        const item = items[itemIdx];
+        const options = [...(item.options || [])];
+        options[optIdx] = { ...options[optIdx], text: value };
+        items[itemIdx] = { ...item, options };
+        updateGroupItems(items);
+      };
+
+      const addOption = (itemIdx) => {
+        const items = [...groupItems];
+        const item = items[itemIdx];
+        const options = [...(item.options || [])];
+        const label = String.fromCharCode(65 + options.length);
+        options.push({ label, text: '' });
+        const correct = item.correct_answer || 'A';
+        items[itemIdx] = {
+          ...item,
+          options,
+          correct_answer: correct && options.find(opt => opt.label === correct) ? correct : 'A'
+        };
+        updateGroupItems(items);
+      };
+
+      const removeOption = (itemIdx, optIdx) => {
+        const items = [...groupItems];
+        const item = items[itemIdx];
+        let options = [...(item.options || [])];
+        if (options.length <= 2) return;
+        const removedLabel = options[optIdx].label;
+        options = options.filter((_, i) => i !== optIdx).map((opt, index) => ({
+          ...opt,
+          label: String.fromCharCode(65 + index)
+        }));
+        let correctAnswer = item.correct_answer;
+        if (correctAnswer === removedLabel) {
+          correctAnswer = options[0]?.label || '';
+        }
+        items[itemIdx] = { ...item, options, correct_answer: correctAnswer };
+        updateGroupItems(items);
+      };
+
+      const addItem = () => {
+        updateGroupItems([...(groupItems || []), createGroupItem()]);
+      };
+
+      const removeItem = (idx) => {
+        const items = groupItems.filter((_, i) => i !== idx);
+        updateGroupItems(items);
+      };
+
+      return (
+        <Dialog open={!!editingQuestion} onClose={() => setEditingQuestion(null)} maxWidth="md" fullWidth>
+          <DialogTitle>Edit Multiple Choice Group</DialogTitle>
+          <DialogContent>
+            {universalFields}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Question Type</InputLabel>
+              <Select value={question.type} label="Question Type" onChange={handleTypeChange}>
+                {QUESTION_TYPES.map(type => (
+                  <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {groupItems.map((item, itemIdx) => (
+                <Card key={item.id || itemIdx} variant="outlined">
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="subtitle1">Question {itemIdx + 1}</Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                          label="Points"
+                          type="number"
+                          size="small"
+                          sx={{ width: 100 }}
+                          value={item.points ?? 1}
+                          onChange={(e) => updateItem(itemIdx, { points: Number(e.target.value) || 1 })}
+                          inputProps={{ min: 0.5, step: 0.5 }}
+                        />
+                        <IconButton onClick={() => removeItem(itemIdx)} size="small" disabled={groupItems.length <= 1}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Box>
+
+                    <TextField
+                      label="Prompt"
+                      multiline
+                      minRows={2}
+                      value={item.prompt || ''}
+                      onChange={e => updateItem(itemIdx, { prompt: e.target.value })}
+                      placeholder="Enter the sub-question text shown to students"
+                    />
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="subtitle2">Options:</Typography>
+                      {Array.isArray(item.options) && item.options.map((opt, optIdx) => (
+                        <Box key={opt.label || optIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <TextField
+                            label={`Option ${opt.label || String.fromCharCode(65 + optIdx)}`}
+                            value={opt.text || ''}
+                            onChange={e => updateOption(itemIdx, optIdx, e.target.value)}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <FormControlLabel
+                            control={
+                              <Radio
+                                checked={(item.correct_answer || 'A') === (opt.label || String.fromCharCode(65 + optIdx))}
+                                onChange={() => updateItem(itemIdx, { correct_answer: opt.label || String.fromCharCode(65 + optIdx) })}
+                              />
+                            }
+                            label="Correct"
+                          />
+                          <IconButton onClick={() => removeOption(itemIdx, optIdx)} size="small" disabled={(item.options || []).length <= 2}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                      <Button size="small" startIcon={<AddIcon />} onClick={() => addOption(itemIdx)}>
+                        Add Option
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={addItem}>
+                Add Sub-question
+              </Button>
+            </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setEditingQuestion(null)}>Close</Button>
@@ -616,7 +921,7 @@ const AdminListeningTestBuilder = () => {
                 {question.image && (
                   <Box sx={{ mt: 2, position: 'relative', width: '100%', maxWidth: 500 }}>
                     <img
-                      src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                      src={getImageUrl(question.image)}
                       alt="Map/Diagram"
                       style={{ width: '100%', height: 'auto', border: '1px solid #ccc', borderRadius: 4 }}
                       onClick={handleImageClick}
@@ -676,6 +981,7 @@ const AdminListeningTestBuilder = () => {
                       }}
                       size="small"
                       sx={{ flex: 2 }}
+                      helperText="Use | for alternatives"
                     />
                     <IconButton onClick={() => {
                       const newPoints = question.points.filter((_, i) => i !== idx);
@@ -903,6 +1209,7 @@ const AdminListeningTestBuilder = () => {
                       }}
                       size="small"
                       sx={{ flex: 2 }}
+                      helperText="Use | for alternatives (e.g., '1 | one year')"
                     />
                     <IconButton onClick={() => {
                         const newGaps = [...gaps];
@@ -953,6 +1260,7 @@ const AdminListeningTestBuilder = () => {
                   label="Correct Answer"
                   value={question.answer || ''}
                   onChange={e => updateQ({ answer: e.target.value })}
+                  helperText="Use | for alternatives (e.g., '1 | one year')"
                 />
               </Grid>
             </Grid>
@@ -1028,15 +1336,33 @@ const AdminListeningTestBuilder = () => {
                 ))}
               </Select>
             </FormControl>
-                <TextField
-                  fullWidth
-              type="number"
-              label="Баллы (сколько правильных вариантов засчитывать)"
-              value={question.points || 1}
-              onChange={e => updateQ({ points: Number(e.target.value) })}
-              sx={{ mb: 2 }}
-              inputProps={{ min: 1, max: (question.options || []).length }}
-                />
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Scoring Mode</InputLabel>
+                  <Select
+                    value={question.scoring_mode || 'total'}
+                    label="Scoring Mode"
+                    onChange={e => updateQ({ scoring_mode: e.target.value })}
+                  >
+                    <MenuItem value="total">Total Points (1 балл за весь вопрос)</MenuItem>
+                    <MenuItem value="per_correct">Per Correct Answer (баллы за каждый правильный)</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                {question.scoring_mode === 'total' ? (
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Баллы за весь вопрос"
+                    value={question.points || 1}
+                    onChange={e => updateQ({ points: Number(e.target.value) })}
+                    sx={{ mb: 2 }}
+                    inputProps={{ min: 1, max: 10 }}
+                  />
+                ) : (
+                  <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                    Баллы за каждый правильный ответ настраиваются в опциях ниже
+                  </Typography>
+                )}
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
@@ -1070,15 +1396,26 @@ const AdminListeningTestBuilder = () => {
                       size="small"
                       sx={{ flex: 2 }}
                     />
-                    {option.image && (
-                        <img src={option.image && (option.image.startsWith('http') ? option.image : `/media/${option.image}`)} alt="option" style={{ maxWidth: 40, maxHeight: 40, marginLeft: 4, borderRadius: 4, border: '1px solid #ccc' }} />
+                    {question.scoring_mode === 'per_correct' && (
+                      <TextField
+                        label="Points"
+                        type="number"
+                        value={option.points || 1}
+                        onChange={e => {
+                          const newOptions = [...question.options];
+                          newOptions[idx].points = Number(e.target.value);
+                          updateQ({ options: newOptions });
+                        }}
+                        size="small"
+                        sx={{ width: 80 }}
+                        inputProps={{ min: 1, max: 10 }}
+                      />
                     )}
                     <Button
                         variant={isSelected ? 'contained' : 'outlined'}
                       color="success"
                       size="small"
                       onClick={() => {
-                          // --- Новый блок: обновляем answer, correct_answers и isCorrect ---
                           const label = option.label || String.fromCharCode(65 + idx);
                           let newAnswer;
                           if (isSelected) {
@@ -1086,11 +1423,9 @@ const AdminListeningTestBuilder = () => {
                           } else {
                             newAnswer = [...answerArr, label];
                           }
-                          // Обновляем isCorrect в options
                           const newOptions = question.options.map((opt, i) =>
                             i === idx ? { ...opt, isCorrect: !isSelected } : opt
                           );
-                          // Обновляем correct_answers
                           updateQ({
                             answer: newAnswer,
                             correct_answers: newAnswer,
@@ -1113,7 +1448,7 @@ const AdminListeningTestBuilder = () => {
                 }) : <Typography color="text.secondary">No options yet</Typography>}
               </Grid>
             </Grid>
-            <Button size="small" onClick={() => updateQ({ options: [...(question.options || []), { text: '', image: '' }] })} startIcon={<AddIcon />}>Add Option</Button>
+            <Button size="small" onClick={() => updateQ({ options: [...(question.options || []), { text: '', label: String.fromCharCode(65 + (question.options?.length || 0)), points: 1, isCorrect: false }] })} startIcon={<AddIcon />}>Add Option</Button>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setEditingQuestion(null)}>Close</Button>
@@ -1177,7 +1512,7 @@ const AdminListeningTestBuilder = () => {
                     {question.image && (
                       <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center' }}>
                         <img
-                          src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                          src={getImageUrl(question.image)}
                           alt="Question"
                           style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                         />
@@ -1214,6 +1549,7 @@ const AdminListeningTestBuilder = () => {
                 label="Correct Answer"
                 value={question.answer}
                 onChange={(e) => updateQ({ answer: e.target.value })}
+                helperText="Use | for alternatives (e.g., '1 | one year')"
               />
             </Grid>
 
@@ -1255,7 +1591,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ minWidth: 500, width: '100%', display: 'flex', justifyContent: 'center' }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1339,7 +1675,7 @@ const AdminListeningTestBuilder = () => {
               {part.image && (
                 <Box sx={{ mt: 1 }}>
                   <img
-                    src={part.image && (part.image.startsWith('http') ? part.image : `/media/${part.image}`)}
+                    src={getImageUrl(part.image)}
                     alt="Section"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1361,6 +1697,7 @@ const AdminListeningTestBuilder = () => {
       title: test.title,
       is_active: test.is_active,
       parts: test.parts.map((part, partIdx) => ({
+        ...(part.id ? { id: part.id } : {}),
         part_number: partIdx + 1,
         title: part.title,
         audio: typeof part.audio === 'string' ? part.audio : (Array.isArray(part.audio) ? part.audio[0] || '' : ''),
@@ -1381,29 +1718,85 @@ const AdminListeningTestBuilder = () => {
           })
           .map((q, qIdx) => {
           // Всегда включаем header и instruction для любого типа
+          let imageValue = q.image || '';
+          let imageBase64 = q.image_base64 != null ? q.image_base64 : null;
+          if (imageValue && imageValue.startsWith('data:')) {
+            if (imageBase64 == null) {
+              imageBase64 = imageValue;
+            }
+            imageValue = '';
+          }
+          if (q.image_remove) {
+            imageBase64 = 'null';
+            imageValue = '';
+          }
           const base = {
             order: qIdx + 1,
             question_type: q.type || q.question_type,
             question_text: q.text || q.question_text,
-            image: q.image || '',
+            task_prompt: q.task_prompt || '',
+            image: imageValue,
             audio_start: q.audio_start || 0,
             audio_end: q.audio_end || 30,
             header: q.header || '',
             instruction: q.instruction || '',
           };
+          if (q.id) {
+            base.id = q.id;
+          }
+          if (imageBase64) {
+            base.image_base64 = imageBase64;
+          }
+          if (!base.extra_data || typeof base.extra_data !== 'object') {
+            base.extra_data = {};
+          }
+          base.extra_data.task_prompt = base.task_prompt || '';
+
+          if (q.type === 'multiple_choice_group') {
+            const itemsPayload = (q.group_items || []).map((item, itemIdx) => {
+              const options = Array.isArray(item.options) ? item.options : [];
+              return {
+                id: item.id || `item-${q.id || qIdx}-${itemIdx}`,
+                prompt: item.prompt || '',
+                points: Number(item.points) || 1,
+                correct_answer: item.correct_answer || (options[0]?.label || 'A'),
+                options: options.map((opt, optIdx) => ({
+                  label: opt.label || String.fromCharCode(65 + optIdx),
+                  text: opt.text || ''
+                }))
+              };
+            });
+            base.extra_data = { ...(base.extra_data || {}), group_items: itemsPayload };
+            base.points = itemsPayload.reduce((sum, item) => sum + (Number(item.points) || 1), 0);
+          }
           // Multiple Choice
           if (q.type === 'multiple_choice') {
-            base.options = (q.options || []).map((opt, i) => ({
-              id: String.fromCharCode(65 + i),
-              label: String.fromCharCode(65 + i),
-              text: opt.text || opt,
-              image: opt.image || ''
-            }));
-            base.correct_answers = [base.options[q.answer]?.label || 'A'];
+            const optionSource = Array.isArray(q.options) && q.options.length
+              ? q.options
+              : (Array.isArray(q.extra_data?.options) ? q.extra_data.options : []);
+            base.options = optionSource.map((opt, i) => {
+              const optObj = typeof opt === 'string' ? { text: opt } : opt || {};
+              const label = optObj.label || String.fromCharCode(65 + i);
+              const optionPayload = {
+                id: optObj.id || label,
+                label,
+                text: optObj.text || '',
+              };
+              return optionPayload;
+            });
+            let answerLabel = 'A';
+            if (typeof q.answer === 'number') {
+              answerLabel = String.fromCharCode(65 + q.answer);
+            } else if (typeof q.answer === 'string' && q.answer.trim() !== '') {
+              answerLabel = q.answer;
+            } else if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
+              answerLabel = q.correct_answers[0];
+            }
+            base.correct_answers = [answerLabel];
             base.extra_data = {
               ...(q.extra_data || {}),
-              options: base.options,
-              answer: q.answer,
+              options: base.options.map(({ id, label, text }) => ({ id, label, text })),
+              answer: answerLabel,
             };
           }
           // Matching
@@ -1490,20 +1883,33 @@ const AdminListeningTestBuilder = () => {
           }
           // Multiple Response
           else if (q.type === 'multiple_response') {
-            base.options = (q.options || []).map((opt, i) => ({
-              id: String.fromCharCode(65 + i),
-                label: opt.label || String.fromCharCode(65 + i),
-              text: opt.text || opt,
-                image: opt.image || '',
-                isCorrect: Array.isArray(q.correct_answers) && (q.correct_answers.includes(opt.label || String.fromCharCode(65 + i)))
-            }));
-              base.correct_answers = Array.isArray(q.correct_answers) ? q.correct_answers : [];
+            const optionSource = Array.isArray(q.options) && q.options.length
+              ? q.options
+              : (Array.isArray(q.extra_data?.options) ? q.extra_data.options : []);
+            base.options = optionSource.map((opt, i) => {
+              const optObj = typeof opt === 'string' ? { text: opt } : opt || {};
+              const label = optObj.label || String.fromCharCode(65 + i);
+              const isCorrect = optObj.is_correct ?? optObj.isCorrect ?? (Array.isArray(q.correct_answers) && q.correct_answers.includes(label));
+              const optionPayload = {
+                id: optObj.id || label,
+                label,
+                text: optObj.text || '',
+                points: optObj.points != null ? optObj.points : 1,
+                isCorrect,
+              };
+              return optionPayload;
+            });
+            base.correct_answers = Array.isArray(q.correct_answers) && q.correct_answers.length > 0
+              ? q.correct_answers
+              : base.options.filter(opt => opt.isCorrect).map(opt => opt.label);
             base.answer = Array.isArray(q.answer) ? q.answer : [];
-              base.points = q.points || 1;
+            base.points = q.points || 1;
+            base.scoring_mode = q.scoring_mode || 'total';
             base.extra_data = {
               ...(q.extra_data || {}),
-              options: base.options,
+              options: base.options.map(({ id, label, text, points, isCorrect }) => ({ id, label, text, points, is_correct: isCorrect })),
               answer: base.answer,
+              scoring_mode: base.scoring_mode,
             };
           }
           // Gap Fill (универсальный)
@@ -1515,6 +1921,9 @@ const AdminListeningTestBuilder = () => {
               ...(q.extra_data || {}),
               gaps: q.gaps,
             };
+          }
+          if (q.group_items) {
+            delete base.group_items;
           }
           return base;
         })
@@ -1528,7 +1937,10 @@ const AdminListeningTestBuilder = () => {
     try {
       const method = isNewTest ? 'post' : 'put';
       const url = isNewTest ? '/listening-tests/' : `/listening-tests/${testId}/`;
-      const apiTest = transformTestForAPI(test);
+      const apiTest = {
+        ...transformTestForAPI(test),
+        explanation_url: test.explanation_url || ''
+      };
       let response;
       if (isNewTest) {
         response = await api.post(url, apiTest);
@@ -1568,7 +1980,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ mb: 2 }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1594,6 +2006,32 @@ const AdminListeningTestBuilder = () => {
             </Box>
           );
 
+        case 'multiple_choice_group':
+          return (
+            <Box key={question.id} sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Question {qIdx + 1}
+              </Typography>
+              {Array.isArray(question.group_items) && question.group_items.map((item, idx) => (
+                <Box key={item.id || idx} sx={{ mb: 2 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    {item.prompt || `Item ${idx + 1}`}
+                  </Typography>
+                  {(item.options || []).map((option, optIdx) => (
+                    <FormControlLabel
+                      key={optIdx}
+                      control={<Radio disabled size="small" />}
+                      label={`${option.label}. ${option.text}`}
+                    />
+                  ))}
+                  <Typography variant="caption" color="text.secondary">
+                    Correct: {item.correct_answer}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          );
+
         case 'short_answer':
           return (
             <Box key={question.id} sx={{ mb: 3 }}>
@@ -1603,7 +2041,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ mb: 2 }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1627,7 +2065,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ mb: 2 }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1718,7 +2156,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ mb: 2 }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1756,7 +2194,7 @@ const AdminListeningTestBuilder = () => {
               {question.image && (
                 <Box sx={{ mb: 2 }}>
                   <img
-                    src={question.image && (question.image.startsWith('http') ? question.image : `/media/${question.image}`)}
+                    src={getImageUrl(question.image)}
                     alt="Question"
                     style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                   />
@@ -1799,7 +2237,7 @@ const AdminListeningTestBuilder = () => {
             {currentPart.image && (
               <Box sx={{ mb: 2 }}>
                 <img
-                  src={currentPart.image && (currentPart.image.startsWith('http') ? currentPart.image : `/media/${currentPart.image}`)}
+                  src={getImageUrl(currentPart.image)}
                   alt="Section"
                   style={{ width: '100%', maxWidth: 700, height: 'auto', display: 'block', margin: '16px auto', borderRadius: 12, boxShadow: '0 2px 12px #0002' }}
                 />
@@ -1825,36 +2263,6 @@ const AdminListeningTestBuilder = () => {
     );
   };
 
-  // Добавить функции для перемещения вопросов
-  const moveQuestionUp = (partIdx, qIdx) => {
-    if (qIdx === 0) return;
-    const parts = [...test.parts];
-    const questions = [...parts[partIdx].questions];
-    [questions[qIdx - 1], questions[qIdx]] = [questions[qIdx], questions[qIdx - 1]];
-    parts[partIdx].questions = questions;
-    setTest({ ...test, parts });
-  };
-
-  const moveQuestionDown = (partIdx, qIdx) => {
-    const parts = [...test.parts];
-    const questions = [...parts[partIdx].questions];
-    if (qIdx === questions.length - 1) return;
-    [questions[qIdx + 1], questions[qIdx]] = [questions[qIdx], questions[qIdx + 1]];
-    parts[partIdx].questions = questions;
-    setTest({ ...test, parts });
-  };
-
-  const moveQuestionToSection = (fromPartIdx, qIdx, toPartIdx) => {
-    if (fromPartIdx === toPartIdx) return;
-    const parts = [...test.parts];
-    const [question] = parts[fromPartIdx].questions.splice(qIdx, 1);
-    // Добавить в конец новой секции
-    parts[toPartIdx].questions.push({ ...question });
-    // Пересчитать order в обеих секциях
-    parts[fromPartIdx].questions.forEach((q, i) => { q.order = i + 1; });
-    parts[toPartIdx].questions.forEach((q, i) => { q.order = i + 1; });
-    setTest({ ...test, parts });
-  };
 
   if (loading) {
     return (
@@ -1910,6 +2318,15 @@ const AdminListeningTestBuilder = () => {
         label="Test Title"
         value={test.title}
         onChange={(e) => setTest({ ...test, title: e.target.value })}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        label="Explanation URL (YouTube)"
+        placeholder="https://www.youtube.com/watch?v=..."
+        value={test.explanation_url || ''}
+        onChange={(e) => setTest({ ...test, explanation_url: e.target.value })}
         sx={{ mb: 2 }}
       />
 
@@ -1974,20 +2391,6 @@ const AdminListeningTestBuilder = () => {
                 <Typography variant="subtitle1">Q{qIdx + 1}</Typography>
                 <Typography variant="body2" color="text.secondary">{question.text?.slice(0, 80) || 'Без текста'}</Typography>
               </Box>
-              <Button onClick={() => moveQuestionUp(partIdx, qIdx)} disabled={qIdx === 0} size="small">↑</Button>
-              <Button onClick={() => moveQuestionDown(partIdx, qIdx)} disabled={qIdx === part.questions.length - 1} size="small">↓</Button>
-              <FormControl size="small" style={{ minWidth: 120, marginLeft: 8 }}>
-                <InputLabel>Секция</InputLabel>
-                <Select
-                  value={partIdx}
-                  label="Секция"
-                  onChange={e => moveQuestionToSection(partIdx, qIdx, e.target.value)}
-                >
-                  {test.parts.map((p, idx) => (
-                    <MenuItem key={p.id} value={idx}>{p.title || `Секция ${idx + 1}`}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
               <IconButton onClick={() => setEditingQuestion({ partIdx, qIdx })}><EditIcon /></IconButton>
               <IconButton onClick={() => removeQuestion(partIdx, qIdx)}><DeleteIcon /></IconButton>
               </Paper>

@@ -94,8 +94,8 @@ const WritingTestListPage = () => {
                     <p>Please check back later or contact your administrator.</p>
                 </div>
             ) : (
-                <div className={`${tests.length <= 3 ? 'flex flex-wrap justify-center' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-6 sm:gap-8 lg:gap-10 max-w-7xl mx-auto`}>
-                    {tests.map((test, index) => (
+                <div className={`${tests.filter(test => test.is_active && !test.is_diagnostic_template).length <= 3 ? 'flex flex-wrap justify-center' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-6 sm:gap-8 lg:gap-10 max-w-7xl mx-auto`}>
+                    {tests.filter(test => test.is_active && !test.is_diagnostic_template).map((test, index) => (
                         <div 
                             key={test.id}
                             className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 border border-gray-100 overflow-hidden"
