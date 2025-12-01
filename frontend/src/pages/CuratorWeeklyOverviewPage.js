@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import TimeRangeFilter from '../components/TimeRangeFilter';
 import StudentsMissingTestsWidget from '../components/StudentsMissingTestsWidget';
+import GroupsRankingWidget from '../components/GroupsRankingWidget';
 
 export default function CuratorWeeklyOverviewPage() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function CuratorWeeklyOverviewPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [studentsPage, setStudentsPage] = useState(1);
 
   const loadFilterOptions = useCallback(async () => {
     try {
@@ -44,6 +46,10 @@ export default function CuratorWeeklyOverviewPage() {
       if (selectedTests.reading) params.reading_test = selectedTests.reading;
       if (timeRange?.date_from) params.date_from = timeRange.date_from;
       if (timeRange?.date_to) params.date_to = timeRange.date_to;
+      if (mode === 'student') {
+        params.page = studentsPage;
+        params.page_size = 30;
+      }
       const res = await api.get('/curator/weekly-overview/', { params });
       setData(res.data);
     } catch (e) {
@@ -51,7 +57,7 @@ export default function CuratorWeeklyOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [mode, filters.group, filters.teacher, filters.search, selectedTests.writing, selectedTests.listening, selectedTests.reading, timeRange]);
+  }, [mode, filters.group, filters.teacher, filters.search, selectedTests.writing, selectedTests.listening, selectedTests.reading, timeRange, studentsPage]);
 
   useEffect(() => {
     loadFilterOptions();
@@ -76,7 +82,10 @@ export default function CuratorWeeklyOverviewPage() {
         <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 overflow-hidden text-xs">
           <button
             className={`px-4 py-2 ${mode === 'student' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-white'}`}
-            onClick={() => setMode('student')}
+            onClick={() => {
+              setMode('student');
+              setStudentsPage(1);
+            }}
           >
             By students
           </button>
@@ -209,7 +218,9 @@ export default function CuratorWeeklyOverviewPage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-gray-900">Students overview</h2>
-                    <span className="text-xs text-gray-400">{data.students.length} students</span>
+                    <span className="text-xs text-gray-400">
+                      {data.students_pagination ? `${data.students_pagination.count} students` : `${data.students.length} students`}
+                    </span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
@@ -253,6 +264,25 @@ export default function CuratorWeeklyOverviewPage() {
                       </tbody>
                     </table>
                   </div>
+                  {data.students_pagination && data.students_pagination.total_pages > 1 && (
+                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                      <button
+                        onClick={() => setStudentsPage(p => Math.max(1, p - 1))}
+                        disabled={studentsPage === 1}
+                        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Previous
+                      </button>
+                      <span>Page {data.students_pagination.page} of {data.students_pagination.total_pages}</span>
+                      <button
+                        onClick={() => setStudentsPage(p => Math.min(data.students_pagination.total_pages, p + 1))}
+                        disabled={studentsPage >= data.students_pagination.total_pages}
+                        className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -264,7 +294,10 @@ export default function CuratorWeeklyOverviewPage() {
                     </h2>
                     <button
                       type="button"
-                      onClick={() => setMode('student')}
+                      onClick={() => {
+              setMode('student');
+              setStudentsPage(1);
+            }}
                       className="text-xs text-blue-600 hover:underline"
                     >
                       View students
@@ -308,6 +341,10 @@ export default function CuratorWeeklyOverviewPage() {
                 timeRange={timeRange}
               />
             </div>
+          </div>
+
+          <div className="mt-5">
+            <GroupsRankingWidget />
           </div>
         </>
       )}

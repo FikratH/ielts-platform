@@ -4212,33 +4212,38 @@ class CuratorMissingTestsView(APIView):
         group = request.query_params.get('group')
         teacher = request.query_params.get('teacher')
         search = request.query_params.get('search')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
         students = User.objects.filter(role='student', is_active=True)
         if group:
             students = students.filter(group=group)
         if teacher:
             students = students.filter(teacher=teacher)
         if search:
-            students = students.filter(
-                models.Q(first_name__icontains=search) |
-                models.Q(last_name__icontains=search) |
-                models.Q(student_id__icontains=search) |
-                models.Q(email__icontains=search)
-            )
+            search = search.strip()
+            if search:
+                students = students.filter(
+                    models.Q(first_name__icontains=search) |
+                    models.Q(last_name__icontains=search) |
+                    models.Q(student_id__icontains=search) |
+                    models.Q(email__icontains=search)
+                )
 
         missing_list = []
         for student in students:
             writing_qs = apply_date_range_filter(
-                Essay.objects.filter(user=student),
+                Essay.objects.filter(user=student, test_session__is_diagnostic=False),
                 request,
                 'submitted_at'
             )
             listening_qs = apply_date_range_filter(
-                ListeningTestSession.objects.filter(user=student, submitted=True),
+                ListeningTestSession.objects.filter(user=student, submitted=True, is_diagnostic=False),
                 request,
                 'completed_at'
             )
             reading_qs = apply_date_range_filter(
-                ReadingTestSession.objects.filter(user=student, completed=True),
+                ReadingTestSession.objects.filter(user=student, completed=True, is_diagnostic=False),
                 request,
                 'end_time'
             )
@@ -4253,30 +4258,41 @@ class CuratorMissingTestsView(APIView):
 
             if missing:
                 last_activity = self._last_activity(student)
+                first_name = student.first_name or ''
+                last_name = student.last_name or ''
+                name = f"{first_name} {last_name}".strip() or f"Student {student.student_id or student.id}"
                 missing_list.append({
                     'id': student.id,
-                    'student_id': student.student_id,
-                    'name': f"{student.first_name} {student.last_name}",
-                    'group': student.group,
-                    'teacher': student.teacher,
+                    'student_id': student.student_id or '',
+                    'name': name,
+                    'group': student.group or '',
+                    'teacher': student.teacher or '',
                     'missing_modules': missing,
                     'last_activity': last_activity
                 })
 
+        total_count = len(missing_list)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_list = missing_list[start:end]
+
         return Response({
-            'students': missing_list,
-            'count': len(missing_list)
+            'students': paginated_list,
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size if page_size > 0 else 1
         })
 
     def _last_activity(self, student):
         activity_times = []
-        essays = Essay.objects.filter(user=student).order_by('-submitted_at').first()
+        essays = Essay.objects.filter(user=student, test_session__is_diagnostic=False).order_by('-submitted_at').first()
         if essays and essays.submitted_at:
             activity_times.append(essays.submitted_at)
-        listen = ListeningTestSession.objects.filter(user=student).order_by('-completed_at').first()
+        listen = ListeningTestSession.objects.filter(user=student, is_diagnostic=False).order_by('-completed_at').first()
         if listen and listen.completed_at:
             activity_times.append(listen.completed_at)
-        read = ReadingTestSession.objects.filter(user=student).order_by('-end_time').first()
+        read = ReadingTestSession.objects.filter(user=student, is_diagnostic=False).order_by('-end_time').first()
         if read and read.end_time:
             activity_times.append(read.end_time)
         speak = SpeakingSession.objects.filter(student=student).order_by('-conducted_at').first()
@@ -5213,6 +5229,8 @@ class CuratorWeeklyOverviewView(APIView):
         listening_test_id = request.query_params.get('listening_test') or request.query_params.get('listening')
         reading_test_id = request.query_params.get('reading_test') or request.query_params.get('reading')
         has_date_filter = bool(request.query_params.get('date_from') or request.query_params.get('date_to'))
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 30))
 
         students = User.objects.filter(role='student', is_active=True)
         if group:
@@ -5229,17 +5247,17 @@ class CuratorWeeklyOverviewView(APIView):
 
         students = students.order_by('group', 'teacher', 'first_name', 'last_name')
 
-        writing_sessions = WritingTestSession.objects.filter(user__in=students)
+        writing_sessions = WritingTestSession.objects.filter(user__in=students, is_diagnostic=False)
         if writing_test_id:
             writing_sessions = writing_sessions.filter(test_id=writing_test_id)
         writing_sessions = apply_date_range_filter(writing_sessions, request, 'started_at')
 
-        listening_sessions = ListeningTestSession.objects.filter(user__in=students, submitted=True)
+        listening_sessions = ListeningTestSession.objects.filter(user__in=students, submitted=True, is_diagnostic=False)
         if listening_test_id:
             listening_sessions = listening_sessions.filter(test_id=listening_test_id)
         listening_sessions = apply_date_range_filter(listening_sessions, request, 'completed_at')
 
-        reading_sessions = ReadingTestSession.objects.filter(user__in=students, completed=True)
+        reading_sessions = ReadingTestSession.objects.filter(user__in=students, completed=True, is_diagnostic=False)
         if reading_test_id:
             reading_sessions = reading_sessions.filter(test_id=reading_test_id)
         reading_sessions = apply_date_range_filter(reading_sessions, request, 'end_time')
@@ -5541,11 +5559,22 @@ class CuratorWeeklyOverviewView(APIView):
                 'latest_writing_essay_id': data['latest_writing_essay_id'],
             })
 
+        total_students = len(students_list)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_students = students_list[start:end]
+
         return Response({
             'mode': 'group',
             'summary': summary,
             'groups': groups,
-            'students': students_list,
+            'students': paginated_students,
+            'students_pagination': {
+                'count': total_students,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_students + page_size - 1) // page_size if page_size > 0 else 1
+            }
         })
 
 
@@ -5553,15 +5582,141 @@ class CuratorActiveTestsView(APIView):
     permission_classes = [IsTeacherOrCurator]
     
     def get(self, request):
-        """Get list of active tests for curator"""
-        active_writing_tests = WritingTest.objects.filter(is_active=True).values('id', 'title', 'description')
-        active_listening_tests = ListeningTest.objects.filter(is_active=True).values('id', 'title', 'description')
-        active_reading_tests = ReadingTest.objects.filter(is_active=True).values('id', 'title', 'description')
+        """Get list of active tests for curator (excluding diagnostic tests)"""
+        active_writing_tests = WritingTest.objects.filter(is_active=True, is_diagnostic_template=False).values('id', 'title', 'description')
+        active_listening_tests = ListeningTest.objects.filter(is_active=True, is_diagnostic_template=False).values('id', 'title', 'description')
+        active_reading_tests = ReadingTest.objects.filter(is_active=True, is_diagnostic_template=False).values('id', 'title', 'description')
         
         return Response({
             'writing_tests': list(active_writing_tests),
             'listening_tests': list(active_listening_tests),
             'reading_tests': list(active_reading_tests)
+        })
+
+
+class CuratorGroupsRankingView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+
+    def get(self, request):
+        group_filter = request.query_params.get('group')
+        teacher_filter = request.query_params.get('teacher')
+        search = request.query_params.get('search')
+        writing_test_id = request.query_params.get('writing_test') or request.query_params.get('writing')
+        listening_test_id = request.query_params.get('listening_test') or request.query_params.get('listening')
+        reading_test_id = request.query_params.get('reading_test') or request.query_params.get('reading')
+
+        students = User.objects.filter(role='student', is_active=True)
+        if group_filter:
+            students = students.filter(group=group_filter)
+        if teacher_filter:
+            students = students.filter(teacher=teacher_filter)
+        if search:
+            search = search.strip()
+            if search:
+                students = students.filter(
+                    models.Q(first_name__icontains=search) |
+                    models.Q(last_name__icontains=search) |
+                    models.Q(student_id__icontains=search) |
+                    models.Q(email__icontains=search)
+                )
+
+        students = students.order_by('group', 'teacher', 'first_name', 'last_name')
+
+        writing_sessions = WritingTestSession.objects.filter(user__in=students, is_diagnostic=False)
+        if writing_test_id:
+            writing_sessions = writing_sessions.filter(test_id=writing_test_id)
+        writing_sessions = apply_date_range_filter(writing_sessions, request, 'started_at')
+
+        listening_sessions = ListeningTestSession.objects.filter(user__in=students, submitted=True, is_diagnostic=False)
+        if listening_test_id:
+            listening_sessions = listening_sessions.filter(test_id=listening_test_id)
+        listening_sessions = apply_date_range_filter(listening_sessions, request, 'completed_at')
+
+        reading_sessions = ReadingTestSession.objects.filter(user__in=students, completed=True, is_diagnostic=False)
+        if reading_test_id:
+            reading_sessions = reading_sessions.filter(test_id=reading_test_id)
+        reading_sessions = apply_date_range_filter(reading_sessions, request, 'end_time')
+
+        essays = Essay.objects.filter(test_session__in=writing_sessions)
+        listening_results = ListeningTestResult.objects.filter(session__in=listening_sessions)
+        reading_results = ReadingTestResult.objects.filter(session__in=reading_sessions)
+        teacher_feedbacks = TeacherFeedback.objects.filter(essay__in=essays)
+
+        student_map = {}
+        for s in students:
+            student_map[s.id] = {
+                'id': s.id,
+                'group': s.group or '',
+                'listening_bands': [],
+                'reading_bands': [],
+                'writing_teacher_scores': [],
+            }
+
+        for res in listening_results.select_related('session__user'):
+            user_id = res.session.user_id
+            data = student_map.get(user_id)
+            if data and res.band_score is not None:
+                data['listening_bands'].append(res.band_score)
+
+        for res in reading_results.select_related('session__user'):
+            user_id = res.session.user_id
+            data = student_map.get(user_id)
+            if data and res.band_score is not None:
+                data['reading_bands'].append(res.band_score)
+
+        for fb in teacher_feedbacks.select_related('essay__user'):
+            user_id = fb.essay.user_id
+            data = student_map.get(user_id)
+            if data and fb.teacher_overall_score is not None:
+                data['writing_teacher_scores'].append(fb.teacher_overall_score)
+
+        groups_buckets = {}
+        for student_id, data in student_map.items():
+            group = data['group']
+            if not group:
+                continue
+
+            listening_band = compute_ielts_average(data['listening_bands'])
+            reading_band = compute_ielts_average(data['reading_bands'])
+            writing_teacher_band = compute_ielts_average(data['writing_teacher_scores'])
+
+            scores = [v for v in [listening_band, reading_band, writing_teacher_band] if v is not None]
+            overall_band = compute_ielts_average(scores) if scores else None
+
+            bucket = groups_buckets.setdefault(group, {
+                'group': group,
+                'students_count': 0,
+                'listening_bands': [],
+                'reading_bands': [],
+                'writing_teacher_bands': [],
+                'overall_bands': [],
+            })
+
+            bucket['students_count'] += 1
+            if listening_band is not None:
+                bucket['listening_bands'].append(listening_band)
+            if reading_band is not None:
+                bucket['reading_bands'].append(reading_band)
+            if writing_teacher_band is not None:
+                bucket['writing_teacher_bands'].append(writing_teacher_band)
+            if overall_band is not None:
+                bucket['overall_bands'].append(overall_band)
+
+        groups = []
+        for key, b in groups_buckets.items():
+            groups.append({
+                'group': b['group'],
+                'students_count': b['students_count'],
+                'avg_listening_band': compute_ielts_average(b['listening_bands']),
+                'avg_reading_band': compute_ielts_average(b['reading_bands']),
+                'avg_writing_teacher_band': compute_ielts_average(b['writing_teacher_bands']),
+                'avg_overall_band': compute_ielts_average(b['overall_bands']),
+            })
+
+        groups.sort(key=lambda x: (x['avg_overall_band'] is None, -(x['avg_overall_band'] or 0)), reverse=False)
+
+        return Response({
+            'groups': groups
         })
 
 

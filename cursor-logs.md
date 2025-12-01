@@ -52,6 +52,17 @@ This file tracks all actions performed by the agent during development to provid
 - Extended `CuratorDiagnosticResultsView` to respect `date_from`/`date_to` by applying `apply_date_range_filter` to diagnostic Listening/Reading/Writing sessions and deriving the student set and latest sessions only from that window.
 - As a result, both the diagnostic summary stats and the per-student table now reflect only diagnostic activity within the selected period.
 
+## 2025-12-01 - Git hygiene: ignore local artifacts
+
+- Updated `.gitignore` to exclude Python virtualenvs, all `node_modules` folders (both root-level and nested), SQLite databases, pytest cache, and any `*.dump` database backups from version control.
+- This keeps the repository clean from large local artifacts (venvs, node_modules, DB dumps) while leaving real source code, migrations, and fixtures tracked.
+
+### Update: ignore docker-compose and local docker/nginx config
+
+- Extended `.gitignore` to ignore `docker-compose*.yml/.yaml`, all `Dockerfile` variants in the root, `backend/`, and `frontend/`, plus the local `nginx/` directory.
+- This ensures server-specific Docker/nginx configuration stays unmanaged by git so local tweaks or mismatches cannot accidentally overwrite the working production setup when pushing.
+- Added `nginx-frontend.conf` to `.gitignore` so the custom frontend nginx config is also kept local and not tracked in git.
+
 ## 2025-11-23 - Fixed Listening Test Score Display in Dashboard
 
 ### Problem
@@ -1007,3 +1018,48 @@ All sorting and ordering logic is correctly implemented throughout the Listening
 - Increased the `task_prompt` block to use `text-xl text-black font-semibold text-center` so it matches the question header height-wise, centers within the card, and uses solid black for stronger contrast.
 - Applied identical styling (`font-semibold text-xl text-black text-center`) to the `task_prompt` in `ReadingTestPlayer.jsx` so the Reading subheader matches Listening.
 - Added `whitespace-pre-line` to the gap-fill container in `ReadingTestPlayer.jsx` so spaces/line breaks in question text remain visible instead of being collapsed into a single line.
+
+## 2025-12-01 - Git repository cleanup and deployment recommendations
+
+### Summary
+- Updated `.gitignore` to exclude Docker-related files (`docker-compose*.yml`, `Dockerfile`, `nginx/`, `nginx-frontend.conf`) and other server-specific configuration files that should not be tracked in version control.
+- Provided recommendations for safely deploying changes to the server:
+  1. **Backup strategy**: Create a zip/tar.gz archive of the current server directory before making changes, rather than pushing server state to Git (which would bloat the repository with venv, media files, and other large binaries).
+  2. **Clean deployment**: Clone a fresh copy of the repository on the server, then restore only necessary server-specific files (`.env`, `docker-compose.yml`, `nginx/`, `media/`) from the backup.
+  3. **Docker restart strategy**: 
+     - **Backend**: Code is mounted via volume (`./backend:/app/backend`), so code changes don't require rebuild - just `docker compose restart web`. However, if `requirements.txt` changed, rebuild is needed: `docker compose build --no-cache web && docker compose up -d`.
+     - **Frontend**: Uses separate `frontend_build` service that must be recreated to rebuild: `docker compose up -d --force-recreate frontend_build && docker compose restart frontend`. If `package.json` changed, rebuild: `docker compose build --no-cache frontend_build && docker compose up -d`.
+     - **Full rebuild** (when dependencies changed or unsure): `docker compose down && docker compose build --no-cache web frontend_build && docker compose up -d`.
+  4. **Nginx race condition**: To prevent Nginx from starting before backend/frontend services are ready, use `depends_on` with `healthcheck` in `docker-compose.yml`, or implement a startup script that waits for services to be healthy before starting Nginx.
+
+## 2025-12-01 - Exclude diagnostic tests from curator weekly overview
+
+### Summary
+- Updated `CuratorWeeklyOverviewView` to exclude diagnostic test sessions from all calculations (Listening, Reading, Writing) by adding `is_diagnostic=False` filter to all session queries.
+- Updated `CuratorActiveTestsView` to exclude diagnostic test templates from the list of active tests available for selection in filters, by adding `is_diagnostic_template=False` filter to all test queries.
+- This ensures that diagnostic tests are completely excluded from the curator weekly dashboard results and cannot be accidentally selected in the test filters.
+
+## 2025-12-01 - Students Missing Tests widget improvements
+
+### Summary
+- Added search functionality to `StudentsMissingTestsWidget` with a search input that filters by student name, ID, or email, matching the main dashboard filters.
+- Added group and teacher filter dropdowns directly in the widget for independent filtering.
+- Implemented pagination in `CuratorMissingTestsView` backend endpoint (10 items per page) and added pagination controls in the widget to navigate through all missing students.
+- Fixed display issues: 
+  - Handled `None` values in student names (first_name/last_name) by showing a fallback like "Student {student_id}" if both are empty.
+  - Fixed "No group" display to properly show when group is empty or None.
+  - Fixed "No ID" display when student_id is empty.
+- Excluded diagnostic tests from missing tests calculation: added `is_diagnostic=False` filter to Writing, Listening, and Reading session queries, and updated `_last_activity` method to exclude diagnostic sessions when determining last activity date.
+- The widget now shows total count of all missing students (not just current page) and provides Previous/Next navigation buttons when there are multiple pages.
+
+## 2025-12-01 - Groups Ranking widget and Students pagination
+
+### Summary
+- Created new backend endpoint `CuratorGroupsRankingView` at `/curator/groups-ranking/` that calculates average band scores (Listening, Reading, Writing teacher, Overall) per group and returns groups sorted by overall band score in descending order.
+- The endpoint excludes diagnostic tests from calculations and supports date range filtering via `date_from` and `date_to` parameters.
+- Created new frontend component `GroupsRankingWidget` that displays groups in a ranking table with columns for Rank, Group, Students count, and average band scores for each module.
+- The widget includes only a Period filter (TimeRangeFilter) as requested, allowing curators to view group rankings for different time periods.
+- Added the widget to `CuratorWeeklyOverviewPage` below the "Students Missing Tests" widget.
+- Groups are sorted by average overall band score (highest first), with groups without scores appearing at the bottom.
+- Added pagination to the Students overview table: limited to 30 students per page with Previous/Next navigation buttons. The backend endpoint `CuratorWeeklyOverviewView` now accepts `page` and `page_size` parameters and returns pagination metadata in `students_pagination` field when mode is 'student'.
+- When switching to 'student' mode, the page resets to 1 automatically.

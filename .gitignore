@@ -14,6 +14,11 @@ __pycache__/
 *.pyd
 *.sqlite3
 .pytest_cache/
+*.dump
+
+# JS / Node
+node_modules/
+*/node_modules/
 
 # Django assets
 backend/staticfiles/
@@ -39,3 +44,10 @@ Thumbs.db
 *.pid
 *.bak
 *.swp
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile
+backend/Dockerfile
+frontend/Dockerfile
+nginx/
+nginx-frontend.conf
