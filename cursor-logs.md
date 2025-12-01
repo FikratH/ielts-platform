@@ -2,6 +2,56 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-12-01 - Curator Weekly Overview filters (search, period, missing-tests widget)
+
+- Added handling of the `search` query parameter in `CuratorWeeklyOverviewView` so curators can filter students by first name, last name, student ID, or email.
+- Updated `CuratorWeeklyOverviewPage` to send a trimmed `search` value and include it in the data-loading dependencies so typing in the search box immediately reloads filtered data.
+- When a date range (`date_from` / `date_to`) is applied in the weekly overview, only students who have at least one Listening/Reading/Writing activity in that window are included in `students`, group/teacher aggregates, and summary counts.
+- Changed `StudentsMissingTestsWidget` so it only refetches when `group`, `teacher`, or the selected `timeRange` change, and not on every student search, while still applying the same group/teacher/date filters on the backend.
+- Updated `TimeRangeFilter` to include an `All time` preset and made it the default; when `All time` is selected no `date_from`/`date_to` are sent, so the backend returns full-history data.
+- Updated `CuratorWeeklyOverviewPage` so the default period is `All time` (`label: 'all_time'`), matching the new UX requirement.
+
+## 2025-12-01 - Speaking overview UX tweaks
+
+- Updated `CuratorSpeakingPage` to use `All time` as the default period, consistent with the weekly overview filters.
+- Reordered the layout so the main students table appears above the KPI statistic cards, making the detailed data primary and high-level stats secondary at the bottom of the page.
+
+## 2025-12-01 - Speaking overview filters aligned with curator dashboard
+
+- Updated `CuratorSpeakingPage` to use the same filter layout as the weekly curator dashboard: Group, Teacher, and Search student on the first row, with a Period selector (TimeRangeFilter) on the right using `All time` by default.
+- Extended `CuratorSpeakingOverviewView` to support a `search` query parameter that filters students by name, email, or student ID while still honoring group/teacher and date range filters.
+- Updated `CuratorSpeakingExportCSVView` so CSV exports respect the same group/teacher/search and period filters as the on-page overview.
+
+## 2025-12-01 - Speaking overview: only students with sessions
+
+- Adjusted `CuratorSpeakingOverviewView` so the students queryset is intersected with the set of students who actually have SpeakingSession records in the selected period.
+- As a result, the speaking results table now shows only students with at least one speaking session (submission) in the current filters, instead of listing all students with assigned teachers and marking many as "No submission".
+
+## 2025-12-01 - Speaking overview: show all submissions per student
+
+- Changed `CuratorSpeakingOverviewView` pagination from per-student to per-session so every SpeakingSession in the filtered range becomes its own row in the API response (`sessions`), ordered by `conducted_at` desc.
+- Updated `CuratorSpeakingPage` to render `data.sessions` instead of `data.students`, showing one table row per submission (with student, scores, date), so if a student has 5 speaking submits in the period, all 5 are visible with pagination.
+
+### Fix: speaking overview teacher serialization
+
+- Fixed a backend bug where `CuratorSpeakingOverviewView` was returning a raw `User` object in the `teacher` field of each session, causing `TypeError: Object of type User is not JSON serializable`.
+- Now the `teacher` field is always a plain string (teacher's full name or email), which is safe for JSON and matches what the frontend expects.
+
+### Update: speaking overview only lists completed sessions
+
+- Adjusted `CuratorSpeakingOverviewView` to build the table from `completed=True` sessions only, while still using all sessions (completed + pending) for the high-level stats where appropriate.
+- The table and pagination now show one row per **completed** speaking submission in the selected period, including those without scores yet, and exclude sessions that were started but never marked as completed.
+
+### Update: speaking overview UI – removed KPI stats
+
+- Simplified `CuratorSpeakingPage` UI by removing all KPI/stat blocks under the table so curators focus purely on the per-session list of speaking submissions.
+
+## 2025-12-01 - Curator diagnostic page period filter
+
+- Updated `CuratorDiagnosticPage` to include the shared `TimeRangeFilter` with `All time` as the default, and to send `date_from`/`date_to` when loading curator diagnostic data.
+- Extended `CuratorDiagnosticResultsView` to respect `date_from`/`date_to` by applying `apply_date_range_filter` to diagnostic Listening/Reading/Writing sessions and deriving the student set and latest sessions only from that window.
+- As a result, both the diagnostic summary stats and the per-student table now reflect only diagnostic activity within the selected period.
+
 ## 2025-11-23 - Fixed Listening Test Score Display in Dashboard
 
 ### Problem
@@ -933,6 +983,21 @@ Comprehensive audit of all Listening test functionality for both student and adm
 
 ### Conclusion
 All sorting and ordering logic is correctly implemented throughout the Listening test system. The only issue found was the non-existent serializer import, which has been fixed. All parts and questions are consistently sorted by `part_number` and `order` respectively at all levels (database queries, serialization, and frontend rendering).
+
+## 2025-11-23 - Curator weekly overview refactor
+
+### Summary
+- Added backend endpoint `CuratorWeeklyOverviewView` with `/api/curator/weekly-overview/` that aggregates Listening/Reading/Writing results per student and then by group or teacher, using only teacher_overall_score for Writing.
+- The endpoint supports filters for group, teacher, specific test IDs, and date range, and returns per-student module statuses plus an overall band calculated from available L/R/W bands.
+- Implemented new React page `CuratorWeeklyOverviewPage` that calls this endpoint, shows unified weekly results on a single screen with mode toggle (groups/teachers), summary cards, and expandable rows revealing students with L/R/W/overall bands; Writing cells show “ещё не выставлен” when teacher score is pending.
+- Updated `CuratorDashboard` to render `CuratorWeeklyOverviewPage` so existing `/curator/dashboard` navigation now opens the new unified weekly view without changing routes.
+
+### Follow-up
+- Fixed Django URL config error by adding `CuratorStudentDetailView` to the imports list in `backend/core/urls.py` so the existing `curator/student-detail/<int:student_id>/` route resolves correctly when running the server.
+- Fixed subsequent URL config error by importing `CuratorMissingTestsView` into `backend/core/urls.py` to match the existing `curator/missing-tests/` route.
+- Updated `CuratorMissingTestsView` to consider only writing/listening/reading modules (speaking removed) and wired `StudentsMissingTestsWidget` into the new `CuratorWeeklyOverviewPage` so curators see missing tests directly on the main dashboard.
+- Extended `CuratorWeeklyOverviewView` to expose per-student latest writing session/essay IDs and added a “By students” mode plus clickable writing cells in `CuratorWeeklyOverviewPage` that navigate to `/writing-result/<sessionId>` for quick essay inspection.
+- Refined curator dashboard UX/UI: `CuratorWeeklyOverviewPage` now has a compact header with mode pills (By students/groups/teachers), a two-row filter card (Group/Teacher/Writing and Listening/Reading/Period), summary cards plus a side `StudentsMissingTestsWidget`, a clean main student table with L/R/W/overall columns, and simplified group/teacher views without nested expanders. Restored `Speaking` link in curator sidebar and mobile navbar.
 
 ## 2025-11-21 - Listening task prompt size question
 

@@ -76,10 +76,6 @@ const Navbar = ({ role, setRole }) => {
         {openGroups['studentOverview'] && (
           <div className="ml-4 flex flex-col gap-2 mt-2">
             <Link to="/curator/dashboard" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-            <Link to="/curator/students" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Students</Link>
-            <Link to="/curator/writing" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Writing</Link>
-            <Link to="/curator/listening" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Listening</Link>
-            <Link to="/curator/reading" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Reading</Link>
             <Link to="/curator/speaking" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Speaking</Link>
             <Link to="/curator/test-comparison" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Comparison</Link>
             <Link to="/curator/diagnostic" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Diagnostic</Link>

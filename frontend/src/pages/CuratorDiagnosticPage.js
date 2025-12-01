@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TimeRangeFilter from '../components/TimeRangeFilter';
 import { 
   Users, 
   CheckCircle, 
@@ -13,14 +14,14 @@ const CuratorDiagnosticPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [timeRange, setTimeRange] = useState({ label: 'all_time', date_from: '', date_to: '' });
 
-  useEffect(() => {
-    fetchDiagnosticData();
-  }, []);
-
-  const fetchDiagnosticData = async () => {
+  const fetchDiagnosticData = useCallback(async () => {
     try {
-      const response = await api.get('/diagnostic/curator/');
+      const params = {};
+      if (timeRange?.date_from) params.date_from = timeRange.date_from;
+      if (timeRange?.date_to) params.date_to = timeRange.date_to;
+      const response = await api.get('/diagnostic/curator/', { params });
       setData(response.data);
     } catch (err) {
       console.error('Error fetching diagnostic data:', err);
@@ -32,7 +33,11 @@ const CuratorDiagnosticPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    fetchDiagnosticData();
+  }, [fetchDiagnosticData]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -103,12 +108,16 @@ const CuratorDiagnosticPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Diagnostic Test Results
-          </h1>
-          
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Diagnostic overview</h1>
+            <p className="text-sm text-gray-500">Summary of students' diagnostic L/R/W performance</p>
+          </div>
+          <div className="w-full md:w-auto">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-3 py-2">
+              <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
+            </div>
+          </div>
         </div>
 
         {/* Summary Stats */}

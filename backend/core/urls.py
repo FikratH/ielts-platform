@@ -81,11 +81,14 @@ from .views import (
     
     # Curator Views
     CuratorStudentsView,
+    CuratorStudentDetailView,
+    CuratorMissingTestsView,
     CuratorWritingOverviewView,
     CuratorListeningOverviewView,
     CuratorReadingOverviewView,
     CuratorSpeakingOverviewView,
     CuratorOverviewView,
+    CuratorWeeklyOverviewView,
     CuratorSpeakingExportCSVView,
     CuratorOverviewExportCSVView,
     CuratorWritingExportCSVView,
@@ -222,6 +225,7 @@ urlpatterns += [
     path('curator/reading-overview/', CuratorReadingOverviewView.as_view(), name='curator-reading-overview'),
     path('curator/speaking-overview/', CuratorSpeakingOverviewView.as_view(), name='curator-speaking-overview'),
     path('curator/overview/', CuratorOverviewView.as_view(), name='curator-overview'),
+    path('curator/weekly-overview/', CuratorWeeklyOverviewView.as_view(), name='curator-weekly-overview'),
     path('curator/active-tests/', CuratorActiveTestsView.as_view(), name='curator-active-tests'),
     path('curator/test-comparison/', CuratorTestComparisonView.as_view(), name='curator-test-comparison'),
     path('curator/test-comparison-export-csv/', CuratorTestComparisonExportCSVView.as_view(), name='curator-test-comparison-export-csv'),

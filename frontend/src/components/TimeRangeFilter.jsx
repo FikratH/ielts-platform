@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 
 const PRESETS = [
+  { key: 'all_time', label: 'All time' },
   { key: 'last_2_weeks', label: 'Last 2 weeks' },
   { key: 'last_month', label: 'Last month' },
   { key: 'last_3_months', label: 'Last 3 months' },
@@ -16,6 +17,9 @@ const computePresetRange = (key) => {
   const now = new Date();
   const end = toDateString(now);
   const start = new Date(now);
+  if (key === 'all_time') {
+    return { date_from: '', date_to: '' };
+  }
   if (key === 'last_month') {
     start.setMonth(start.getMonth() - 1);
   } else if (key === 'last_3_months') {
@@ -30,15 +34,19 @@ const computePresetRange = (key) => {
 };
 
 const TimeRangeFilter = ({ value = {}, onChange }) => {
-  const selectedKey = value.label || 'last_2_weeks';
+  const selectedKey = value.label || 'all_time';
   const presetRange = useMemo(() => computePresetRange(selectedKey), [selectedKey]);
 
   const handlePresetChange = (event) => {
     const newKey = event.target.value;
-    const payload =
-      newKey === 'custom'
-        ? { label: 'custom', date_from: value.date_from || '', date_to: value.date_to || '' }
-        : { ...computePresetRange(newKey), label: newKey };
+    let payload;
+    if (newKey === 'custom') {
+      payload = { label: 'custom', date_from: value.date_from || '', date_to: value.date_to || '' };
+    } else if (newKey === 'all_time') {
+      payload = { label: 'all_time', date_from: '', date_to: '' };
+    } else {
+      payload = { ...computePresetRange(newKey), label: newKey };
+    }
     onChange(payload);
   };
 
@@ -89,6 +97,7 @@ const TimeRangeFilter = ({ value = {}, onChange }) => {
 };
 
 export default TimeRangeFilter;
+
 
 
 

@@ -141,10 +141,6 @@ export default function Sidebar({ role, setRole }) {
 
   const curatorLinks = [
     { to: '/curator/dashboard', label: 'Dashboard', icon: () => <LayoutDashboard className="w-6 h-6" /> },
-    { to: '/curator/students', label: 'Students', icon: () => <Users className="w-6 h-6" /> },
-    { to: '/curator/writing', label: 'Writing', icon: () => <PenTool className="w-6 h-6" /> },
-    { to: '/curator/listening', label: 'Listening', icon: () => <Headphones className="w-6 h-6" /> },
-    { to: '/curator/reading', label: 'Reading', icon: () => <BookOpen className="w-6 h-6" /> },
     { to: '/curator/speaking', label: 'Speaking', icon: () => <Mic className="w-6 h-6" /> },
     { to: '/curator/test-comparison', label: 'Comparison', icon: () => <BarChart3 className="w-6 h-6" /> },
     { to: '/curator/diagnostic', label: 'Diagnostic', icon: () => <Target className="w-6 h-6" /> }

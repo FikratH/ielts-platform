@@ -27,7 +27,7 @@ const StudentsMissingTestsWidget = ({ filters, timeRange }) => {
       }
     };
     fetchData();
-  }, [filters, timeRange]);
+  }, [filters?.group, filters?.teacher, timeRange?.date_from, timeRange?.date_to]);
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -72,6 +72,7 @@ const StudentsMissingTestsWidget = ({ filters, timeRange }) => {
 };
 
 export default StudentsMissingTestsWidget;
+
 
 
 

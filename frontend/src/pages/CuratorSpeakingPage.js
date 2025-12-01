@@ -6,12 +6,12 @@ export default function CuratorSpeakingPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ group: '', teacher: '' });
+  const [filters, setFilters] = useState({ group: '', teacher: '', search: '' });
   const [filterOptions, setFilterOptions] = useState({ groups: [], teachers: [] });
   const [page, setPage] = useState(1);
   const [pageSize] = useState(30);
   const [totalPages, setTotalPages] = useState(1);
-  const [timeRange, setTimeRange] = useState({ label: 'last_2_weeks' });
+  const [timeRange, setTimeRange] = useState({ label: 'all_time', date_from: '', date_to: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -20,6 +20,7 @@ export default function CuratorSpeakingPage() {
       const params = {};
       if (filters.group) params.group = filters.group;
       if (filters.teacher) params.teacher = filters.teacher;
+      if (filters.search && filters.search.trim()) params.search = filters.search.trim();
       params.page = page;
       params.page_size = pageSize;
       if (timeRange?.date_from) params.date_from = timeRange.date_from;
@@ -33,7 +34,7 @@ export default function CuratorSpeakingPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters.group, filters.teacher, page, pageSize, timeRange]);
+  }, [filters.group, filters.teacher, filters.search, page, pageSize, timeRange]);
 
   const loadFilterOptions = useCallback(async () => {
     try {
@@ -51,14 +52,17 @@ export default function CuratorSpeakingPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Speaking Overview</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Speaking overview</h1>
         <button
           onClick={async () => {
             try {
               const params = new URLSearchParams();
               if (filters.group) params.append('group', filters.group);
               if (filters.teacher) params.append('teacher', filters.teacher);
+              if (filters.search && filters.search.trim()) params.append('search', filters.search.trim());
+              if (timeRange?.date_from) params.append('date_from', timeRange.date_from);
+              if (timeRange?.date_to) params.append('date_to', timeRange.date_to);
               
               const response = await api.get(`/curator/speaking-export-csv/?${params.toString()}`, {
                 responseType: 'blob'
@@ -84,18 +88,49 @@ export default function CuratorSpeakingPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <select className="border rounded px-3 py-2" value={filters.group} onChange={e => setFilters({ ...filters, group: e.target.value })}>
-          <option value="">All groups</option>
-          {filterOptions.groups.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <select className="border rounded px-3 py-2" value={filters.teacher} onChange={e => setFilters({ ...filters, teacher: e.target.value })}>
-          <option value="">All teachers</option>
-          {filterOptions.teachers.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
+      <div className="bg-white rounded-lg shadow p-4 mb-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <div className="text-xs text-gray-500">Group</div>
+            <select
+              className="border rounded-md px-3 py-2 text-sm w-full"
+              value={filters.group}
+              onChange={e => setFilters(prev => ({ ...prev, group: e.target.value }))}
+            >
+              <option value="">All groups</option>
+              {filterOptions.groups.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <div className="text-xs text-gray-500">Teacher</div>
+            <select
+              className="border rounded-md px-3 py-2 text-sm w-full"
+              value={filters.teacher}
+              onChange={e => setFilters(prev => ({ ...prev, teacher: e.target.value }))}
+            >
+              <option value="">All teachers</option>
+              {filterOptions.teachers.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <div className="text-xs text-gray-500">Search student</div>
+            <input
+              className="border rounded-md px-3 py-2 text-sm w-full"
+              placeholder="Name, ID or email"
+              value={filters.search}
+              onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="border rounded-md px-2 py-1">
+            <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
+          </div>
+        </div>
       </div>
 
       {loading && <div>Loading...</div>}
@@ -103,38 +138,6 @@ export default function CuratorSpeakingPage() {
 
       {!loading && data && (
         <div className="space-y-6">
-          {/* Basic Statistics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPI title="Total Students" value={data.statistics.total_students} />
-            <KPI title="Students with Sessions" value={data.statistics.students_with_sessions} />
-            <KPI title="Total Sessions" value={data.statistics.total_sessions} />
-            <KPI title="Avg Sessions per Student" value={data.statistics.avg_sessions_per_student} />
-          </div>
-
-          {/* Teacher Assessment Performance */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPI title="Teachers with Sessions" value={data.statistics.teachers_with_sessions} />
-            <KPI title="Avg Sessions per Teacher" value={data.statistics.avg_sessions_per_teacher} />
-            <KPI title="Completed Sessions" value={data.statistics.completed_sessions} />
-            <KPI title="Pending Sessions" value={data.statistics.pending_sessions} />
-          </div>
-
-          {/* Performance Distribution */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <KPI title="High Performers (7.0+)" value={data.statistics.performance_distribution.high_performers} />
-            <KPI title="Medium Performers (5.0-6.9)" value={data.statistics.performance_distribution.medium_performers} />
-            <KPI title="Low Performers (<5.0)" value={data.statistics.performance_distribution.low_performers} />
-          </div>
-
-          {/* Average Scores by Criteria */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <KPI title="Avg Overall" value={data.statistics.average_scores.overall || '-'} />
-            <KPI title="Avg Fluency" value={data.statistics.average_scores.fluency || '-'} />
-            <KPI title="Avg Lexical" value={data.statistics.average_scores.lexical || '-'} />
-            <KPI title="Avg Grammar" value={data.statistics.average_scores.grammar || '-'} />
-            <KPI title="Avg Pronunciation" value={data.statistics.average_scores.pronunciation || '-'} />
-          </div>
-
           <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-gray-50">
@@ -151,8 +154,8 @@ export default function CuratorSpeakingPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.students.map(s => (
-                  <tr key={s.student_id} className="border-t">
+                {data.sessions.map(s => (
+                  <tr key={s.session_id} className="border-t">
                     <Td>
                       <div>
                         <div className="font-medium">{s.student_name}</div>
@@ -162,19 +165,19 @@ export default function CuratorSpeakingPage() {
                     <Td>{s.group || '-'}</Td>
                     <Td>{s.teacher || '-'}</Td>
                     <Td>
-                      {s.latest_session?.overall_band ? (
+                      {s.overall_band ? (
                         <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
-                          {s.latest_session.overall_band}
+                          {s.overall_band}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">No submission</span>
                       )}
                     </Td>
-                    <Td>{s.latest_session?.fluency_score || '-'}</Td>
-                    <Td>{s.latest_session?.lexical_score || '-'}</Td>
-                    <Td>{s.latest_session?.grammar_score || '-'}</Td>
-                    <Td>{s.latest_session?.pronunciation_score || '-'}</Td>
-                    <Td>{s.latest_session?.conducted_at ? new Date(s.latest_session.conducted_at).toLocaleDateString() : '-'}</Td>
+                    <Td>{s.fluency_score || '-'}</Td>
+                    <Td>{s.lexical_score || '-'}</Td>
+                    <Td>{s.grammar_score || '-'}</Td>
+                    <Td>{s.pronunciation_score || '-'}</Td>
+                    <Td>{s.conducted_at ? new Date(s.conducted_at).toLocaleDateString() : '-'}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -189,15 +192,6 @@ export default function CuratorSpeakingPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function KPI({ title, value }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="text-sm text-gray-500">{title}</div>
-      <div className="text-2xl font-bold text-gray-800">{value ?? '-'}</div>
     </div>
   );
 }

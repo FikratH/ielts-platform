@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def ielts_round_score(score):
-    """Apply IELTS band score rounding rules"""
     if score is None:
         return None
     try:
@@ -18,6 +17,13 @@ def ielts_round_score(score):
             return int(score) + 1.0
     except (ValueError, TypeError):
         return None
+
+def compute_ielts_average(values):
+    nums = [v for v in values if v is not None]
+    if not nums:
+        return None
+    avg = sum(nums) / len(nums)
+    return ielts_round_score(avg)
 from .utils import CsrfExemptAPIView
 from django.http import HttpResponse
 from .firebase_config import verify_firebase_token
@@ -484,29 +490,44 @@ class CuratorDiagnosticResultsView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
 
-        # Get all students with diagnostic test data
-        students_with_diagnostics = []
-        
-        # Get students with any diagnostic sessions
-        diagnostic_students = set()
-        diagnostic_students.update(
-            ListeningTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
-        )
-        diagnostic_students.update(
-            ReadingTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
-        )
-        diagnostic_students.update(
-            WritingTestSession.objects.filter(is_diagnostic=True).values_list('user_id', flat=True)
-        )
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
 
-        for student_id in diagnostic_students:
+        students_with_diagnostics = []
+
+        listening_diag_qs = ListeningTestSession.objects.filter(submitted=True, is_diagnostic=True)
+        listening_diag_qs = apply_date_range_filter(listening_diag_qs, request, 'completed_at')
+
+        reading_diag_qs = ReadingTestSession.objects.filter(completed=True, is_diagnostic=True)
+        reading_diag_qs = apply_date_range_filter(reading_diag_qs, request, 'end_time')
+
+        writing_diag_qs = WritingTestSession.objects.filter(completed=True, is_diagnostic=True)
+        writing_diag_qs = apply_date_range_filter(writing_diag_qs, request, 'started_at')
+
+        diagnostic_students = set()
+        diagnostic_students.update(listening_diag_qs.values_list('user_id', flat=True))
+        diagnostic_students.update(reading_diag_qs.values_list('user_id', flat=True))
+        diagnostic_students.update(writing_diag_qs.values_list('user_id', flat=True))
+
+        students_qs = User.objects.filter(id__in=diagnostic_students)
+        if group:
+            students_qs = students_qs.filter(group=group)
+        if teacher:
+            students_qs = students_qs.filter(teacher=teacher)
+        if search:
+            students_qs = students_qs.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+
+        for student in students_qs:
             try:
-                student = User.objects.get(id=student_id)
-                
-                # Get latest diagnostic sessions for each module
-                l_session = ListeningTestSession.objects.filter(user=student, submitted=True, is_diagnostic=True).order_by('-completed_at').first()
-                r_session = ReadingTestSession.objects.filter(user=student, completed=True, is_diagnostic=True).order_by('-end_time').first()
-                w_session = WritingTestSession.objects.filter(user=student, completed=True, is_diagnostic=True).order_by('-started_at').first()
+                l_session = listening_diag_qs.filter(user=student).order_by('-completed_at').first()
+                r_session = reading_diag_qs.filter(user=student).order_by('-end_time').first()
+                w_session = writing_diag_qs.filter(user=student).order_by('-started_at').first()
 
                 l_band = None
                 l_date = None
@@ -4190,11 +4211,19 @@ class CuratorMissingTestsView(APIView):
     def get(self, request):
         group = request.query_params.get('group')
         teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
         students = User.objects.filter(role='student', is_active=True)
         if group:
             students = students.filter(group=group)
         if teacher:
             students = students.filter(teacher=teacher)
+        if search:
+            students = students.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
 
         missing_list = []
         for student in students:
@@ -4213,11 +4242,6 @@ class CuratorMissingTestsView(APIView):
                 request,
                 'end_time'
             )
-            speaking_qs = apply_date_range_filter(
-                SpeakingSession.objects.filter(student=student),
-                request,
-                'conducted_at'
-            )
 
             missing = []
             if writing_qs.count() == 0:
@@ -4226,8 +4250,6 @@ class CuratorMissingTestsView(APIView):
                 missing.append('listening')
             if reading_qs.count() == 0:
                 missing.append('reading')
-            if speaking_qs.count() == 0:
-                missing.append('speaking')
 
             if missing:
                 last_activity = self._last_activity(student)
@@ -5179,6 +5201,354 @@ class CuratorOverviewView(APIView):
         })
 
 
+class CuratorWeeklyOverviewView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+
+    def get(self, request):
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
+        mode = request.query_params.get('mode') or 'group'
+        writing_test_id = request.query_params.get('writing_test') or request.query_params.get('writing')
+        listening_test_id = request.query_params.get('listening_test') or request.query_params.get('listening')
+        reading_test_id = request.query_params.get('reading_test') or request.query_params.get('reading')
+        has_date_filter = bool(request.query_params.get('date_from') or request.query_params.get('date_to'))
+
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        if search:
+            students = students.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+
+        students = students.order_by('group', 'teacher', 'first_name', 'last_name')
+
+        writing_sessions = WritingTestSession.objects.filter(user__in=students)
+        if writing_test_id:
+            writing_sessions = writing_sessions.filter(test_id=writing_test_id)
+        writing_sessions = apply_date_range_filter(writing_sessions, request, 'started_at')
+
+        listening_sessions = ListeningTestSession.objects.filter(user__in=students, submitted=True)
+        if listening_test_id:
+            listening_sessions = listening_sessions.filter(test_id=listening_test_id)
+        listening_sessions = apply_date_range_filter(listening_sessions, request, 'completed_at')
+
+        reading_sessions = ReadingTestSession.objects.filter(user__in=students, completed=True)
+        if reading_test_id:
+            reading_sessions = reading_sessions.filter(test_id=reading_test_id)
+        reading_sessions = apply_date_range_filter(reading_sessions, request, 'end_time')
+
+        essays = Essay.objects.filter(test_session__in=writing_sessions)
+
+        listening_results = ListeningTestResult.objects.filter(session__in=listening_sessions)
+        reading_results = ReadingTestResult.objects.filter(session__in=reading_sessions)
+        teacher_feedbacks = TeacherFeedback.objects.filter(essay__in=essays)
+
+        active_student_ids = set()
+        active_student_ids.update(writing_sessions.values_list('user_id', flat=True))
+        active_student_ids.update(listening_sessions.values_list('user_id', flat=True))
+        active_student_ids.update(reading_sessions.values_list('user_id', flat=True))
+
+        student_map = {}
+        total_students = 0
+        for s in students:
+            if has_date_filter and s.id not in active_student_ids:
+                continue
+            total_students += 1
+            student_map[s.id] = {
+                'id': s.id,
+                'student_id': s.student_id,
+                'first_name': s.first_name,
+                'last_name': s.last_name,
+                'group': s.group,
+                'teacher': s.teacher,
+                'listening_bands': [],
+                'reading_bands': [],
+                'writing_teacher_scores': [],
+                'has_listening_attempt': False,
+                'has_reading_attempt': False,
+                'has_writing_attempt': False,
+                'has_writing_feedback': False,
+                'latest_writing_session_id': None,
+                'latest_writing_essay_id': None,
+            }
+
+        latest_writing_session = {}
+        for sess in writing_sessions.only('id', 'user_id', 'started_at'):
+            cur = latest_writing_session.get(sess.user_id)
+            if not cur or (sess.started_at and cur.started_at and sess.started_at > cur.started_at) or (sess.started_at and not cur):
+                latest_writing_session[sess.user_id] = sess
+
+        latest_writing_essay = {}
+        for es in essays.only('id', 'user_id', 'submitted_at'):
+            cur = latest_writing_essay.get(es.user_id)
+            if not cur or (es.submitted_at and cur.submitted_at and es.submitted_at > cur.submitted_at) or (es.submitted_at and not cur):
+                latest_writing_essay[es.user_id] = es
+
+        for sess in listening_sessions.only('id', 'user_id'):
+            data = student_map.get(sess.user_id)
+            if data:
+                data['has_listening_attempt'] = True
+
+        for sess in reading_sessions.only('id', 'user_id'):
+            data = student_map.get(sess.user_id)
+            if data:
+                data['has_reading_attempt'] = True
+
+        for es in essays.only('id', 'user_id'):
+            data = student_map.get(es.user_id)
+            if data:
+                data['has_writing_attempt'] = True
+
+        for res in listening_results.select_related('session__user'):
+            user_id = res.session.user_id
+            data = student_map.get(user_id)
+            if data and res.band_score is not None:
+                data['listening_bands'].append(res.band_score)
+
+        for res in reading_results.select_related('session__user'):
+            user_id = res.session.user_id
+            data = student_map.get(user_id)
+            if data and res.band_score is not None:
+                data['reading_bands'].append(res.band_score)
+
+        for fb in teacher_feedbacks.select_related('essay__user'):
+            user_id = fb.essay.user_id
+            data = student_map.get(user_id)
+            if not data:
+                continue
+            data['has_writing_feedback'] = True
+            if fb.teacher_overall_score is not None:
+                data['writing_teacher_scores'].append(fb.teacher_overall_score)
+
+        def module_status(has_attempt, band):
+            if band is not None:
+                return 'completed'
+            if has_attempt:
+                return 'pending'
+            return 'not_started'
+
+        all_listening_avgs = []
+        all_reading_avgs = []
+        all_writing_avgs = []
+        all_overall_avgs = []
+
+        for student_id, data in student_map.items():
+            listening_band = compute_ielts_average(data['listening_bands'])
+            reading_band = compute_ielts_average(data['reading_bands'])
+            writing_teacher_band = compute_ielts_average(data['writing_teacher_scores'])
+
+            scores = [v for v in [listening_band, reading_band, writing_teacher_band] if v is not None]
+            overall_band = compute_ielts_average(scores) if scores else None
+
+            listening_status = module_status(data['has_listening_attempt'], listening_band)
+            reading_status = module_status(data['has_reading_attempt'], reading_band)
+            writing_status = module_status(data['has_writing_attempt'] or data['has_writing_feedback'], writing_teacher_band)
+
+            data['listening_band'] = listening_band
+            data['reading_band'] = reading_band
+            data['writing_teacher_band'] = writing_teacher_band
+            data['overall_band'] = overall_band
+            data['statuses'] = {
+                'listening': listening_status,
+                'reading': reading_status,
+                'writing': writing_status,
+            }
+
+            latest_session = latest_writing_session.get(student_id)
+            latest_essay = latest_writing_essay.get(student_id)
+            if latest_session:
+                data['latest_writing_session_id'] = latest_session.id
+            if latest_essay:
+                data['latest_writing_essay_id'] = latest_essay.id
+
+            if listening_band is not None:
+                all_listening_avgs.append(listening_band)
+            if reading_band is not None:
+                all_reading_avgs.append(reading_band)
+            if writing_teacher_band is not None:
+                all_writing_avgs.append(writing_teacher_band)
+            if overall_band is not None:
+                all_overall_avgs.append(overall_band)
+
+        summary = {
+            'students_count': total_students,
+            'avg_listening_band': compute_ielts_average(all_listening_avgs),
+            'avg_reading_band': compute_ielts_average(all_reading_avgs),
+            'avg_writing_teacher_band': compute_ielts_average(all_writing_avgs),
+            'avg_overall_band': compute_ielts_average(all_overall_avgs),
+        }
+
+        buckets = {}
+        if mode == 'teacher':
+            for data in student_map.values():
+                key = data['teacher'] or ''
+                if not key:
+                    continue
+                bucket = buckets.setdefault(key, {
+                    'teacher': key,
+                    'students_count': 0,
+                    'completed_all_three': 0,
+                    'listening_bands': [],
+                    'reading_bands': [],
+                    'writing_teacher_bands': [],
+                    'overall_bands': [],
+                    'students': [],
+                })
+                bucket['students_count'] += 1
+                if all(data['statuses'][m] == 'completed' for m in ['listening', 'reading', 'writing']):
+                    bucket['completed_all_three'] += 1
+                if data['listening_band'] is not None:
+                    bucket['listening_bands'].append(data['listening_band'])
+                if data['reading_band'] is not None:
+                    bucket['reading_bands'].append(data['reading_band'])
+                if data['writing_teacher_band'] is not None:
+                    bucket['writing_teacher_bands'].append(data['writing_teacher_band'])
+                if data['overall_band'] is not None:
+                    bucket['overall_bands'].append(data['overall_band'])
+                bucket['students'].append({
+                    'id': data['id'],
+                    'student_id': data['student_id'],
+                    'name': f"{data['first_name']} {data['last_name']}".strip(),
+                    'group': data['group'],
+                    'teacher': data['teacher'],
+                    'listening': {
+                        'band': data['listening_band'],
+                        'status': data['statuses']['listening'],
+                    },
+                    'reading': {
+                        'band': data['reading_band'],
+                        'status': data['statuses']['reading'],
+                    },
+                    'writing': {
+                        'teacher_band': data['writing_teacher_band'],
+                        'status': data['statuses']['writing'],
+                    },
+                    'overall_band': data['overall_band'],
+                    'latest_writing_session_id': data['latest_writing_session_id'],
+                    'latest_writing_essay_id': data['latest_writing_essay_id'],
+                })
+
+            teachers = []
+            for key, b in buckets.items():
+                teachers.append({
+                    'teacher': b['teacher'],
+                    'students_count': b['students_count'],
+                    'completed_all_three': b['completed_all_three'],
+                    'avg_listening_band': compute_ielts_average(b['listening_bands']),
+                    'avg_reading_band': compute_ielts_average(b['reading_bands']),
+                    'avg_writing_teacher_band': compute_ielts_average(b['writing_teacher_bands']),
+                    'avg_overall_band': compute_ielts_average(b['overall_bands']),
+                    'students': b['students'],
+                })
+            teachers.sort(key=lambda x: (x['teacher'] is None, x['teacher']))
+            return Response({
+                'mode': 'teacher',
+                'summary': summary,
+                'teachers': teachers,
+            })
+
+        for data in student_map.values():
+            key = data['group'] or ''
+            if not key:
+                continue
+            bucket = buckets.setdefault(key, {
+                'group': key,
+                'students_count': 0,
+                'completed_all_three': 0,
+                'listening_bands': [],
+                'reading_bands': [],
+                'writing_teacher_bands': [],
+                'overall_bands': [],
+                'students': [],
+            })
+            bucket['students_count'] += 1
+            if all(data['statuses'][m] == 'completed' for m in ['listening', 'reading', 'writing']):
+                bucket['completed_all_three'] += 1
+            if data['listening_band'] is not None:
+                bucket['listening_bands'].append(data['listening_band'])
+            if data['reading_band'] is not None:
+                bucket['reading_bands'].append(data['reading_band'])
+            if data['writing_teacher_band'] is not None:
+                bucket['writing_teacher_bands'].append(data['writing_teacher_band'])
+            if data['overall_band'] is not None:
+                bucket['overall_bands'].append(data['overall_band'])
+            bucket['students'].append({
+                'id': data['id'],
+                'student_id': data['student_id'],
+                'name': f"{data['first_name']} {data['last_name']}".strip(),
+                'group': data['group'],
+                'teacher': data['teacher'],
+                'listening': {
+                    'band': data['listening_band'],
+                    'status': data['statuses']['listening'],
+                },
+                'reading': {
+                    'band': data['reading_band'],
+                    'status': data['statuses']['reading'],
+                },
+                'writing': {
+                    'teacher_band': data['writing_teacher_band'],
+                    'status': data['statuses']['writing'],
+                },
+                'overall_band': data['overall_band'],
+                'latest_writing_session_id': data['latest_writing_session_id'],
+                'latest_writing_essay_id': data['latest_writing_essay_id'],
+            })
+
+        groups = []
+        for key, b in buckets.items():
+            groups.append({
+                'group': b['group'],
+                'students_count': b['students_count'],
+                'completed_all_three': b['completed_all_three'],
+                'avg_listening_band': compute_ielts_average(b['listening_bands']),
+                'avg_reading_band': compute_ielts_average(b['reading_bands']),
+                'avg_writing_teacher_band': compute_ielts_average(b['writing_teacher_bands']),
+                'avg_overall_band': compute_ielts_average(b['overall_bands']),
+                'students': b['students'],
+            })
+        groups.sort(key=lambda x: (x['group'] is None, x['group']))
+
+        students_list = []
+        for data in student_map.values():
+            students_list.append({
+                'id': data['id'],
+                'student_id': data['student_id'],
+                'name': f"{data['first_name']} {data['last_name']}".strip(),
+                'group': data['group'],
+                'teacher': data['teacher'],
+                'listening': {
+                    'band': data['listening_band'],
+                    'status': data['statuses']['listening'],
+                },
+                'reading': {
+                    'band': data['reading_band'],
+                    'status': data['statuses']['reading'],
+                },
+                'writing': {
+                    'teacher_band': data['writing_teacher_band'],
+                    'status': data['statuses']['writing'],
+                },
+                'overall_band': data['overall_band'],
+                'latest_writing_session_id': data['latest_writing_session_id'],
+                'latest_writing_essay_id': data['latest_writing_essay_id'],
+            })
+
+        return Response({
+            'mode': 'group',
+            'summary': summary,
+            'groups': groups,
+            'students': students_list,
+        })
+
+
 class CuratorActiveTestsView(APIView):
     permission_classes = [IsTeacherOrCurator]
     
@@ -5200,26 +5570,35 @@ class CuratorSpeakingOverviewView(APIView):
     
     def get(self, request):
         """Get Speaking sessions overview for curator"""
-        # Get filter parameters
         group = request.query_params.get('group')
         teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 30))
         
-        # Base students queryset - only students with assigned teachers
         students = User.objects.filter(role='student', is_active=True).exclude(teacher__isnull=True).exclude(teacher='')
         if group:
             students = students.filter(group=group)
         if teacher:
             students = students.filter(teacher__icontains=teacher)
-        
+        if search:
+            students = students.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+
+        base_sessions = SpeakingSession.objects.filter(student__in=students)
+        all_sessions = apply_date_range_filter(base_sessions, request, 'conducted_at')
+        completed_sessions_qs = all_sessions.filter(completed=True).order_by('-conducted_at')
+
+        student_ids_with_completed = completed_sessions_qs.values_list('student_id', flat=True).distinct()
+        students = students.filter(id__in=student_ids_with_completed)
         total_students = students.count()
-        
-        # Stats from all sessions among these students
-        all_sessions = SpeakingSession.objects.filter(student__in=students)
-        all_sessions = apply_date_range_filter(all_sessions, request, 'conducted_at')
+
         total_sessions = all_sessions.count()
-        completed_sessions = all_sessions.filter(completed=True).count()
+        completed_sessions = completed_sessions_qs.count()
         pending_sessions = all_sessions.filter(completed=False).count()
         
         # Teacher assessment performance
@@ -5238,53 +5617,39 @@ class CuratorSpeakingOverviewView(APIView):
         medium_performers = all_sessions.filter(completed=True, overall_band_score__gte=5.0, overall_band_score__lt=7.0).count()
         low_performers = all_sessions.filter(completed=True, overall_band_score__lt=5.0).count()
         
-        # Students with multiple sessions
-        students_with_sessions = all_sessions.values('student').distinct().count()
-        avg_sessions_per_student = round(total_sessions / students_with_sessions, 1) if students_with_sessions > 0 else 0
+        # Students with multiple completed sessions
+        students_with_sessions = completed_sessions_qs.values('student').distinct().count()
+        avg_sessions_per_student = round(completed_sessions / students_with_sessions, 1) if students_with_sessions > 0 else 0
         
-        # Paginate students, and for each get latest session
+        # Paginate only completed sessions, each completed submission is a separate row
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        paged_students = students.order_by('first_name', 'last_name')[start_idx:end_idx]
-        
-        students_data = []
-        for student in paged_students:
-            # Ищем последний завершенный session с баллами
-            last_completed_session = apply_date_range_filter(
-                SpeakingSession.objects.filter(
-                student=student, 
-                completed=True,
-                overall_band_score__isnull=False
-            ),
-                request,
-                'conducted_at'
-            ).order_by('-conducted_at').first()
-            
-            # Если нет завершенного, берем последний любой
-            last_session = last_completed_session or apply_date_range_filter(
-                SpeakingSession.objects.filter(student=student),
-                request,
-                'conducted_at'
-            ).order_by('-conducted_at').first()
-            
-            students_data.append({
+        paged_sessions = completed_sessions_qs.select_related('student', 'teacher')[start_idx:end_idx]
+
+        sessions_data = []
+        for session in paged_sessions:
+            student = session.student
+            teacher_obj = session.teacher or student.teacher
+            if isinstance(teacher_obj, User):
+                teacher_display = f"{teacher_obj.first_name} {teacher_obj.last_name}".strip() or teacher_obj.email
+            else:
+                teacher_display = teacher_obj
+            sessions_data.append({
+                'session_id': session.id,
                 'student_id': student.student_id,
                 'student_name': f"{student.first_name} {student.last_name}",
                 'group': student.group,
-                'teacher': student.teacher,
-                'latest_session': {
-                    'session_id': last_session.id if last_session else None,
-                    'completed': last_session.completed if last_session else None,
-                    'overall_band': last_session.overall_band_score if last_session else None,
-                    'fluency_score': last_session.fluency_coherence_score if last_session else None,
-                    'lexical_score': last_session.lexical_resource_score if last_session else None,
-                    'grammar_score': last_session.grammatical_range_score if last_session else None,
-                    'pronunciation_score': last_session.pronunciation_score if last_session else None,
-                    'conducted_at': last_session.conducted_at if last_session else None
-                }
+                'teacher': teacher_display,
+                'overall_band': session.overall_band_score,
+                'fluency_score': session.fluency_coherence_score,
+                'lexical_score': session.lexical_resource_score,
+                'grammar_score': session.grammatical_range_score,
+                'pronunciation_score': session.pronunciation_score,
+                'completed': session.completed,
+                'conducted_at': session.conducted_at,
             })
         
-        total_pages = (total_students + page_size - 1) // page_size
+        total_pages = (completed_sessions + page_size - 1) // page_size
         
         return Response({
             'statistics': {
@@ -5309,12 +5674,12 @@ class CuratorSpeakingOverviewView(APIView):
                     'pronunciation': ielts_round_score(avg_pronunciation)
                 }
             },
-            'students': students_data,
+            'sessions': sessions_data,
             'recent_pagination': {
                 'current_page': page,
                 'total_pages': total_pages,
                 'page_size': page_size,
-                'total_count': total_students
+                'total_count': completed_sessions
             }
         })
 
@@ -5324,9 +5689,9 @@ class CuratorSpeakingExportCSVView(APIView):
     
     def get(self, request):
         """Export Speaking sessions data to CSV"""
-        # Get filter parameters
         group = request.query_params.get('group')
         teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
         
         # Base students queryset - only students with assigned teachers
         students = User.objects.filter(role='student', is_active=True).exclude(teacher__isnull=True).exclude(teacher='')
@@ -5334,9 +5699,16 @@ class CuratorSpeakingExportCSVView(APIView):
             students = students.filter(group=group)
         if teacher:
             students = students.filter(teacher__icontains=teacher)
+        if search:
+            students = students.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(student_id__icontains=search) |
+                models.Q(email__icontains=search)
+            )
         
-        # Get all speaking sessions
-        sessions = SpeakingSession.objects.filter(student__in=students).select_related('student', 'teacher').order_by('-conducted_at')
+        sessions = SpeakingSession.objects.filter(student__in=students).select_related('student', 'teacher')
+        sessions = apply_date_range_filter(sessions, request, 'conducted_at').order_by('-conducted_at')
         
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="speaking_sessions_export.csv"'
