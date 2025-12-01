@@ -77,7 +77,6 @@ const Navbar = ({ role, setRole }) => {
           <div className="ml-4 flex flex-col gap-2 mt-2">
             <Link to="/curator/dashboard" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Dashboard</Link>
             <Link to="/curator/speaking" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Speaking</Link>
-            <Link to="/curator/test-comparison" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Comparison</Link>
             <Link to="/curator/diagnostic" className="text-blue-700 font-medium hover:underline" onClick={() => setMenuOpen(false)}>Diagnostic</Link>
           </div>
         )}

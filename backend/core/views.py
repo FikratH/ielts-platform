@@ -505,23 +505,27 @@ class CuratorDiagnosticResultsView(APIView):
         writing_diag_qs = WritingTestSession.objects.filter(completed=True, is_diagnostic=True)
         writing_diag_qs = apply_date_range_filter(writing_diag_qs, request, 'started_at')
 
-        diagnostic_students = set()
-        diagnostic_students.update(listening_diag_qs.values_list('user_id', flat=True))
-        diagnostic_students.update(reading_diag_qs.values_list('user_id', flat=True))
-        diagnostic_students.update(writing_diag_qs.values_list('user_id', flat=True))
-
-        students_qs = User.objects.filter(id__in=diagnostic_students)
+        students_qs = User.objects.filter(role='student', is_active=True)
         if group:
             students_qs = students_qs.filter(group=group)
         if teacher:
             students_qs = students_qs.filter(teacher=teacher)
         if search:
-            students_qs = students_qs.filter(
-                models.Q(first_name__icontains=search) |
-                models.Q(last_name__icontains=search) |
-                models.Q(student_id__icontains=search) |
-                models.Q(email__icontains=search)
-            )
+            search = search.strip()
+            if search:
+                students_qs = students_qs.filter(
+                    models.Q(first_name__icontains=search) |
+                    models.Q(last_name__icontains=search) |
+                    models.Q(student_id__icontains=search) |
+                    models.Q(email__icontains=search)
+                )
+
+        diagnostic_students = set()
+        diagnostic_students.update(listening_diag_qs.filter(user__in=students_qs).values_list('user_id', flat=True))
+        diagnostic_students.update(reading_diag_qs.filter(user__in=students_qs).values_list('user_id', flat=True))
+        diagnostic_students.update(writing_diag_qs.filter(user__in=students_qs).values_list('user_id', flat=True))
+
+        students_qs = students_qs.filter(id__in=diagnostic_students)
 
         for student in students_qs:
             try:
@@ -5433,7 +5437,10 @@ class CuratorWeeklyOverviewView(APIView):
                 bucket['students'].append({
                     'id': data['id'],
                     'student_id': data['student_id'],
-                    'name': f"{data['first_name']} {data['last_name']}".strip(),
+                    'name': (f"{data['first_name'] or ''} {data['last_name'] or ''}".strip() or 
+                             data['student_id'] or 
+                             data.get('email', '') or 
+                             f"Student {data['id']}"),
                     'group': data['group'],
                     'teacher': data['teacher'],
                     'listening': {
@@ -5672,9 +5679,9 @@ class CuratorGroupsRankingView(APIView):
 
         groups_buckets = {}
         for student_id, data in student_map.items():
-            group = data['group']
-            if not group:
-                continue
+            group = data['group'] or 'No group'
+            if not group or group == 'No group':
+                group = 'No group'
 
             listening_band = compute_ielts_average(data['listening_bands'])
             reading_band = compute_ielts_average(data['reading_bands'])

@@ -52,6 +52,46 @@ This file tracks all actions performed by the agent during development to provid
 - Extended `CuratorDiagnosticResultsView` to respect `date_from`/`date_to` by applying `apply_date_range_filter` to diagnostic Listening/Reading/Writing sessions and deriving the student set and latest sessions only from that window.
 - As a result, both the diagnostic summary stats and the per-student table now reflect only diagnostic activity within the selected period.
 
+## 2025-12-01 - Curator diagnostic page filters (group, teacher, search)
+
+- Added Group, Teacher, and Search student filters to `CuratorDiagnosticPage` to match the curator dashboard filtering capabilities.
+- The page now loads filter options (groups and teachers) from `/curator/students/` endpoint and displays them in a unified filter card layout similar to the weekly overview page.
+- All filters (group, teacher, search, period) are sent to the backend `CuratorDiagnosticResultsView` which already supported these parameters, so the filtering works immediately.
+- The filter card uses a 4-column grid layout: Group, Teacher, Search student, and Period (TimeRangeFilter).
+
+## 2025-12-01 - Curator diagnostic page: show empty state inline
+
+- Removed the separate "No Diagnostic Results" screen that appeared when no students matched the filters.
+- Now when filters return no results, the page shows an inline message within the table area: "No diagnostic results found for the selected filters."
+- Filters, summary stats, and page structure remain visible at all times, providing better UX when adjusting filters.
+- Summary stats and analytics section are conditionally rendered only when data exists and students are present.
+
+## 2025-12-01 - Curator diagnostic page: fixed filter logic
+
+- Fixed filter logic in `CuratorDiagnosticResultsView` to properly apply group/teacher/search filters before checking for diagnostic sessions.
+- Previously, the view collected all students with diagnostic sessions first, then filtered them, which could show students who don't match the filters.
+- Now the logic correctly: (1) filters students by group/teacher/search first, (2) then checks which of those filtered students have diagnostic sessions in the selected period, (3) finally retrieves session data for those students.
+- This ensures that only students matching all filters (group, teacher, search, period) are shown in the results.
+- Added proper search trimming on backend to match frontend behavior.
+
+## 2025-12-01 - Teacher sidebar: reduced Student Overview to 3 pages
+
+- Reduced the "Student Overview" group for teachers from 8 pages to 3 pages, matching the curator's main navigation structure.
+- Removed: Students, Writing, Listening, Reading, Comparison pages from teacher's Student Overview group.
+- Kept only: Dashboard, Speaking, Diagnostic (3 essential pages for student overview).
+- Updated both desktop sidebar (`Sidebar.jsx`) and mobile navbar (`Navbar.js`) to reflect this change.
+- Active page highlighting already works correctly in groups via `hasActiveItem` check that uses `isActivePage()` function.
+
+## 2025-12-01 - Fixed "None None" and empty data display in curator dashboard
+
+- Fixed issue where students with `None` values for `first_name` and `last_name` were displaying as "None None" in the curator dashboard.
+- Updated `CuratorWeeklyOverviewView` to use fallback logic for student names: if both first_name and last_name are empty, use student_id, email, or "Student {id}" as fallback.
+- Fixed `CuratorGroupsRankingView` to handle groups with `None` or empty values by using "No group" as the display value.
+- Updated frontend components to properly handle and display fallback values:
+  - `CuratorWeeklyOverviewPage`: Shows student_id or "Student {id}" if name is empty
+  - `GroupsRankingWidget`: Shows "No group" if group is None or empty
+- This ensures that no "None None" or empty data appears in the dashboard tables.
+
 ## 2025-12-01 - Git hygiene: ignore local artifacts
 
 - Updated `.gitignore` to exclude Python virtualenvs, all `node_modules` folders (both root-level and nested), SQLite databases, pytest cache, and any `*.dump` database backups from version control.

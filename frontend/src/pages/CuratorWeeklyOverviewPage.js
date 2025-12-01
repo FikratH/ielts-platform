@@ -239,8 +239,8 @@ export default function CuratorWeeklyOverviewPage() {
                         {data.students.map(s => (
                           <tr key={s.id} className="hover:bg-gray-50">
                             <Td>
-                              <div className="font-medium text-gray-900">{s.name}</div>
-                              <div className="text-xs text-gray-500">{s.student_id}</div>
+                              <div className="font-medium text-gray-900">{s.name || s.student_id || `Student ${s.id}`}</div>
+                              <div className="text-xs text-gray-500">{s.student_id || 'No ID'}</div>
                             </Td>
                             <Td>{s.group || '—'}</Td>
                             <Td>{s.teacher || '—'}</Td>

@@ -66,11 +66,11 @@ const GroupsRankingWidget = () => {
             </thead>
             <tbody>
               {data.map((group, index) => (
-                <tr key={group.group} className="border-b hover:bg-gray-50">
+                <tr key={group.group || `no-group-${index}`} className="border-b hover:bg-gray-50">
                   <td className="py-2 px-3">
                     <span className="font-medium text-gray-700">#{index + 1}</span>
                   </td>
-                  <td className="py-2 px-3 font-medium">{group.group}</td>
+                  <td className="py-2 px-3 font-medium">{group.group || 'No group'}</td>
                   <td className="py-2 px-3 text-right text-gray-600">{group.students_count}</td>
                   <td className="py-2 px-3 text-right">
                     <span className={group.avg_listening_band ? 'font-medium' : 'text-gray-400'}>
