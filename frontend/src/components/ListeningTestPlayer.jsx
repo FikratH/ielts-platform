@@ -235,7 +235,18 @@ const ListeningTestPlayer = () => {
     setAnswers(prev => {
       // Проверяем, это gap fill или multiple choice
       if (subKey.includes('__')) {
-        const [questionId, gapPart] = subKey.split('__');
+        const parts = subKey.split('__');
+        const questionId = parts[0];
+        const gapPart = parts[1];
+        
+        // Если это table question (формат: questionId__r{row}c{col}__gap{number})
+        if (parts.length === 3 && gapPart.match(/^r\d+c\d+$/) && parts[2].startsWith('gap')) {
+          // Table question - просто сохраняем, не очищаем другие gaps
+          return {
+            ...prev,
+            [subKey]: value
+          };
+        }
         
         // Если это gap fill (gap1, gap2, gap3...) - НЕ очищаем другие gaps
         if (gapPart.startsWith('gap')) {
@@ -260,8 +271,9 @@ const ListeningTestPlayer = () => {
             const newAnswers = { ...prev };
             
             // Очищаем все предыдущие ответы для этого вопроса
+            // Но НЕ очищаем table questions (они имеют формат questionId__r{row}c{col}__gap{number})
             Object.keys(newAnswers).forEach(key => {
-              if (key.startsWith(`${questionId}__`)) {
+              if (key.startsWith(`${questionId}__`) && !key.match(/^.*__r\d+c\d+__gap\d+$/)) {
                 delete newAnswers[key];
               }
             });
@@ -430,18 +442,7 @@ const ListeningTestPlayer = () => {
                    (question.extra_data && question.extra_data.table) || 
                    null;
       
-      console.log('Table question debug:', {
-        questionId: question.id,
-        type: type,
-        hasTable: !!question.table,
-        hasExtraData: !!question.extra_data,
-        hasExtraDataTable: !!(question.extra_data && question.extra_data.table),
-        table: table,
-        extraData: question.extra_data
-      });
-      
       if (!table || !Array.isArray(table.cells)) {
-        console.log('Table data missing or invalid:', table);
         return (
           <div key={question.id} className="mb-6 p-6 border border-red-200 rounded-2xl shadow bg-red-50/30">
             {headerBlock}
@@ -457,6 +458,73 @@ const ListeningTestPlayer = () => {
         );
       }
       
+      const renderCell = (cell, r, c) => {
+        const cellText = cell.text || '';
+        
+        if (!cellText && !cell.isAnswer && (!cell.parts || (Array.isArray(cell.parts) && cell.parts.length === 0))) {
+          return <span></span>;
+        }
+
+        const gapRegex = /\[\[(\d+)\]\]/g;
+        const parts = [];
+        let lastIndex = 0;
+        let match;
+
+        while ((match = gapRegex.exec(cellText)) !== null) {
+          const before = cellText.slice(lastIndex, match.index);
+          if (before) {
+            parts.push(
+              <span
+                key={`t${parts.length}`}
+                dangerouslySetInnerHTML={{ __html: before }}
+              />
+            );
+          }
+          const gapNumber = match[1];
+          const questionIdStr = String(question.id);
+          const gapKey = `${questionIdStr}__r${r}c${c}__gap${gapNumber}`;
+          parts.push(
+            <input
+              key={`gap${gapNumber}`}
+              type="text"
+              value={answers[gapKey] || ''}
+              onChange={e => handleAnswerChange(gapKey, e.target.value)}
+              className="inline-block min-w-[60px] p-1 border rounded border-blue-300 focus:border-blue-500 outline-none mx-1"
+              placeholder="..."
+              autoComplete="off"
+            />
+          );
+          lastIndex = gapRegex.lastIndex;
+        }
+
+        const remaining = cellText.slice(lastIndex);
+        if (remaining) {
+          parts.push(
+            <span
+              key="end"
+              dangerouslySetInnerHTML={{ __html: remaining }}
+            />
+          );
+        }
+
+        if (parts.length === 0) {
+          if (cell.isAnswer) {
+            return (
+              <input
+                type="text"
+                value={answers[`${String(question.id)}__r${r}c${c}`] || ''}
+                onChange={e => handleAnswerChange(`${String(question.id)}__r${r}c${c}`, e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Your answer"
+              />
+            );
+          }
+          return <span dangerouslySetInnerHTML={{ __html: cellText }} />;
+        }
+
+        return <span className="flex items-center gap-1 flex-wrap">{parts}</span>;
+      };
+
       return (
         <div key={question.id} className="mb-6 p-6 border border-blue-100 rounded-2xl shadow bg-blue-50/30">
           {headerBlock}
@@ -468,17 +536,7 @@ const ListeningTestPlayer = () => {
                   <tr key={r}>
                     {row.map((cell, c) => (
                       <td key={c} className="border p-2 align-middle bg-white">
-                        {cell.isAnswer ? (
-                          <input
-                            type="text"
-                            value={answers[`${question.id}__r${r}c${c}`] || ''}
-                            onChange={e => handleAnswerChange(`${question.id}__r${r}c${c}`, e.target.value)}
-                            className="w-full p-2 border rounded"
-                            placeholder="Your answer"
-                          />
-                        ) : (
-                          <span>{cell.text}</span>
-                        )}
+                        {renderCell(cell, r, c)}
                       </td>
                     ))}
                   </tr>

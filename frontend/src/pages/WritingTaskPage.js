@@ -339,11 +339,11 @@ const WritingTaskPage = () => {
                   WebkitUserSelect: 'none',
                   MozUserSelect: 'none',
                   msUserSelect: 'none',
-                  cursor: 'default'
+                  cursor: 'default',
+                  whiteSpace: 'pre-wrap'
                 }}
-              >
-                <p className="text-base sm:text-lg leading-relaxed text-gray-800 font-semibold">{getCurrentPrompt()}</p>
-              </div>
+                dangerouslySetInnerHTML={{ __html: getCurrentPrompt() || '' }}
+              />
             </div>
           </div>
         </div>

@@ -206,20 +206,94 @@ export function QuestionReview({ question }) {
   if ([
     'table', 'table_completion', 'tablecompletion', 'form', 'form_completion'
   ].includes(question.type) && question.table) {
+    const gapRegex = /\[\[(\d+)\]\]/g;
+    
     return (
       <div className="overflow-x-auto mb-4">
         <table className="border rounded w-auto min-w-[300px]">
           <tbody>
             {question.table.cells.map((row, rowIdx) => (
               <tr key={rowIdx}>
-                {row.map((cell, colIdx) => cell.isAnswer ? (
-                  <td key={colIdx} className={`p-2 border text-center align-middle`} style={{background: cell.is_correct ? '#dcfce7' : cell.is_answered ? '#fee2e2' : '#f3f4f6', borderColor: cell.is_correct ? '#22c55e' : cell.is_answered ? '#ef4444' : '#aaa'}}>
-                    <div className="font-bold" style={{color: cell.is_correct ? '#166534' : cell.is_answered ? '#991b1b' : '#6b7280'}}>{cell.student_answer || '—'}</div>
-                    {!cell.is_correct && <div className="text-xs text-blue-700">Correct: {cell.correct_answer}</div>}
-                  </td>
-                ) : (
-                  <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">{typeof cell.text === 'string' ? cell.text : JSON.stringify(cell.text)}</td>
-                ))}
+                {row.map((cell, colIdx) => {
+                  const cellText = cell.text || '';
+                  if (!cellText && !cell.isAnswer && (!cell.parts || (Array.isArray(cell.parts) && cell.parts.length === 0))) {
+                    return <td key={colIdx} className="p-2 border bg-gray-50 align-middle"></td>;
+                  }
+                  
+                  if (cellText) {
+                    const parts = [];
+                    let lastIndex = 0;
+                    let match;
+                    const regex = new RegExp(gapRegex);
+                    regex.lastIndex = 0;
+                    
+                    while ((match = regex.exec(cellText)) !== null) {
+                      const before = cellText.slice(lastIndex, match.index);
+                      if (before) {
+                        parts.push(
+                          <span key={`t${parts.length}`} dangerouslySetInnerHTML={{ __html: before }} />
+                        );
+                      }
+                      const gapNumber = match[1];
+                      const gapData = question.sub_questions?.find(sq => sq.number === `R${rowIdx+1}, C${colIdx+1} (gap ${gapNumber})`) || 
+                                     question.sub_questions?.find(sq => sq.sub_id === `r${rowIdx}c${colIdx}__gap${gapNumber}`);
+                      
+                      if (gapData) {
+                        parts.push(
+                          <span key={`gap${gapNumber}`} className="inline-block mx-1">
+                            <span className={`px-2 py-1 rounded ${gapData.is_correct ? 'bg-green-100 text-green-800' : gapData.student_answer ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                              {gapData.student_answer || '—'}
+                            </span>
+                            {!gapData.is_correct && gapData.correct_answer && (
+                              <span className="text-xs text-blue-700 ml-1">({gapData.correct_answer})</span>
+                            )}
+                          </span>
+                        );
+                      } else {
+                        parts.push(
+                          <span key={`gap${gapNumber}`} className="inline-block mx-1 px-2 py-1 rounded bg-gray-100 text-gray-600">
+                            [gap {gapNumber}]
+                          </span>
+                        );
+                      }
+                      lastIndex = regex.lastIndex;
+                    }
+                    
+                    const remaining = cellText.slice(lastIndex);
+                    if (remaining) {
+                      parts.push(
+                        <span key="end" dangerouslySetInnerHTML={{ __html: remaining }} />
+                      );
+                    }
+                    
+                    if (parts.length > 0) {
+                      return (
+                        <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle">
+                          {parts}
+                        </td>
+                      );
+                    }
+                  }
+                  
+                  return cell.isAnswer ? (
+                    <td key={colIdx} className={`p-2 border text-center align-middle`} style={{background: cell.is_correct ? '#dcfce7' : cell.is_answered ? '#fee2e2' : '#f3f4f6', borderColor: cell.is_correct ? '#22c55e' : cell.is_answered ? '#ef4444' : '#aaa'}}>
+                      <div className="font-bold" style={{color: cell.is_correct ? '#166534' : cell.is_answered ? '#991b1b' : '#6b7280'}}>{cell.student_answer || '—'}</div>
+                      {!cell.is_correct && <div className="text-xs text-blue-700">Correct: {cell.correct_answer}</div>}
+                    </td>
+                  ) : (
+                    <td key={colIdx} className="p-2 border bg-gray-50 text-gray-700 align-middle whitespace-pre-line">
+                      {typeof cell.text === 'string' ? (
+                        cell.text ? (
+                          <span dangerouslySetInnerHTML={{ __html: cell.text }} />
+                        ) : (
+                          <span></span>
+                        )
+                      ) : (
+                        JSON.stringify(cell.text)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

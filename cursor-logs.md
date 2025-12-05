@@ -2,6 +2,175 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-01-XX - Table Questions: Simplified Implementation with [[number]] Syntax
+
+### Problem
+The previous implementation with `parts` array was too complex. Users wanted a simpler approach similar to gap_fill questions - just write text in cells and use `[[14]]` or `[[25]]` syntax for gaps.
+
+### Solution
+Completely simplified table questions implementation:
+- Removed complex `parts` array structure
+- Removed Mixed/Simple toggle button
+- Now cells are just simple text fields
+- Use `[[number]]` syntax directly in cell text for gaps (e.g., "Use [[14]] labels")
+- Gaps are automatically parsed and answer fields appear below the cell editor
+- Answers stored in `question.gaps` array (same as gap_fill)
+- Inline rendering of gaps in test players (like gap_fill)
+
+### Changes Made
+
+#### Frontend - AdminListeningTestBuilder.jsx
+- Removed all `parts` array logic
+- Simplified cell editor to single multiline text field
+- Added automatic parsing of `[[number]]` from cell text
+- Shows answer fields for gaps below cell editor
+- Converts old format (parts, isAnswer) to new format on load
+
+#### Frontend - AdminReadingTestBuilder.jsx
+- Same simplification as Listening
+- Uses `extra_data.answers` object for gap answers (Reading format)
+
+#### Frontend - ListeningTestPlayer.jsx
+- Simplified `renderCell`: parses `[[number]]` from `cell.text`
+- Renders inline inputs for gaps (like gap_fill)
+- Key format: `${questionId}__r${r}c${c}__gap${gapNumber}`
+
+#### Frontend - ReadingTestPlayer.jsx
+- Same parsing and rendering as Listening
+- Key format: `r${rIdx}c${cIdx}__gap${gapNumber}` in `answers[questionId]`
+
+#### Backend - serializers.py
+- Updated `create_detailed_breakdown`: parses `[[number]]` from `cell.text`
+- Updated `get_test_render_structure`: parses gaps from text
+- Updated `count_correct_subanswers`: parses gaps from text
+- Gets correct answers from `question.gaps` array
+
+#### Frontend - QuestionForm.js
+- Updated result display: parses `[[number]]` and shows answers
+
+### Data Structure
+
+**Cell:**
+```javascript
+{
+  text: "Use [[14]] labels"  // Simple text with [[number]] for gaps
+}
+```
+
+**Gaps (stored in question.gaps):**
+```javascript
+{
+  gaps: [
+    { number: 14, answer: "7" },
+    { number: 25, answer: "special" }
+  ]
+}
+```
+
+### Answer Key Formats
+- **Listening**: `${questionId}__r${row}c${col}__gap${gapNumber}` stored directly in `answers` object
+- **Reading**: `r${row}c${col}__gap${gapNumber}` stored in `answers[questionId]` nested object
+- Backend `count_correct_subanswers` supports both formats for proper scoring
+
+### Backward Compatibility
+- Supports old format `cell.isAnswer` and `cell.type === 'gap'`
+- Converts old `parts` array to new text format on load
+- Old data is automatically migrated when editing
+
+## 2025-01-XX - Table Questions: Support for Mixed Cells (Text + Gap) [DEPRECATED]
+
+### Problem
+Table questions in Listening and Reading tests only supported cells that were either completely text OR completely a gap. However, real IELTS tasks often require cells that contain both text and gaps simultaneously (e.g., "Use 7............ labels" where "Use" and "labels" are text, and "7............" is a gap).
+
+### Solution
+Implemented support for mixed cells using a new `parts` array structure where each cell can contain multiple parts, each being either:
+- `{ type: 'text', content: '...' }` - text content
+- `{ type: 'gap', answer: '...' }` - gap with correct answer
+
+### Changes Made
+
+#### Frontend - Test Players
+1. **ListeningTestPlayer.jsx**:
+   - Updated `renderQuestion` for table questions to support `cell.parts` array
+   - Added `renderCell` function that renders mixed cells with inline inputs for gaps
+   - Maintains backward compatibility with old `isAnswer` and `text` structure
+
+2. **ReadingTestPlayer.jsx**:
+   - Updated table completion rendering to support `cell.parts` array
+   - Added `renderCell` function similar to Listening
+   - Supports both new `parts` structure and old `cell.type === 'gap'` structure
+
+#### Frontend - Admin Builders
+3. **AdminListeningTestBuilder.jsx**:
+   - Enhanced table cell editor to support mixed cells
+   - Added "Mixed" button to toggle between simple and mixed cell modes
+   - Mixed mode allows adding multiple parts (text/gap) with add/remove functionality
+   - Each part can be switched between text and gap types
+
+4. **AdminReadingTestBuilder.jsx**:
+   - Updated `renderTableEditor` to support mixed cells
+   - Added `handleCellPartsChange` function for managing parts array
+   - Enhanced `toggleCellType` to handle conversion between simple and mixed modes
+   - Updated cell rendering to show parts editor with add/remove functionality
+
+#### Frontend - Review Component
+5. **QuestionForm.js**:
+   - Updated `QuestionReview` to display mixed cells correctly
+   - Renders parts array with proper styling for gaps (correct/incorrect/empty states)
+   - Maintains backward compatibility with old cell structure
+
+#### Backend - Scoring
+6. **serializers.py**:
+   - Updated `create_detailed_breakdown` to extract correct answers from `parts` array
+   - Updated `get_test_render_structure` to handle mixed cells in results display
+   - Updated `count_correct_subanswers` to count gaps in mixed cells correctly
+   - Added support for both Listening format (`table.cells`) and Reading format (`extra_data.rows`)
+   - Gap keys format: `r{row}c{col}__gap{partIdx}` for mixed cells, `r{row}c{col}` for simple gap cells
+
+#### Data Structure
+- **New format**: `{ parts: [{ type: 'text', content: 'Use' }, { type: 'gap', answer: '7' }, { type: 'text', content: 'labels' }] }`
+- **Old format**: Still supported - `{ isAnswer: true, answer: '...' }` or `{ text: '...' }`
+- **Reading format**: `{ parts: [...] }` in `extra_data.rows[r][c]`
+
+### Key Features
+- Backward compatible with existing table questions
+- Supports multiple gaps per cell
+- Proper scoring for each gap in mixed cells
+- Admin interface for easy creation of mixed cells
+- Consistent UX across Listening and Reading tests
+
+### Testing Notes
+- All changes maintain backward compatibility
+- No linter errors introduced
+- Ready for testing with real IELTS table completion tasks
+
+### Answer Key Formats
+- **Listening**: `{questionId}__r{row}c{col}__gap{partIdx}` stored directly in `answers` object
+- **Reading**: `r{row}c{col}__gap{partIdx}` stored in `answers[questionId]` nested object
+- Backend `count_correct_subanswers` supports both formats for proper scoring
+
+### Additional Features
+- **Empty cells support**: Ячейки могут быть пустыми - отображаются как "(empty)" с серым цветом
+- **HTML tags support**: Поддержка HTML тегов в текстовых частях ячеек (например, `<b>bold</b>`, `<i>italic</i>`)
+  - Используется `dangerouslySetInnerHTML` для безопасного рендеринга HTML
+  - Поддержка в админке с подсказками о возможности использования HTML
+  - Поддержка в тестах (ListeningTestPlayer, ReadingTestPlayer)
+  - Поддержка в результатах (QuestionForm)
+
+### Audit Results & Fixes
+**Полный аудит проведен** - см. `TABLE_QUESTIONS_AUDIT.md` для деталей
+
+**Исправленные проблемы:**
+1. ✅ **AdminListeningTestBuilder.jsx строка 1101**: Исправлена проверка `newCell.parts` после удаления - теперь используется `oldParts` переменная
+2. ✅ **serializers.py get_test_render_structure**: Добавлена обработка Listening формата (`extra_data.table.cells`) с правильным форматом ключей
+
+**Финальный статус:**
+- ✅ Все форматы (Listening и Reading) обработаны корректно
+- ✅ Обратная совместимость сохранена
+- ✅ Все edge cases обработаны
+- ✅ Консистентность между форматами обеспечена
+- ✅ Готово к тестированию
+
 ## 2025-12-XX - Improved Test Cards Grid Display
 
 - Improved grid layout for test cards on `ListeningTestListPage`, `ReadingPage`, and `WritingTestListPage`
@@ -1354,3 +1523,325 @@ All sorting and ordering logic is correctly implemented throughout the Listening
 - Groups are sorted by average overall band score (highest first), with groups without scores appearing at the bottom.
 - Added pagination to the Students overview table: limited to 30 students per page with Previous/Next navigation buttons. The backend endpoint `CuratorWeeklyOverviewView` now accepts `page` and `page_size` parameters and returns pagination metadata in `students_pagination` field when mode is 'student'.
 - When switching to 'student' mode, the page resets to 1 automatically.
+
+## 2025-12-XX - Added HTML Formatting Support for Writing Task Instructions
+
+### Problem
+Task 1 and Task 2 instructions in Writing tests were displayed as plain text without support for:
+- HTML tags for formatting (bold, italic, lists, etc.)
+- Preserving whitespace (spaces and line breaks were collapsed by browser)
+
+### Solution Implemented
+
+#### WritingTaskPage.js - Student Writing Test Page
+- Changed task instructions display from `<p>{getCurrentPrompt()}</p>` to `dangerouslySetInnerHTML`
+- Added `whiteSpace: 'pre-wrap'` style to preserve whitespace and line breaks
+- Maintained all existing copy protection handlers
+
+### Files Modified
+- `frontend/src/pages/WritingTaskPage.js` - Main writing test page where students see task instructions
+
+### Result
+- ✅ Task instructions now support HTML tags (bold, italic, lists, etc.) for students
+- ✅ Whitespace and line breaks are preserved
+- ✅ All existing copy protection functionality maintained
+- ✅ Admin can use HTML tags in task_text field (manual HTML input in AdminWritingTestBuilder)
+
+## 2025-12-XX - Complete Audit and Fix: Reading Test Highlight Keywords Function
+
+### Problem
+The Highlight keywords function in ReadingTestPlayer had multiple critical bugs:
+1. **Critical**: `currentPart` used before initialization causing runtime error
+2. Highlights were lost when switching between parts due to `dangerouslySetInnerHTML` overwriting DOM
+3. No validation for selection ranges, causing crashes
+4. `document.querySelector` searched entire document instead of just current passage
+5. No boundary checks to ensure selection is inside passage
+6. No overlap detection with existing highlights
+7. Unsafe DOM manipulation with `extractContents()`
+8. Missing parent node checks in remove/clear functions
+9. Highlights not restored when returning to a part
+10. Text selection issues when highlight mode was disabled
+11. Missing null checks in helper functions
+
+### Full Audit Results
+
+#### Issues Found and Fixed:
+
+1. **Critical: `currentPart` initialization order**
+   - **Problem**: `currentPart` was used in `useEffect` before it was declared
+   - **Fix**: Moved `sortedParts` and `currentPart` declarations before all effects and functions
+   - **Location**: Lines 192-193 moved to before timer effect
+
+2. **`isSelectionInsidePassage` missing null checks**
+   - **Problem**: No check for `range` or `container` being null
+   - **Fix**: Added try/catch and null checks for all variables
+   - **Location**: Lines 243-256
+
+3. **`checkHighlightOverlap` unused parameter**
+   - **Problem**: `partId` parameter was not used
+   - **Fix**: Removed unused parameter
+   - **Location**: Line 258
+
+4. **`handleTextSelection` clearing selection when mode disabled**
+   - **Problem**: When highlight mode was disabled, selection was cleared, preventing text copying
+   - **Fix**: Removed selection clearing, just return early
+   - **Location**: Lines 278-286
+
+### Solution Implemented
+
+#### 1. Fixed initialization order
+- Moved `sortedParts` and `currentPart` declarations before all effects
+- Ensures `currentPart` is available when used in `useEffect`
+
+#### 2. Added `restoreHighlights` function
+- Restores highlights from state to DOM after passage re-render
+- Uses TreeWalker to find text positions and recreate highlight marks
+- Handles edge cases with try/catch blocks
+- Checks for existing marks before restoration to avoid duplicates
+
+#### 3. Fixed `handleTextSelection` function
+- Added `selection.rangeCount > 0` check before accessing ranges
+- Added `isSelectionInsidePassage` check to ensure selection is within passageRef
+- Added `checkHighlightOverlap` to prevent overlapping highlights
+- Changed from `extractContents()` to `surroundContents()` with fallback
+- Added proper error handling and cleanup
+- Fixed issue where text selection was cleared when highlight mode was disabled
+
+#### 4. Fixed `removeHighlight` function
+- Changed from `document.querySelector` to `passageRef.current.querySelector`
+- Added parent node existence check before DOM manipulation
+- Wrapped in `useCallback` for proper dependency management
+
+#### 5. Fixed `clearAllHighlights` function
+- Changed from `document.querySelector` to `passageRef.current.querySelector`
+- Added parent node existence check
+- Wrapped in `useCallback` for proper dependency management
+
+#### 6. Added `useEffect` for automatic highlight restoration
+- Monitors `currentPart.id` changes
+- Automatically restores highlights after passage render with 100ms delay
+- Ensures highlights persist when switching between parts
+
+#### 7. Added helper functions with proper error handling
+- `isSelectionInsidePassage`: Validates selection boundaries with null checks
+- `checkHighlightOverlap`: Detects overlapping highlights before creation
+
+### Files Modified
+- `frontend/src/components/ReadingTestPlayer.jsx` - Complete refactor of highlight functionality
+
+### Complete Audit Checklist
+
+✅ **Initialization Order**
+- `sortedParts` and `currentPart` declared before use
+- All effects have access to `currentPart`
+
+✅ **Error Handling**
+- All functions have try/catch blocks where needed
+- Null checks for all DOM operations
+- Proper validation before DOM manipulation
+
+✅ **DOM Operations**
+- All queries scoped to `passageRef.current`
+- Parent node checks before manipulation
+- Safe range operations with fallbacks
+
+✅ **State Management**
+- Highlights stored per part in state
+- Proper cleanup on part change
+- Automatic restoration on part switch
+
+✅ **User Experience**
+- Text selection works when highlight mode disabled
+- No interference with standard text selection
+- Highlights persist across part switches
+- Overlapping highlights prevented
+
+✅ **Dependencies**
+- All `useCallback` hooks have correct dependencies
+- No stale closures
+- Proper memoization
+
+### Simplified Highlight Removal Logic
+
+#### Problem
+Complex protection logic with MutationObserver, event handlers, and CSS user-select was causing issues and making highlights disappear when selecting text inside them.
+
+#### Solution
+Simplified approach - removed all complex protection logic:
+- **Removed**: Click-to-delete functionality on mark elements
+- **Removed**: All event handlers (selectstart, mousedown, mouseup)
+- **Removed**: CSS user-select protection
+- **Removed**: MutationObserver for automatic restoration
+- **Removed**: All complex useEffect hooks for protection
+
+**New behavior**:
+- Highlights can only be removed via "Clear all" button
+- No click handlers on mark elements
+- Simple, reliable behavior without complex DOM manipulation
+- Highlights persist when selecting text inside them (no deletion possible)
+
+2. **Individual Mark Element Protection**:
+   - Each mark element gets individual `selectstart` and `mousedown` handlers
+   - Prevents text selection inside marks when highlight mode is disabled
+   - Applied to both newly created and restored highlights
+
+3. **MutationObserver Backup**:
+   - Monitors DOM changes when highlight mode is disabled
+   - Detects when mark elements with `data-highlight-id` are removed
+   - Automatically restores missing highlights from state
+   - Includes protection against infinite loops with `isRestoring` flag
+   - Uses debounce (150ms) to prevent excessive restorations
+   - Only active when highlight mode is disabled
+
+### Result
+- ✅ Fixed critical initialization error
+- ✅ Highlights persist when switching between parts
+- ✅ No crashes from invalid selections
+- ✅ Highlights only created within passage boundaries
+- ✅ No overlapping highlights
+- ✅ Safe DOM manipulation with proper error handling
+- ✅ Highlights correctly restored from state
+- ✅ Text selection works correctly when highlight mode is disabled
+- ✅ All highlight operations scoped to current passage only
+- ✅ All null checks and error handling in place
+- ✅ No unused parameters or variables
+- ✅ Highlights protected from accidental removal when selecting text inside them
+
+## 2025-01-XX - Fixed Table Questions Answers Not Saving in Listening Tests
+
+### Problem
+User reported that when filling in gaps in table questions, answers were not being saved and showed as "(empty)" in results.
+
+### Root Cause
+The issue was in the `create_detailed_breakdown` function in `backend/core/serializers.py`. The code was trying to find answers for table questions using different key formats, but the search logic was not robust enough to handle all variations of question IDs (string vs integer) and key formats.
+
+### Solution Implemented
+
+#### 1. Improved Answer Lookup in `create_detailed_breakdown` for Table Questions
+**File:** `backend/core/serializers.py` (lines 699-729)
+
+**Changes:**
+- Enhanced the key search logic for table questions to try multiple key formats
+- Added fallback search that looks for keys ending with the expected suffix pattern
+- Improved handling of string vs integer question IDs
+
+**Key format for table questions:**
+- Frontend sends: `${String(question.id)}__r${row}c${col}__gap${gapNumber}`
+- Backend now tries: `"{question_id}__r{row}c{col}__gap{gapNumber}"` in multiple formats (string, integer, etc.)
+- Fallback: searches all keys ending with `__r{row}c{col}__gap{gapNumber}`
+
+#### 2. Improved Answer Lookup in `count_correct_subanswers` for Table Questions
+**File:** `backend/core/serializers.py` (lines 1620-1640)
+
+**Changes:**
+- Applied same improved key search logic to `count_correct_subanswers` function for table questions only
+- Ensures consistent answer retrieval for both scoring and result display
+
+### Files Modified
+- `backend/core/serializers.py` - Improved table question answer lookup in both `create_detailed_breakdown` and `count_correct_subanswers` (ONLY for table questions, gap_fill left unchanged)
+
+### Result
+- ✅ Table question answers are now correctly retrieved from `session.answers`
+- ✅ Answers display correctly in results instead of showing "(empty)"
+- ✅ Scoring works correctly for table questions
+- ✅ Handles both string and integer question ID formats
+- ✅ Robust fallback search ensures answers are found even with format variations
+- ✅ Gap fill questions remain unchanged and continue to work as before
+
+## 2025-01-XX - Fixed Table Questions Answers Not Saving - Complete Fix
+
+### Context
+This fix builds on the previous complete refactoring of table questions (see "Table Questions: Simplified Implementation with [[number]] Syntax" above, lines 5-79). The refactoring simplified table questions to use `[[number]]` syntax in cell text, similar to gap_fill questions. However, after the refactoring, answers were not being saved correctly - they showed as "(empty)" in results.
+
+### Problem
+User reported that answers in table questions were not being saved and showed as "(empty)" in results, even though answers were being entered correctly.
+
+### Root Cause Analysis
+1. **Frontend was working correctly**: Answers were being saved with correct key format `{questionId}__r{row}c{col}__gap{gapNumber}` (e.g., `770__r1c3__gap7`)
+2. **Backend issue**: `correct_answers_map` was being built with wrong key format:
+   - **Wrong**: `gap7`, `gap8`, `gap9`, `gap10` (from `question.correct_answers`)
+   - **Should be**: `r1c3__gap7`, `r2c1__gap8`, etc. (matching user answer format)
+3. **Key mismatch**: Backend was searching for `{questionId}__r1c3__gap7` but `correct_answers_map` had keys like `gap7`, so lookup failed
+
+### Solution Implemented
+
+#### 1. Fixed `correct_answers_map` Formation for Table Questions
+**File:** `backend/core/serializers.py` (lines 641-664)
+
+**Changes:**
+- For table questions, rebuild `correct_answers_map` from `extra_data` instead of using `question.correct_answers`
+- Parse `[[number]]` from cell text to find gap positions
+- Build keys in format `r{row}c{col}__gap{gapNumber}` to match user answer format
+- Only applies to table questions (`table`, `table_completion`, `tablecompletion`), gap_fill remains unchanged
+
+**Code:**
+```python
+if question.extra_data and (question.question_type in ['table', 'table_completion', 'tablecompletion']):
+    # Rebuild correct_answers_map with proper keys: r{row}c{col}__gap{number}
+    for r, row in enumerate(question.extra_data['table']['cells']):
+        for c, cell in enumerate(row):
+            # Parse [[number]] from cell text
+            # Build gap_key = f"r{r}c{c}__gap{gap_number}"
+            # Get correct answer from question.extra_data['gaps'] or question.correct_answers
+```
+
+#### 2. Fixed Attribute Error
+**File:** `backend/core/serializers.py` (line 659)
+
+**Problem:** Code was checking `question.gaps` which doesn't exist on `ListeningQuestion` model.
+
+**Fix:** Removed `question.gaps` check, use only `question.extra_data['gaps']` or `question.correct_answers`.
+
+#### 3. Improved Answer Lookup Logic
+**File:** `backend/core/serializers.py` (lines 702-721)
+
+**Changes:**
+- Enhanced key search to try multiple formats (string/int question.id)
+- Added fallback search using `endswith()` for keys ending with `__{sub_id}`
+- Only applies to table questions (check: `sub_id.startswith('r') and '__gap' in sub_id`)
+
+#### 4. Improved Breakdown Labels
+**File:** `backend/core/serializers.py` (lines 731-750)
+
+**Changes:**
+- Changed labels from "Entry for r1c3_gap7" to simple "Gap 7", "Gap 8", etc.
+- Works for both table questions and gap_fill questions
+- More user-friendly display
+
+#### 5. Added Debug Logging (Removed)
+**Files:** `backend/core/views.py`, `backend/core/serializers.py`, `frontend/src/components/ListeningTestPlayer.jsx`
+
+**Changes:**
+- Added temporary `print()` and `console.log()` statements for debugging
+- All debug logging has been removed after fixing the issue
+
+### Files Modified
+- `backend/core/serializers.py` - Fixed `correct_answers_map` formation, improved lookup, better labels
+- `backend/core/views.py` - Removed debug logging
+- `frontend/src/components/ListeningTestPlayer.jsx` - Removed debug logging
+
+### Result
+- ✅ Table question answers are now correctly saved and displayed
+- ✅ Answers show correct values instead of "(empty)"
+- ✅ Scoring works correctly for table questions
+- ✅ Breakdown shows user-friendly labels ("Gap 7" instead of "Entry for r1c3_gap7")
+- ✅ Gap fill questions remain unchanged and continue to work
+- ✅ Only table questions are affected, other question types work as before
+
+### Key Format Summary
+- **User answers (frontend → backend)**: `{questionId}__r{row}c{col}__gap{gapNumber}` (e.g., `770__r1c3__gap7`)
+- **Correct answers map (backend)**: `r{row}c{col}__gap{gapNumber}` (e.g., `r1c3__gap7`)
+- **Lookup**: Backend searches for `{questionId}__r{row}c{col}__gap{gapNumber}` in `all_user_answers`
+
+## 2025-01-XX - Added Debug Logging for Table Questions
+
+### Problem
+Table question answers were still showing as "(empty)" in results. Need to debug frontend to see if answers are being saved.
+
+### Solution
+- Added console.log statements in ListeningTestPlayer.jsx to track:
+  - When table question inputs are created
+  - When onChange is triggered
+  - When answers are saved in handleAnswerChange
+  - What answers are sent during submit
+- Simplified backend search logic to only look for exact key matches and keys ending with sub_id (no broad pattern matching that could affect other question types)

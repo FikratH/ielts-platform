@@ -2090,7 +2090,8 @@ class SubmitListeningTestView(APIView):
         except ListeningTestSession.DoesNotExist:
             return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
 
-        session.answers = request.data.get("answers", {})
+        answers_data = request.data.get("answers", {})
+        session.answers = answers_data
         session.completed = True
         session.completed_at = timezone.now()
         

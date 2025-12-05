@@ -93,7 +93,11 @@ const ListeningResultPage = () => {
                         <h3 className="text-xl font-bold mb-4 text-blue-700" style={{ whiteSpace: 'pre-wrap' }}>
                             {question.header || `Question ${qIndex + 1}`}
                         </h3>
-                        {question.sub_questions.map((sub, subIndex) => renderSubQuestion(sub, sub.is_correct))}
+                        {question.sub_questions.map((sub, subIndex) => (
+                            <div key={sub.sub_id || subIndex}>
+                                {renderSubQuestion(sub, sub.is_correct)}
+                            </div>
+                        ))}
                     </div>
                 ))}
             </div>

@@ -1000,26 +1000,60 @@ const AdminListeningTestBuilder = () => {
     }
 
     if (question.type === 'table') {
-      const table = question.table || { rows: 2, cols: 2, cells: [[{ text: '', isAnswer: false, answer: '' }]] };
+      let table = question.table || { rows: 2, cols: 2, cells: [[{ text: '' }]] };
+      
+      if (table.cells) {
+        table = {
+          ...table,
+          cells: table.cells.map(row => 
+            row.map(cell => {
+              if (cell.parts && Array.isArray(cell.parts)) {
+                const textParts = cell.parts.map(part => {
+                  if (part.type === 'gap') {
+                    return `[[${part.number || part.answer || ''}]]`;
+                  } else {
+                    return part.content || part.text || '';
+                  }
+                });
+                return { text: textParts.join('') };
+              } else if (cell.isAnswer) {
+                return { text: `[[${cell.label || '1'}]]` };
+              } else {
+                return { text: cell.text || '' };
+              }
+            })
+          )
+        };
+      }
+      
       const setTable = (newTable) => updateQ({ table: newTable });
       // Добавляю функцию для обновления ячеек таблицы
-      const handleCellChange = (r, c, field, value) => {
+      const handleCellChange = (r, c, value) => {
         const newTable = { ...table };
         newTable.cells = newTable.cells.map((row, rowIdx) =>
           rowIdx === r
-            ? row.map((cell, colIdx) =>
-                colIdx === c ? { ...cell, [field]: value } : cell
-              )
+            ? row.map((cell, colIdx) => {
+                if (colIdx === c) {
+                  return { text: value || '' };
+                }
+                return cell;
+              })
             : row
         );
         setTable(newTable);
       };
+
+      const parseGapsFromCell = (cellText) => {
+        const gapRegex = /\[\[(\d+)\]\]/g;
+        const matches = [...(cellText?.matchAll(gapRegex) || [])];
+        return matches.map(m => parseInt(m[1], 10));
+      };
       const addRow = () => {
-        const newRow = Array(table.cols).fill(0).map(() => ({ text: '', isAnswer: false, answer: '' }));
+        const newRow = Array(table.cols).fill(0).map(() => ({ text: '' }));
         setTable({ ...table, rows: table.rows + 1, cells: [...table.cells, newRow] });
       };
       const addCol = () => {
-        const newCells = table.cells.map(row => [...row, { text: '', isAnswer: false, answer: '' }]);
+        const newCells = table.cells.map(row => [...row, { text: '' }]);
         setTable({ ...table, cols: table.cols + 1, cells: newCells });
       };
       const removeRow = (r) => {
@@ -1074,39 +1108,58 @@ const AdminListeningTestBuilder = () => {
                     <tbody>
                       {table.cells.map((row, r) => (
                         <tr key={r}>
-                          {row.map((cell, c) => (
-                            <td key={c} style={{ border: '1px solid #ccc', padding: 6, minWidth: 120, position: 'relative' }}>
-                              <Box display="flex" flexDirection="column" alignItems="start" gap={1}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <input
-                                    type="checkbox"
-                                    checked={cell.isAnswer}
-                                    onChange={e => handleCellChange(r, c, 'isAnswer', e.target.checked)}
-                                    style={{ marginRight: 6 }}
-                                  />
-                                  <span style={{ fontSize: 12, color: '#888' }}>Answer cell</span>
-                                </Box>
-                                {cell.isAnswer ? (
-                                  <Box display="flex" alignItems="center" gap={1}>
-                                    <Box sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 16 }}>{cell.label || (r * table.cols + c + 1)}</Box>
-                                    <TextField
-                                      value={cell.answer || ''}
-                                      onChange={e => handleCellChange(r, c, 'answer', e.target.value)}
-                                      size="small"
-                                      placeholder="Correct answer"
-                                    />
-                                  </Box>
-                                ) : (
+                          {row.map((cell, c) => {
+                            const cellText = cell.text || '';
+                            const gapsInCell = parseGapsFromCell(cellText);
+                            return (
+                              <td key={c} style={{ border: '1px solid #ccc', padding: 6, minWidth: 200, position: 'relative' }}>
+                                <Box display="flex" flexDirection="column" gap={1}>
                                   <TextField
-                                    value={cell.text || ''}
-                                    onChange={e => handleCellChange(r, c, 'text', e.target.value)}
+                                    fullWidth
+                                    value={cellText}
+                                    onChange={e => handleCellChange(r, c, e.target.value)}
                                     size="small"
-                                    placeholder="Cell text"
+                                    placeholder="Cell text (use [[14]], [[25]] for gaps)"
+                                    helperText={gapsInCell.length > 0 ? `Gaps found: ${gapsInCell.join(', ')}` : 'Use [[number]] syntax for gaps, HTML tags supported'}
+                                    multiline
+                                    rows={3}
                                   />
-                                )}
-                              </Box>
-                            </td>
-                          ))}
+                                  {gapsInCell.length > 0 && (
+                                    <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                      <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                        Answers for gaps in this cell:
+                                      </Typography>
+                                      {gapsInCell.map(gapNum => {
+                                        const gapObj = (question.gaps || []).find(g => g.number === gapNum) || { number: gapNum, answer: '' };
+                                        return (
+                                          <TextField
+                                            key={gapNum}
+                                            size="small"
+                                            label={`Gap [[${gapNum}]]`}
+                                            value={gapObj.answer || ''}
+                                            onChange={e => {
+                                              const currentGaps = question.gaps || [];
+                                              const existingIdx = currentGaps.findIndex(g => g.number === gapNum);
+                                              let newGaps;
+                                              if (existingIdx >= 0) {
+                                                newGaps = [...currentGaps];
+                                                newGaps[existingIdx] = { ...newGaps[existingIdx], answer: e.target.value };
+                                              } else {
+                                                newGaps = [...currentGaps, { number: gapNum, answer: e.target.value }];
+                                              }
+                                              updateQ({ gaps: newGaps });
+                                            }}
+                                            sx={{ mb: 1, width: '100%' }}
+                                            helperText="Use | for alternatives (e.g., '7 | seven')"
+                                          />
+                                        );
+                                      })}
+                                    </Box>
+                                  )}
+                                </Box>
+                              </td>
+                            );
+                          })}
                           {table.rows > 1 && (
                             <td style={{ border: 'none', padding: 0 }}>
                               <IconButton size="small" onClick={() => removeRow(r)}><DeleteIcon fontSize="small" /></IconButton>
@@ -1833,10 +1886,31 @@ const AdminListeningTestBuilder = () => {
           // Table Completion
           else if (q.type === 'table') {
             base.table = q.table || {};
+            const gapRegex = /\[\[(\d+)\]\]/g;
+            const allGaps = new Set();
+            if (q.table && q.table.cells) {
+              q.table.cells.forEach(row => {
+                row.forEach(cell => {
+                  const cellText = cell.text || '';
+                  const matches = [...(cellText.matchAll(gapRegex) || [])];
+                  matches.forEach(m => allGaps.add(parseInt(m[1], 10)));
+                });
+              });
+            }
+            const gapsArray = Array.from(allGaps).sort((a, b) => a - b).map(gapNum => {
+              const existingGap = (q.gaps || []).find(g => g.number === gapNum);
+              return existingGap || { number: gapNum, answer: '' };
+            });
+            base.gaps = gapsArray;
             base.extra_data = {
               ...(q.extra_data || {}),
               table: q.table,
+              gaps: gapsArray,
             };
+            base.correct_answers = gapsArray.map(g => ({
+              id: `gap${g.number}`,
+              answer: g.answer || ''
+            }));
           }
           // Form Completion
           else if (q.type === 'form') {

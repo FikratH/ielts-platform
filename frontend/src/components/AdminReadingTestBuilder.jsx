@@ -624,16 +624,22 @@ const AdminReadingTestBuilder = () => {
                 
                 // For Table, structure correct_answers from extra_data
                 if (newQ.question_type === 'table' && newQ.extra_data.rows) {
+                    const gapRegex = /\[\[(\d+)\]\]/g;
                     const answers = [];
                     newQ.extra_data.rows.forEach((row, rIdx) => {
                         row.forEach((cell, cIdx) => {
-                            if (typeof cell === 'object' && cell.type === 'gap') {
+                            const cellText = typeof cell === 'object' 
+                                ? (cell.text || cell.content || '')
+                                : (cell || '');
+                            const matches = [...(cellText.matchAll(gapRegex) || [])];
+                            matches.forEach(match => {
+                                const gapNum = parseInt(match[1], 10);
+                                const answerText = newQ.extra_data?.answers?.[gapNum] || '';
                                 answers.push({
-                                    row: rIdx,
-                                    col: cIdx,
-                                    answer: cell.answer
+                                    id: `r${rIdx}c${cIdx}__gap${gapNum}`,
+                                    answer: answerText
                                 });
-                            }
+                            });
                         });
                     });
                     newQ.correct_answers = answers;
@@ -1076,34 +1082,42 @@ const AdminReadingTestBuilder = () => {
 
             const handleCellChange = (rowIdx, cellIdx, value) => {
                 const newRows = JSON.parse(JSON.stringify(extra_data.rows));
-                if (typeof newRows[rowIdx][cellIdx] === 'object' && newRows[rowIdx][cellIdx].type === 'gap') {
-                     newRows[rowIdx][cellIdx].answer = value;
-                } else {
-                    newRows[rowIdx][cellIdx] = value;
-                }
+                const cellValue = typeof newRows[rowIdx][cellIdx] === 'object' 
+                    ? (newRows[rowIdx][cellIdx].text || newRows[rowIdx][cellIdx].content || '')
+                    : (newRows[rowIdx][cellIdx] || '');
+                newRows[rowIdx][cellIdx] = value;
                 handleEditingExtraDataChange('rows', newRows);
             };
 
-            const toggleCellType = (rowIdx, cellIdx) => {
-                const newRows = JSON.parse(JSON.stringify(extra_data.rows));
-                const currentCell = newRows[rowIdx][cellIdx];
-                if (typeof currentCell === 'object' && currentCell.type === 'gap') {
-                    newRows[rowIdx][cellIdx] = currentCell.answer || ''; // Revert to text
-                } else {
-                    newRows[rowIdx][cellIdx] = { type: 'gap', answer: currentCell }; // Convert to gap
-                }
-                handleEditingExtraDataChange('rows', newRows);
+            const parseGapsFromCell = (cellText) => {
+                const gapRegex = /\[\[(\d+)\]\]/g;
+                const matches = [...(cellText?.matchAll(gapRegex) || [])];
+                return matches.map(m => parseInt(m[1], 10));
+            };
+
+            const getAllGapsFromTable = () => {
+                const allGaps = new Set();
+                extra_data.rows.forEach(row => {
+                    row.forEach(cell => {
+                        const cellText = typeof cell === 'object' 
+                            ? (cell.text || cell.content || '')
+                            : (cell || '');
+                        const gaps = parseGapsFromCell(cellText);
+                        gaps.forEach(gapNum => allGaps.add(gapNum));
+                    });
+                });
+                return Array.from(allGaps).sort((a, b) => a - b);
             };
 
             const addColumn = () => {
                  const newHeaders = [...extra_data.headers, `Header ${extra_data.headers.length + 1}`];
-                 const newRows = extra_data.rows.map(row => [...row, 'New Cell']);
+                 const newRows = extra_data.rows.map(row => [...row, '']);
                  handleEditingExtraDataChange('headers', newHeaders);
                  handleEditingExtraDataChange('rows', newRows);
             };
 
             const addRow = () => {
-                const newRow = Array(extra_data.headers.length).fill('New Cell');
+                const newRow = Array(extra_data.headers.length).fill('');
                 const newRows = [...extra_data.rows, newRow];
                 handleEditingExtraDataChange('rows', newRows);
             };
@@ -1150,29 +1164,65 @@ const AdminReadingTestBuilder = () => {
                         <tbody>
                             {extra_data.rows.map((row, rowIdx) => (
                                 <tr key={rowIdx}>
-                                    {row.map((cell, cellIdx) => (
-                                        <td key={cellIdx} style={{ border: '1px solid #ddd', padding: '8px' }}>
-                                            {typeof cell === 'object' && cell.type === 'gap' ? (
-                                                <TextField
-                                                    fullWidth
-                                                    variant="outlined"
-                                                    label="Gap Answer"
-                                                    value={cell.answer}
-                                                    onChange={(e) => handleCellChange(rowIdx, cellIdx, e.target.value)}
-                                                />
-                                            ) : (
-                                                <TextField
-                                                    fullWidth
-                                                    variant="standard"
-                                                    value={cell}
-                                                    onChange={(e) => handleCellChange(rowIdx, cellIdx, e.target.value)}
-                                                />
-                                            )}
-                                            <Button size="small" onClick={() => toggleCellType(rowIdx, cellIdx)}>
-                                                {typeof cell === 'object' && cell.type === 'gap' ? 'Set as Text' : 'Set as Gap'}
-                                            </Button>
-                                        </td>
-                                    ))}
+                                    {row.map((cell, cellIdx) => {
+                                        const cellText = typeof cell === 'object' 
+                                            ? (cell.text || cell.content || '')
+                                            : (cell || '');
+                                        const gapsInCell = parseGapsFromCell(cellText);
+                                        return (
+                                            <td key={cellIdx} style={{ border: '1px solid #ddd', padding: '8px', minWidth: 200 }}>
+                                                <Box display="flex" flexDirection="column" gap={1}>
+                                                    <TextField
+                                                        fullWidth
+                                                        variant="standard"
+                                                        value={cellText}
+                                                        onChange={(e) => handleCellChange(rowIdx, cellIdx, e.target.value)}
+                                                        placeholder="Cell text (use [[14]], [[25]] for gaps)"
+                                                        helperText={gapsInCell.length > 0 ? `Gaps found: ${gapsInCell.join(', ')}` : 'Use [[number]] syntax for gaps, HTML tags supported'}
+                                                        multiline
+                                                        rows={3}
+                                                    />
+                                                    {gapsInCell.length > 0 && (
+                                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                                            <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                                                Answers for gaps in this cell:
+                                                            </Typography>
+                                                            {gapsInCell.map(gapNum => {
+                                                                const gapNumStr = String(gapNum);
+                                                                let gapAnswer = '';
+                                                                if (question.extra_data?.answers && typeof question.extra_data.answers === 'object') {
+                                                                    gapAnswer = question.extra_data.answers[gapNumStr] || question.extra_data.answers[gapNum] || '';
+                                                                }
+                                                                if (!gapAnswer && question.gaps && Array.isArray(question.gaps)) {
+                                                                    const gapObj = question.gaps.find(g => String(g.number) === gapNumStr || g.number === gapNum);
+                                                                    if (gapObj) {
+                                                                        gapAnswer = gapObj.answer || '';
+                                                                    }
+                                                                }
+                                                                return (
+                                                                    <TextField
+                                                                        key={gapNum}
+                                                                        size="small"
+                                                                        label={`Gap [[${gapNum}]]`}
+                                                                        value={gapAnswer}
+                                                                        onChange={e => {
+                                                                            const currentAnswers = question.extra_data?.answers || {};
+                                                                            handleEditingExtraDataChange('answers', {
+                                                                                ...currentAnswers,
+                                                                                [gapNumStr]: e.target.value
+                                                                            });
+                                                                        }}
+                                                                        sx={{ mb: 1, width: '100%' }}
+                                                                        helperText="Use | for alternatives (e.g., '7 | seven')"
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </Box>
+                                                    )}
+                                                </Box>
+                                            </td>
+                                        );
+                                    })}
                                     <td>
                                          <IconButton onClick={() => removeRow(rowIdx)} size="small"><DeleteIcon fontSize="small"/></IconButton>
                                     </td>

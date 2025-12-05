@@ -636,13 +636,84 @@ def create_detailed_breakdown(session, test_type='reading'):
                         if isinstance(question.correct_answers, list) and question.correct_answers and isinstance(question.correct_answers[0], dict):
                              correct_answers_map = {item['id']: item['answer'] for item in question.correct_answers}
                         
-                        # Если карта пуста, пытаемся построить из extra_data
-                        if not correct_answers_map and question.extra_data:
-                            if 'cells' in question.extra_data.get('table', {}): # Table
+                        # Для table questions нужно перестроить correct_answers_map из extra_data,
+                        # чтобы ключи были в формате r{row}c{col}__gap{number}, а не просто gap{number}
+                        # Это важно для правильного поиска ответов пользователя
+                        if question.extra_data and (question.question_type in ['table', 'table_completion', 'tablecompletion']):
+                            import re
+                            gap_regex = re.compile(r'\[\[(\d+)\]\]')
+                            
+                            if 'cells' in question.extra_data.get('table', {}):
+                                correct_answers_map = {}
                                 for r, row in enumerate(question.extra_data['table']['cells']):
                                     for c, cell in enumerate(row):
-                                        if cell.get('isAnswer'):
+                                        cell_text = cell.get('text', '') if isinstance(cell, dict) else ''
+                                        if cell_text:
+                                            matches = list(gap_regex.finditer(cell_text))
+                                            for match in matches:
+                                                gap_number = match.group(1)
+                                                gap_key = f"r{r}c{c}__gap{gap_number}"
+                                                correct_gap = None
+                                                if question.extra_data and 'gaps' in question.extra_data:
+                                                    correct_gap = next((g for g in question.extra_data['gaps'] if str(g.get('number', '')) == gap_number), None)
+                                                elif isinstance(question.correct_answers, list) and question.correct_answers:
+                                                    correct_gap = next((g for g in question.correct_answers if str(g.get('number', '')) == gap_number), None)
+                                                if correct_gap:
+                                                    correct_answers_map[gap_key] = correct_gap.get('answer', '')
+                        
+                        # Если карта пуста, пытаемся построить из extra_data (для других типов вопросов)
+                        if not correct_answers_map and question.extra_data:
+                            import re
+                            gap_regex = re.compile(r'\[\[(\d+)\]\]')
+                            
+                            if 'cells' in question.extra_data.get('table', {}): # Table (Listening)
+                                for r, row in enumerate(question.extra_data['table']['cells']):
+                                    for c, cell in enumerate(row):
+                                        cell_text = cell.get('text', '') if isinstance(cell, dict) else ''
+                                        if cell_text:
+                                            matches = list(gap_regex.finditer(cell_text))
+                                            for match in matches:
+                                                gap_number = match.group(1)
+                                                gap_key = f"r{r}c{c}__gap{gap_number}"
+                                                correct_gap = None
+                                                if question.gaps and isinstance(question.gaps, list):
+                                                    correct_gap = next((g for g in question.gaps if str(g.get('number', '')) == gap_number), None)
+                                                elif question.extra_data and 'gaps' in question.extra_data:
+                                                    correct_gap = next((g for g in question.extra_data['gaps'] if str(g.get('number', '')) == gap_number), None)
+                                                correct_answers_map[gap_key] = correct_gap.get('answer', '') if correct_gap else ''
+                                        elif cell.get('isAnswer'):
                                             correct_answers_map[f"r{r}c{c}"] = cell.get('answer', '')
+                            elif 'rows' in question.extra_data: # Table (Reading)
+                                for r, row in enumerate(question.extra_data['rows']):
+                                    for c, cell in enumerate(row):
+                                        cell_text = ''
+                                        if isinstance(cell, dict):
+                                            cell_text = cell.get('text', cell.get('content', ''))
+                                        elif isinstance(cell, str):
+                                            cell_text = cell
+                                        
+                                        if cell_text:
+                                            matches = list(gap_regex.finditer(cell_text))
+                                            for match in matches:
+                                                gap_number = match.group(1)
+                                                gap_key = f"r{r}c{c}__gap{gap_number}"
+                                                correct_val = ''
+                                                if question.extra_data and 'answers' in question.extra_data:
+                                                    correct_val = question.extra_data['answers'].get(gap_number, '')
+                                                    if not isinstance(correct_val, str):
+                                                        correct_val = ''
+                                                if not correct_val and question.gaps and isinstance(question.gaps, list):
+                                                    correct_gap = next((g for g in question.gaps if str(g.get('number', '')) == gap_number), None)
+                                                    if correct_gap:
+                                                        correct_val = correct_gap.get('answer', '')
+                                                elif not correct_val and question.extra_data and 'gaps' in question.extra_data:
+                                                    correct_gap = next((g for g in question.extra_data['gaps'] if str(g.get('number', '')) == gap_number), None)
+                                                    if correct_gap:
+                                                        correct_val = correct_gap.get('answer', '')
+                                                correct_answers_map[gap_key] = correct_val
+                                        elif isinstance(cell, dict) and cell.get('type') == 'gap':
+                                            gap_key = f"r{r}c{c}"
+                                            correct_answers_map[gap_key] = cell.get('answer', '')
                             elif 'fields' in question.extra_data: # Form
                                  for i, field in enumerate(question.extra_data['fields']):
                                      if field.get('isAnswer'):
@@ -651,16 +722,48 @@ def create_detailed_breakdown(session, test_type='reading'):
                         total_sub_questions = len(correct_answers_map)
                         
                         for sub_id, correct_val in correct_answers_map.items():
-                            key = f"{question.id}__{sub_id}"
-                            user_val = all_user_answers.get(key)
+                            user_val = None
+                            
+                            if sub_id.startswith('r') and '__gap' in sub_id:
+                                question_id_str = str(question.id)
+                                
+                                possible_keys = [
+                                    f"{question_id_str}__{sub_id}",
+                                    f"{question.id}__{sub_id}",
+                                ]
+                                
+                                for key in possible_keys:
+                                    if key in all_user_answers:
+                                        user_val = all_user_answers.get(key)
+                                        if user_val:
+                                            break
+                                
+                                if not user_val:
+                                    for key in all_user_answers.keys():
+                                        if isinstance(key, str) and key.endswith(f"__{sub_id}"):
+                                            user_val = all_user_answers.get(key)
+                                            if user_val:
+                                                break
+                            else:
+                                key_str = f"{question.id}__{sub_id}"
+                                key_str_alt = f"{str(question.id)}__{sub_id}"
+                                user_val = all_user_answers.get(key_str) or all_user_answers.get(key_str_alt)
                             
                             is_sub_correct = check_alternative_answers(user_val, correct_val)
                             if is_sub_correct:
                                 correct_sub_questions += 1
                                 
+                            label = sub_id
+                            if '__gap' in sub_id:
+                                gap_num = sub_id.split('__gap')[-1]
+                                label = f"Gap {gap_num}"
+                            elif sub_id.startswith('gap'):
+                                gap_num = sub_id.replace('gap', '')
+                                label = f"Gap {gap_num}"
+                            
                             sub_questions_data.append({
                                 'sub_id': sub_id,
-                                'label': f"Entry for {sub_id}",
+                                'label': label,
                                 'user_answer': user_val or '(empty)',
                                 'correct_answer': format_alternative_answers_display(correct_val),
                                 'is_correct': is_sub_correct,
@@ -1045,21 +1148,88 @@ def get_test_render_structure(serializer_instance, obj):
 
             # --- Table Completion ---
             elif q.question_type == 'table':
+                table_data = None
+                is_listening_format = False
+                
                 if q.extra_data and 'rows' in q.extra_data:
-                    for r_idx, row in enumerate(q.extra_data['rows']):
+                    table_data = q.extra_data['rows']
+                elif q.extra_data and 'table' in q.extra_data and 'cells' in q.extra_data['table']:
+                    table_data = q.extra_data['table']['cells']
+                    is_listening_format = True
+                
+                if table_data:
+                    import re
+                    gap_regex = re.compile(r'\[\[(\d+)\]\]')
+                    
+                    for r_idx, row in enumerate(table_data):
                         for c_idx, cell in enumerate(row):
-                            if isinstance(cell, dict) and cell.get('type') == 'gap':
-                                # Проверяем разные возможные форматы ключей
-                                user_val = ''
-                                question_answers = answers.get(str(q.id), {})
-                                if isinstance(question_answers, dict):
-                                    # Формат: answers[questionId] = { "r0c1": "value" }
-                                    user_val = question_answers.get(f"r{r_idx}c{c_idx}", '')
+                            cell_text = ''
+                            if isinstance(cell, dict):
+                                cell_text = cell.get('text', cell.get('content', ''))
+                            elif isinstance(cell, str):
+                                cell_text = cell
+                            
+                            if not cell_text:
+                                continue
+                            
+                            matches = list(gap_regex.finditer(cell_text))
+                            
+                            if matches:
+                                for match in matches:
+                                    gap_number = match.group(1)
+                                    if is_listening_format:
+                                        listening_key = f"{q.id}__r{r_idx}c{c_idx}__gap{gap_number}"
+                                        user_val = answers.get(listening_key, '')
+                                    else:
+                                        question_answers = answers.get(str(q.id), {})
+                                        if not isinstance(question_answers, dict):
+                                            question_answers = {}
+                                        gap_key = f"r{r_idx}c{c_idx}__gap{gap_number}"
+                                        user_val = question_answers.get(gap_key, '')
+                                    
+                                    correct_gap = None
+                                    if q.gaps and isinstance(q.gaps, list):
+                                        correct_gap = next((g for g in q.gaps if str(g.get('number', '')) == gap_number), None)
+                                    elif q.extra_data and 'gaps' in q.extra_data:
+                                        correct_gap = next((g for g in q.extra_data['gaps'] if str(g.get('number', '')) == gap_number), None)
+                                    
+                                    correct_val = correct_gap.get('answer', '') if correct_gap else ''
+                                    is_correct = (check_alternative_answers(user_val, correct_val))
+                                    
+                                    q_data['sub_questions'].append({
+                                        'type': 'gap',
+                                        'number': f'R{r_idx+1}, C{c_idx+1} (gap {gap_number})',
+                                        'student_answer': user_val,
+                                        'correct_answer': format_alternative_answers_display(correct_val),
+                                        'is_correct': is_correct
+                                    })
+                            elif isinstance(cell, dict) and cell.get('isAnswer'):
+                                if is_listening_format:
+                                    listening_key = f"{q.id}__r{r_idx}c{c_idx}"
+                                    user_val = answers.get(listening_key, '')
                                 else:
-                                    # Старый формат: answers["questionId__gap0-1"] = "value"
-                                    answer_key = f"{q.id}__gap{r_idx}-{c_idx}"
-                                    user_val = answers.get(answer_key, '')
+                                    question_answers = answers.get(str(q.id), {})
+                                    if not isinstance(question_answers, dict):
+                                        question_answers = {}
+                                    gap_key = f"r{r_idx}c{c_idx}"
+                                    user_val = question_answers.get(gap_key, '')
                                 
+                                correct_val = cell.get('answer', '')
+                                is_correct = (check_alternative_answers(user_val, correct_val))
+                                
+                                q_data['sub_questions'].append({
+                                    'type': 'gap',
+                                    'number': f'R{r_idx+1}, C{c_idx+1}',
+                                    'student_answer': user_val,
+                                    'correct_answer': format_alternative_answers_display(correct_val),
+                                    'is_correct': is_correct
+                                })
+                            elif isinstance(cell, dict) and cell.get('type') == 'gap':
+                                question_answers = answers.get(str(q.id), {})
+                                if not isinstance(question_answers, dict):
+                                    question_answers = {}
+                                gap_key = f"r{r_idx}c{c_idx}"
+                                user_val = question_answers.get(gap_key, '')
                                 correct_val = cell.get('answer', '')
                                 is_correct = (check_alternative_answers(user_val, correct_val))
 
@@ -1421,17 +1591,104 @@ def count_correct_subanswers(user_answer, correct_answers, question_type, extra_
         return num_correct, num_total
     # TABLE
     if question_type in ['table', 'table_completion', 'tablecompletion', 'form', 'form_completion']:
+        import re
+        gap_regex = re.compile(r'\[\[(\d+)\]\]')
         cells = []
+        is_listening_format = False
+        
         if extra_data and 'table' in extra_data and 'cells' in extra_data['table']:
             cells = extra_data['table']['cells']
+            is_listening_format = True
+        elif extra_data and 'rows' in extra_data:
+            cells = extra_data['rows']
+        
         num_total = 0
         for row_idx, row in enumerate(cells):
             for col_idx, cell in enumerate(row):
-                if cell.get('isAnswer'):
+                cell_text = ''
+                if isinstance(cell, dict):
+                    cell_text = cell.get('text', cell.get('content', ''))
+                elif isinstance(cell, str):
+                    cell_text = cell
+                
+                if cell_text:
+                    matches = list(gap_regex.finditer(cell_text))
+                    for match in matches:
+                        num_total += 1
+                        gap_number = match.group(1)
+                        gap_key = f"r{row_idx}c{col_idx}__gap{gap_number}"
+                        listening_key = f"{question_id}__r{row_idx}c{col_idx}__gap{gap_number}"
+                        
+                        correct_val = ''
+                        if extra_data and 'answers' in extra_data:
+                            correct_val = extra_data['answers'].get(gap_number, '')
+                            if not isinstance(correct_val, str):
+                                correct_val = ''
+                        if not correct_val:
+                            try:
+                                if question_id:
+                                    from .models import ListeningQuestion, ReadingQuestion
+                                    try:
+                                        question = ListeningQuestion.objects.get(id=question_id)
+                                    except:
+                                        try:
+                                            question = ReadingQuestion.objects.get(id=question_id)
+                                        except:
+                                            question = None
+                                    
+                                    if question and question.gaps and isinstance(question.gaps, list):
+                                        correct_gap = next((g for g in question.gaps if str(g.get('number', '')) == gap_number), None)
+                                        if correct_gap:
+                                            correct_val = correct_gap.get('answer', '')
+                                    elif question and question.extra_data and 'gaps' in question.extra_data:
+                                        correct_gap = next((g for g in question.extra_data['gaps'] if str(g.get('number', '')) == gap_number), None)
+                                        if correct_gap:
+                                            correct_val = correct_gap.get('answer', '')
+                            except:
+                                pass
+                        
+                        user_val = ''
+                        if is_listening_format:
+                            question_id_str = str(question_id)
+                            possible_keys = [
+                                listening_key,
+                                f"{question_id_str}__r{row_idx}c{col_idx}__gap{gap_number}",
+                                f"{question_id}__r{row_idx}c{col_idx}__gap{gap_number}",
+                            ]
+                            for key in possible_keys:
+                                if all_user_answers and key in all_user_answers:
+                                    user_val = all_user_answers.get(key, '')
+                                    if user_val:
+                                        break
+                            if not user_val and all_user_answers:
+                                for key in all_user_answers.keys():
+                                    if isinstance(key, str) and key.endswith(f"__r{row_idx}c{col_idx}__gap{gap_number}"):
+                                        user_val = all_user_answers.get(key, '')
+                                        if user_val:
+                                            break
+                        else:
+                            question_answers = all_user_answers.get(str(question_id), {}) if all_user_answers else {}
+                            if isinstance(question_answers, dict):
+                                user_val = question_answers.get(gap_key, '')
+                        
+                        if check_alternative_answers(user_val, correct_val):
+                            num_correct += 1
+                elif isinstance(cell, dict) and cell.get('isAnswer'):
                     num_total += 1
                     correct_val = cell.get('answer', '')
                     key = f"{question_id}__r{row_idx}c{col_idx}"
                     user_val = all_user_answers.get(key, '') if all_user_answers else ''
+                    if check_alternative_answers(user_val, correct_val):
+                        num_correct += 1
+                elif isinstance(cell, dict) and cell.get('type') == 'gap':
+                    num_total += 1
+                    correct_val = cell.get('answer', '')
+                    key = f"{question_id}__r{row_idx}c{col_idx}"
+                    question_answers = all_user_answers.get(str(question_id), {}) if all_user_answers else {}
+                    if isinstance(question_answers, dict):
+                        user_val = question_answers.get(f"r{row_idx}c{col_idx}", '')
+                    else:
+                        user_val = all_user_answers.get(key, '') if all_user_answers else ''
                     if check_alternative_answers(user_val, correct_val):
                         num_correct += 1
         return num_correct, num_total

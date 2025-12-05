@@ -67,6 +67,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     }, [user, testId]);
 
+    const sortedParts = test?.parts?.sort((a, b) => a.part_number - b.part_number) || [];
+    const currentPart = sortedParts[currentPartIndex];
+
     // Timer effect
     useEffect(() => {
         if (session && !session.completed && timeLeft > 0) {
@@ -180,9 +183,6 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     };
 
-    const sortedParts = test?.parts?.sort((a, b) => a.part_number - b.part_number) || [];
-    const currentPart = sortedParts[currentPartIndex];
-
     const submitTest = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
@@ -219,85 +219,226 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         });
     }, []);
 
-    const handleTextSelection = useCallback(() => {
-        const currentMode = highlightModeRef.current;
-        
-        if (!currentMode) return;
-        
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
-        
-        if (selectedText.length === 0) return;
-        
-        const range = selection.getRangeAt(0);
-        const partId = currentPart?.id;
-        
-        if (!partId) return;
-
-        const highlightId = `highlight-${Date.now()}-${Math.random()}`;
-        
-        const newHighlight = {
-            id: highlightId,
-            text: selectedText
-        };
-
-        setHighlights(prev => ({
-            ...prev,
-            [partId]: [...(prev[partId] || []), newHighlight]
-        }));
-
-        try {
-            const mark = document.createElement('mark');
-            mark.style.backgroundColor = '#fef08a';
-            mark.style.cursor = 'pointer';
-            mark.style.padding = '2px 0';
-            mark.style.borderRadius = '2px';
-            mark.dataset.highlightId = highlightId;
-            mark.onclick = () => removeHighlight(partId, highlightId);
-            mark.onmouseenter = () => { mark.style.backgroundColor = '#fde047'; };
-            mark.onmouseleave = () => { mark.style.backgroundColor = '#fef08a'; };
-            
-            const documentFragment = range.extractContents();
-            mark.appendChild(documentFragment);
-            range.insertNode(mark);
-            
-            selection.removeAllRanges();
-        } catch (e) {
-            console.error('Ошибка хайлайтинга:', e);
-            selection.removeAllRanges();
-        }
-    }, [currentPart]);
-
-    const removeHighlight = (partId, highlightId) => {
+    const removeHighlight = useCallback((partId, highlightId) => {
         setHighlights(prev => ({
             ...prev,
             [partId]: (prev[partId] || []).filter(h => h.id !== highlightId)
         }));
 
-        const markElement = document.querySelector(`[data-highlight-id="${highlightId}"]`);
+        if (!passageRef.current) return;
+
+        const markElement = passageRef.current.querySelector(`[data-highlight-id="${highlightId}"]`);
         if (markElement) {
             const parent = markElement.parentNode;
-            while (markElement.firstChild) {
-                parent.insertBefore(markElement.firstChild, markElement);
-            }
-            parent.removeChild(markElement);
-            parent.normalize();
-        }
-    };
-
-    const clearAllHighlights = () => {
-        const partId = currentPart?.id;
-        if (!partId) return;
-
-        const currentHighlights = highlights[partId] || [];
-        currentHighlights.forEach(highlight => {
-            const markElement = document.querySelector(`[data-highlight-id="${highlight.id}"]`);
-            if (markElement) {
-                const parent = markElement.parentNode;
+            if (parent) {
                 while (markElement.firstChild) {
                     parent.insertBefore(markElement.firstChild, markElement);
                 }
                 parent.removeChild(markElement);
+                parent.normalize();
+            }
+        }
+    }, []);
+
+    const isSelectionInsidePassage = useCallback((range) => {
+        if (!passageRef.current || !range) return false;
+        
+        try {
+            const container = range.commonAncestorContainer;
+            if (!container) return false;
+            
+            const nodeType = container.nodeType;
+            
+            if (nodeType === Node.TEXT_NODE) {
+                return container.parentNode && passageRef.current.contains(container.parentNode);
+            } else if (nodeType === Node.ELEMENT_NODE) {
+                return passageRef.current.contains(container);
+            }
+        } catch (e) {
+            return false;
+        }
+        
+        return false;
+    }, []);
+
+    const checkHighlightOverlap = useCallback((range) => {
+        if (!passageRef.current || !range) return false;
+        
+        const existingHighlights = passageRef.current.querySelectorAll('[data-highlight-id]');
+        for (const highlight of existingHighlights) {
+            const highlightRange = document.createRange();
+            try {
+                highlightRange.selectNodeContents(highlight);
+                if (range.intersectsNode(highlight) || 
+                    highlightRange.intersectsNode(range.startContainer) ||
+                    highlightRange.intersectsNode(range.endContainer)) {
+                    return true;
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+        return false;
+    }, []);
+
+    const handleTextSelection = useCallback(() => {
+        const currentMode = highlightModeRef.current;
+        
+        if (!currentMode) {
+            return;
+        }
+        
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        
+        const selectedText = selection.toString().trim();
+        if (selectedText.length === 0) return;
+        
+        try {
+            const range = selection.getRangeAt(0);
+            const partId = currentPart?.id;
+            
+            if (!partId || !passageRef.current) return;
+            
+            if (!isSelectionInsidePassage(range)) return;
+            
+            if (checkHighlightOverlap(range)) {
+                selection.removeAllRanges();
+                return;
+            }
+
+            const highlightId = `highlight-${Date.now()}-${Math.random()}`;
+            
+            const newHighlight = {
+                id: highlightId,
+                text: selectedText
+            };
+
+            setHighlights(prev => ({
+                ...prev,
+                [partId]: [...(prev[partId] || []), newHighlight]
+            }));
+
+            try {
+                const mark = document.createElement('mark');
+                mark.style.backgroundColor = '#fef08a';
+                mark.style.padding = '2px 0';
+                mark.style.borderRadius = '2px';
+                mark.dataset.highlightId = highlightId;
+                
+                try {
+                    range.surroundContents(mark);
+                } catch (e) {
+                    const documentFragment = range.extractContents();
+                    mark.appendChild(documentFragment);
+                    range.insertNode(mark);
+                }
+                
+                selection.removeAllRanges();
+            } catch (e) {
+                console.error('Ошибка хайлайтинга:', e);
+                selection.removeAllRanges();
+            }
+        } catch (e) {
+            console.error('Ошибка обработки выделения:', e);
+            if (selection) {
+                selection.removeAllRanges();
+            }
+        }
+    }, [currentPart, isSelectionInsidePassage, checkHighlightOverlap, removeHighlight]);
+
+    const restoreHighlights = useCallback((partId) => {
+        if (!partId || !passageRef.current) return;
+        
+        const partHighlights = highlights[partId] || [];
+        if (partHighlights.length === 0) return;
+
+        const passageElement = passageRef.current.querySelector('div[class*="prose"]');
+        if (!passageElement) return;
+
+        const passageText = passageElement.textContent || '';
+        
+        partHighlights.forEach(highlight => {
+            const existingMark = passageElement.querySelector(`[data-highlight-id="${highlight.id}"]`);
+            if (existingMark) return;
+
+            const highlightText = highlight.text.trim();
+            if (!highlightText) return;
+
+            const textIndex = passageText.indexOf(highlightText);
+            if (textIndex === -1) return;
+
+            try {
+                const walker = document.createTreeWalker(
+                    passageElement,
+                    NodeFilter.SHOW_TEXT,
+                    null
+                );
+
+                let charCount = 0;
+                let startNode = null;
+                let startOffset = 0;
+                let endNode = null;
+                let endOffset = 0;
+
+                let node;
+                while (node = walker.nextNode()) {
+                    const nodeLength = node.textContent.length;
+                    
+                    if (startNode === null && charCount + nodeLength > textIndex) {
+                        startNode = node;
+                        startOffset = textIndex - charCount;
+                    }
+                    
+                    if (charCount + nodeLength >= textIndex + highlightText.length) {
+                        endNode = node;
+                        endOffset = textIndex + highlightText.length - charCount;
+                        break;
+                    }
+                    
+                    charCount += nodeLength;
+                }
+
+                if (startNode && endNode) {
+                    const range = document.createRange();
+                    range.setStart(startNode, startOffset);
+                    range.setEnd(endNode, endOffset);
+
+                    const mark = document.createElement('mark');
+                    mark.style.backgroundColor = '#fef08a';
+                    mark.style.padding = '2px 0';
+                    mark.style.borderRadius = '2px';
+                    mark.dataset.highlightId = highlight.id;
+
+                    try {
+                        range.surroundContents(mark);
+                    } catch (e) {
+                        const documentFragment = range.extractContents();
+                        mark.appendChild(documentFragment);
+                        range.insertNode(mark);
+                    }
+                }
+            } catch (e) {
+                console.error('Ошибка восстановления highlight:', e);
+            }
+        });
+    }, [highlights, removeHighlight]);
+
+    const clearAllHighlights = useCallback(() => {
+        const partId = currentPart?.id;
+        if (!partId || !passageRef.current) return;
+
+        const currentHighlights = highlights[partId] || [];
+        currentHighlights.forEach(highlight => {
+            const markElement = passageRef.current.querySelector(`[data-highlight-id="${highlight.id}"]`);
+            if (markElement) {
+                const parent = markElement.parentNode;
+                if (parent) {
+                    while (markElement.firstChild) {
+                        parent.insertBefore(markElement.firstChild, markElement);
+                    }
+                    parent.removeChild(markElement);
+                }
             }
         });
 
@@ -305,7 +446,16 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             ...prev,
             [partId]: []
         }));
-    };
+    }, [currentPart, highlights]);
+
+    useEffect(() => {
+        if (currentPart?.id && passageRef.current) {
+            const timer = setTimeout(() => {
+                restoreHighlights(currentPart.id);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [currentPart?.id, restoreHighlights]);
 
 
     const renderQuestion = (question) => {
@@ -528,6 +678,76 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         // --- Table Completion ---
         if (['table', 'table_completion'].includes(type) && question.extra_data && question.extra_data.headers && question.extra_data.rows) {
             const { headers, rows } = question.extra_data;
+            
+            const renderCell = (cell, rIdx, cIdx) => {
+                const cellText = typeof cell === 'object' 
+                    ? (cell.text || cell.content || (cell.parts && Array.isArray(cell.parts) ? cell.parts.map(p => p.content || p.text || '').join('') : ''))
+                    : (cell || '');
+                
+                if (!cellText && typeof cell !== 'object') {
+                    return <span></span>;
+                }
+
+                const gapRegex = /\[\[(\d+)\]\]/g;
+                const parts = [];
+                let lastIndex = 0;
+                let match;
+
+                while ((match = gapRegex.exec(cellText)) !== null) {
+                    const before = cellText.slice(lastIndex, match.index);
+                    if (before) {
+                        parts.push(
+                            <span
+                                key={`t${parts.length}`}
+                                dangerouslySetInnerHTML={{ __html: before }}
+                            />
+                        );
+                    }
+                    const gapNumber = match[1];
+                    const gapKey = `r${rIdx}c${cIdx}__gap${gapNumber}`;
+                    parts.push(
+                        <input
+                            key={`gap${gapNumber}`}
+                            type="text"
+                            value={answers[question.id.toString()]?.[gapKey] || ''}
+                            onChange={e => handleAnswerChange(question.id, gapKey, e.target.value, 'table')}
+                            className="inline-block min-w-[60px] lg:min-w-[80px] p-1 lg:p-2 border-2 border-blue-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base mx-1"
+                            placeholder="..."
+                            autoComplete="off"
+                        />
+                    );
+                    lastIndex = gapRegex.lastIndex;
+                }
+
+                const remaining = cellText.slice(lastIndex);
+                if (remaining) {
+                    parts.push(
+                        <span
+                            key="end"
+                            dangerouslySetInnerHTML={{ __html: remaining }}
+                        />
+                    );
+                }
+
+                if (parts.length === 0) {
+                    if (typeof cell === 'object' && cell.type === 'gap') {
+                        return (
+                            <input
+                                type="text"
+                                value={answers[question.id.toString()]?.[`r${rIdx}c${cIdx}`] || ''}
+                                onChange={e => handleAnswerChange(question.id, `r${rIdx}c${cIdx}`, e.target.value, 'table')}
+                                className="w-full border-2 border-blue-200 rounded-lg p-2 outline-none bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base"
+                                placeholder="..."
+                                autoComplete="off"
+                            />
+                        );
+                    }
+                    return <span className="text-sm lg:text-base" dangerouslySetInnerHTML={{ __html: cellText }} />;
+                }
+
+                return <span className="flex items-center gap-1 flex-wrap text-sm lg:text-base">{parts}</span>;
+            };
+            
             return (
                  <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
@@ -543,18 +763,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                     <tr key={rIdx} className="hover:bg-blue-50/50 transition-colors duration-200">
                                         {row.map((cell, cIdx) => (
                                             <td key={cIdx} className="p-3 lg:p-4 border border-blue-100">
-                                                {typeof cell === 'object' && cell.type === 'gap' ? (
-                                                    <input
-                                                        type="text"
-                                                        value={answers[question.id.toString()]?.[`r${rIdx}c${cIdx}`] || ''}
-                                                        onChange={e => handleAnswerChange(question.id, `r${rIdx}c${cIdx}`, e.target.value, 'table')}
-                                                        className="w-full border-2 border-blue-200 rounded-lg p-2 outline-none bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base"
-                                                        placeholder="..."
-                                                        autoComplete="off"
-                                                    />
-                                                ) : (
-                                                    <span className="text-sm lg:text-base">{cell}</span>
-                                                )}
+                                                {renderCell(cell, rIdx, cIdx)}
                                             </td>
                                         ))}
                                     </tr>
