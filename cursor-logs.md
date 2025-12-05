@@ -2,6 +2,250 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-12-XX - Added Missing Speaking Sessions Widget to Speaking Page
+
+- Created `CuratorMissingSpeakingView` backend endpoint (`/api/curator/missing-speaking/`) that finds students without completed speaking sessions in the selected time period
+- The endpoint filters students by group, teacher, and search, applies date range filter on `SpeakingSession.conducted_at`, and returns paginated list of students missing speaking sessions
+- Added URL route in `backend/core/urls.py` for the new endpoint
+- Created `StudentsMissingSpeakingWidget` component (`frontend/src/components/StudentsMissingSpeakingWidget.jsx`) based on `StudentsMissingTestsWidget` structure
+- The widget accepts `filters` (group, teacher) and `timeRange` props from the parent page, includes Group/Teacher/Search filters with debounced search, and displays students missing speaking sessions with pagination (10 per page)
+- Integrated the widget into `CuratorSpeakingPage` at the bottom of the page, after the sessions table
+- The widget uses the shared `timeRange` filter from the Speaking page, so changing the Period filter affects both the main table and the missing sessions widget
+- Students in the widget are clickable and navigate to `/curator/student-detail/<studentId>`
+
+## 2025-12-XX - Curator Dashboard Architecture Analysis
+
+### Overview
+The curator dashboard (`/curator/dashboard`) is the main analytics interface for curators and teachers to monitor student performance across Listening, Reading, and Writing modules. It's implemented as `CuratorWeeklyOverviewPage` component and provides unified weekly results with multiple viewing modes and comprehensive filtering.
+
+### Frontend Architecture
+
+#### Main Component: `CuratorWeeklyOverviewPage.js`
+- **Location**: `frontend/src/pages/CuratorWeeklyOverviewPage.js`
+- **Route**: `/curator/dashboard` (rendered via `CuratorDashboard.js` wrapper)
+- **Key Features**:
+  - Three viewing modes: "By students", "By groups", "By teachers"
+  - Comprehensive filtering system
+  - Summary cards with aggregate statistics
+  - Main data table with student/group/teacher results
+  - Side widgets: `StudentsMissingTestsWidget` and `GroupsRankingWidget`
+
+#### Filtering System
+
+**Filter Components:**
+1. **Group Filter** - Dropdown select from `/curator/students/` endpoint
+2. **Teacher Filter** - Dropdown select from `/curator/students/` endpoint
+3. **Writing Test Filter** - Dropdown select from `/curator/active-tests/` endpoint
+4. **Listening Test Filter** - Dropdown select from `/curator/active-tests/` endpoint
+5. **Reading Test Filter** - Dropdown select from `/curator/active-tests/` endpoint
+6. **Search Student** - Text input for filtering by name, ID, or email
+7. **TimeRangeFilter** - Period selector with presets (All time, Last 2 weeks, Last month, Last 3 months, Custom range)
+
+**Filter Layout:**
+- First row: Group, Teacher, Writing test, Search student
+- Second row: Listening test, Reading test, Period (TimeRangeFilter)
+
+**Filter State Management:**
+- `filters`: `{ group: '', teacher: '', search: '' }`
+- `selectedTests`: `{ writing: '', listening: '', reading: '' }`
+- `timeRange`: `{ label: 'all_time', date_from: '', date_to: '' }`
+- Default period is "All time" (no date restrictions)
+
+**Filter Application:**
+- All filters are sent as query parameters to `/curator/weekly-overview/` API
+- Filters trigger automatic data reload via `useEffect` dependencies
+- Search uses trimmed values and is included in API call
+- When date range is applied, only students with activity in that window are shown
+
+#### Viewing Modes
+
+**Mode: "By students" (default)**
+- Shows individual student rows with L/R/W/Overall bands
+- Pagination: 30 students per page
+- Clickable Writing cells navigate to `/writing-result/<sessionId>`
+- Status indicators: "No data", "not checked" (pending), or band score
+- Displays: Student name/ID, Group, Teacher, L band, R band, W band, Overall band
+
+**Mode: "By groups"**
+- Aggregates students by group
+- Shows: Group name, Students count, Completed L+R+W count, Avg L, Avg R, Avg W, Avg overall
+- Groups sorted alphabetically (null groups last)
+
+**Mode: "By teachers"**
+- Aggregates students by teacher
+- Same columns as groups mode
+- Teachers sorted alphabetically (null teachers last)
+
+#### Summary Cards
+Four cards displaying aggregate statistics:
+- Students count
+- Avg Listening band
+- Avg Reading band
+- Avg Writing (teacher) band
+
+#### Widgets
+
+**StudentsMissingTestsWidget** (`frontend/src/components/StudentsMissingTestsWidget.jsx`)
+- Shows students missing required modules (Writing, Listening, Reading) in selected time period
+- Independent filters: Group, Teacher, Search (with debounce), Period
+- Pagination: 10 students per page
+- Clickable rows navigate to `/curator/student-detail/<studentId>`
+- Displays: Student name/ID, Group, Missing modules list, Last activity date
+- API: `/curator/missing-tests/` with same filter parameters
+
+**GroupsRankingWidget** (`frontend/src/components/GroupsRankingWidget.jsx`)
+- Shows ranking of groups by overall performance
+- Independent Period filter
+- Displays: Rank, Group name, Students count, Avg L, Avg R, Avg W, Avg Overall
+- API: `/curator/groups-ranking/` with date range parameters
+
+#### TimeRangeFilter Component (`frontend/src/components/TimeRangeFilter.jsx`)
+- Presets: All time, Last 2 weeks, Last month, Last 3 months, Custom range
+- When "All time" selected: no `date_from`/`date_to` sent to backend
+- Custom range: shows date inputs for start and end dates
+- Uses timezone-aware date conversion for consistent filtering
+
+### Backend Architecture
+
+#### Main API Endpoint: `CuratorWeeklyOverviewView`
+- **Location**: `backend/core/views.py` (lines 5224-5586)
+- **Route**: `/api/curator/weekly-overview/`
+- **Permission**: `IsTeacherOrCurator`
+- **Method**: GET
+
+**Query Parameters:**
+- `mode`: 'group' (default), 'teacher', or 'student' (frontend sends 'group' for student mode)
+- `group`: Filter by group name
+- `teacher`: Filter by teacher name
+- `search`: Search by first_name, last_name, student_id, or email (case-insensitive)
+- `writing_test` / `writing`: Filter by specific writing test ID
+- `listening_test` / `listening`: Filter by specific listening test ID
+- `reading_test` / `reading`: Filter by specific reading test ID
+- `date_from`: Start date (YYYY-MM-DD)
+- `date_to`: End date (YYYY-MM-DD)
+- `page`: Page number (for student mode only)
+- `page_size`: Items per page (default 30, for student mode only)
+
+**Data Processing Flow:**
+
+1. **Student Filtering:**
+   - Base queryset: `User.objects.filter(role='student', is_active=True)`
+   - Apply group filter if provided
+   - Apply teacher filter if provided
+   - Apply search filter (Q objects for name/ID/email)
+   - Order by: group, teacher, first_name, last_name
+
+2. **Session Filtering:**
+   - **Writing sessions**: `WritingTestSession.objects.filter(user__in=students, is_diagnostic=False)`
+     - Filter by test ID if provided
+     - Apply date range filter on `started_at` field
+   - **Listening sessions**: `ListeningTestSession.objects.filter(user__in=students, submitted=True, is_diagnostic=False)`
+     - Filter by test ID if provided
+     - Apply date range filter on `completed_at` field
+   - **Reading sessions**: `ReadingTestSession.objects.filter(user__in=students, completed=True, is_diagnostic=False)`
+     - Filter by test ID if provided
+     - Apply date range filter on `end_time` field
+
+3. **Related Data Fetching:**
+   - Essays from writing sessions
+   - Listening results from listening sessions
+   - Reading results from reading sessions
+   - Teacher feedbacks from essays
+
+4. **Student Map Building:**
+   - Create `student_map` dictionary with student data structure
+   - Track listening/reading/writing bands per student
+   - Track attempt flags (has_listening_attempt, has_reading_attempt, has_writing_attempt)
+   - Track writing feedback status
+   - Find latest writing session and essay per student
+   - If date filter applied, only include students with activity in that window
+
+5. **Band Score Calculation:**
+   - For each student, compute averages:
+     - `listening_band`: Average of all listening band scores
+     - `reading_band`: Average of all reading band scores
+     - `writing_teacher_band`: Average of all teacher feedback overall scores
+     - `overall_band`: Average of L/R/W if all three exist
+   - Uses `compute_ielts_average()` helper function
+
+6. **Status Determination:**
+   - `module_status(has_attempt, band)` function:
+     - 'completed': band score exists
+     - 'pending': attempt exists but no band score
+     - 'not_started': no attempt
+
+7. **Aggregation by Mode:**
+   - **Student mode**: Return paginated list of students with individual bands
+   - **Group mode**: Aggregate students by group, compute group averages
+   - **Teacher mode**: Aggregate students by teacher, compute teacher averages
+
+8. **Response Structure:**
+   ```json
+   {
+     "mode": "group|teacher|student",
+     "summary": {
+       "students_count": int,
+       "avg_listening_band": float|null,
+       "avg_reading_band": float|null,
+       "avg_writing_teacher_band": float|null,
+       "avg_overall_band": float|null
+     },
+     "students": [...],  // for student mode
+     "groups": [...],    // for group mode
+     "teachers": [...],  // for teacher mode
+     "students_pagination": {...}  // for student mode only
+   }
+   ```
+
+**Helper Function: `apply_date_range_filter`**
+- **Location**: `backend/core/views.py` (lines 106-113)
+- Filters queryset by date range on specified field
+- Parameters: `queryset`, `request`, `field_name`
+- Uses `date_from` and `date_to` query parameters
+- Applies `__date__gte` and `__date__lte` filters
+
+#### Supporting API Endpoints
+
+**CuratorActiveTestsView** (`/api/curator/active-tests/`)
+- Returns list of active tests (excluding diagnostic templates)
+- Response: `{ writing_tests: [...], listening_tests: [...], reading_tests: [...] }`
+- Each test: `{ id, title, description }`
+
+**CuratorStudentsView** (`/api/curator/students/`)
+- Returns filter options: groups and teachers lists
+- Response: `{ filter_options: { groups: [...], teachers: [...] } }`
+
+**CuratorMissingTestsView** (`/api/curator/missing-tests/`)
+- Returns students missing required modules in time period
+- Supports: group, teacher, search, date_from, date_to, page, page_size filters
+- Checks for Writing (essays), Listening (sessions), Reading (sessions)
+- Response: `{ students: [...], count: int, total_pages: int }`
+
+**CuratorGroupsRankingView** (`/api/curator/groups-ranking/`)
+- Returns groups ranked by overall performance
+- Supports: group, teacher, search, test filters, date range
+- Response: `{ groups: [...] }` sorted by avg_overall_band descending
+
+### Key Design Decisions
+
+1. **Diagnostic Tests Exclusion**: All queries exclude diagnostic tests (`is_diagnostic=False`) to focus on regular test performance
+2. **Date Range Logic**: When date filter applied, only students with activity in that window are included (not all students with filters)
+3. **Writing Score Source**: Uses `teacher_overall_score` from `TeacherFeedback`, not auto-scored results
+4. **Status Tracking**: Tracks both attempts and completion status separately for accurate "pending" detection
+5. **Pagination**: Only student mode uses pagination; group/teacher modes return all aggregated results
+6. **Fallback Names**: Student names fallback to student_id, email, or "Student {id}" if first_name/last_name are empty
+7. **Mode Mapping**: Frontend "student" mode maps to backend "group" mode parameter (legacy compatibility)
+
+### Data Flow Summary
+
+1. User opens `/curator/dashboard`
+2. `CuratorWeeklyOverviewPage` loads filter options and active tests
+3. Initial data load with default filters (All time period)
+4. User changes filters → `useEffect` triggers → API call with new params
+5. Backend filters students, sessions, calculates bands, aggregates by mode
+6. Frontend displays results in appropriate table format
+7. Widgets independently fetch their data with shared filter context
+
 ## 2025-12-01 - Curator Weekly Overview filters (search, period, missing-tests widget)
 
 - Added handling of the `search` query parameter in `CuratorWeeklyOverviewView` so curators can filter students by first name, last name, student ID, or email.

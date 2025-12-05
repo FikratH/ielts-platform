@@ -4308,6 +4308,85 @@ class CuratorMissingTestsView(APIView):
         return timezone.localtime(latest).isoformat()
 
 
+class CuratorMissingSpeakingView(APIView):
+    permission_classes = [IsTeacherOrCurator]
+
+    def get(self, request):
+        group = request.query_params.get('group')
+        teacher = request.query_params.get('teacher')
+        search = request.query_params.get('search')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        students = User.objects.filter(role='student', is_active=True)
+        if group:
+            students = students.filter(group=group)
+        if teacher:
+            students = students.filter(teacher=teacher)
+        if search:
+            search = search.strip()
+            if search:
+                students = students.filter(
+                    models.Q(first_name__icontains=search) |
+                    models.Q(last_name__icontains=search) |
+                    models.Q(student_id__icontains=search) |
+                    models.Q(email__icontains=search)
+                )
+
+        missing_list = []
+        for student in students:
+            speaking_qs = apply_date_range_filter(
+                SpeakingSession.objects.filter(student=student, completed=True),
+                request,
+                'conducted_at'
+            )
+            if speaking_qs.count() == 0:
+                last_activity = self._last_activity(student)
+                first_name = student.first_name or ''
+                last_name = student.last_name or ''
+                name = f"{first_name} {last_name}".strip() or f"Student {student.student_id or student.id}"
+                missing_list.append({
+                    'id': student.id,
+                    'student_id': student.student_id or '',
+                    'name': name,
+                    'group': student.group or '',
+                    'teacher': student.teacher or '',
+                    'last_activity': last_activity
+                })
+
+        total_count = len(missing_list)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_list = missing_list[start:end]
+
+        return Response({
+            'students': paginated_list,
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size if page_size > 0 else 1
+        })
+
+    def _last_activity(self, student):
+        activity_times = []
+        essays = Essay.objects.filter(user=student, test_session__is_diagnostic=False).order_by('-submitted_at').first()
+        if essays and essays.submitted_at:
+            activity_times.append(essays.submitted_at)
+        listen = ListeningTestSession.objects.filter(user=student, is_diagnostic=False).order_by('-completed_at').first()
+        if listen and listen.completed_at:
+            activity_times.append(listen.completed_at)
+        read = ReadingTestSession.objects.filter(user=student, is_diagnostic=False).order_by('-end_time').first()
+        if read and read.end_time:
+            activity_times.append(read.end_time)
+        speak = SpeakingSession.objects.filter(student=student).order_by('-conducted_at').first()
+        if speak and speak.conducted_at:
+            activity_times.append(speak.conducted_at)
+        if not activity_times:
+            return None
+        latest = max(activity_times)
+        return timezone.localtime(latest).isoformat()
+
+
 class CuratorStudentDetailView(APIView):
     permission_classes = [IsTeacherOrCurator]
 

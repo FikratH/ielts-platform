@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../api';
 import TimeRangeFilter from '../components/TimeRangeFilter';
+import StudentsMissingSpeakingWidget from '../components/StudentsMissingSpeakingWidget';
 
 export default function CuratorSpeakingPage() {
   const [data, setData] = useState(null);
@@ -190,6 +191,8 @@ export default function CuratorSpeakingPage() {
               </div>
             </div>
           </div>
+
+          <StudentsMissingSpeakingWidget filters={filters} timeRange={timeRange} />
         </div>
       )}
     </div>

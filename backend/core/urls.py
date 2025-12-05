@@ -83,6 +83,7 @@ from .views import (
     CuratorStudentsView,
     CuratorStudentDetailView,
     CuratorMissingTestsView,
+    CuratorMissingSpeakingView,
     CuratorWritingOverviewView,
     CuratorListeningOverviewView,
     CuratorReadingOverviewView,
@@ -237,5 +238,6 @@ urlpatterns += [
     path('curator/writing-export-csv/', CuratorWritingExportCSVView.as_view(), name='curator-writing-export-csv'),
     path('curator/student-detail/<int:student_id>/', CuratorStudentDetailView.as_view(), name='curator-student-detail'),
     path('curator/missing-tests/', CuratorMissingTestsView.as_view(), name='curator-missing-tests'),
+    path('curator/missing-speaking/', CuratorMissingSpeakingView.as_view(), name='curator-missing-speaking'),
     path('admin/curators/', AdminCuratorsListView.as_view(), name='admin-curators-list'),
 ]
