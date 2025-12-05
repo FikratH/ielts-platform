@@ -2,6 +2,13 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-12-XX - Improved Test Cards Grid Display
+
+- Improved grid layout for test cards on `ListeningTestListPage`, `ReadingPage`, and `WritingTestListPage`
+- Reduced gaps between cards from `gap-6 sm:gap-8 lg:gap-10` to `gap-4 sm:gap-5 lg:gap-6` for better visual density when displaying many tests
+- Removed conditional flex/grid switching - now always uses consistent grid layout
+- Cards now display better when there are more than 3-4 tests
+
 ## 2025-12-XX - Added Missing Speaking Sessions Widget to Speaking Page
 
 - Created `CuratorMissingSpeakingView` backend endpoint (`/api/curator/missing-speaking/`) that finds students without completed speaking sessions in the selected time period

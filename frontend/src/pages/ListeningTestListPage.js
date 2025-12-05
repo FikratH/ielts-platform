@@ -61,11 +61,11 @@ const ListeningTestListPage = () => {
             {(() => {
                 const filteredTests = tests.filter(test => test.is_active && !test.is_diagnostic_template);
                 return (
-                    <div className={`${filteredTests.length <= 3 ? 'flex flex-wrap justify-center' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-6 sm:gap-8 lg:gap-10 max-w-7xl mx-auto`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
                 {filteredTests.map((test, index) => (
                     <div 
                         key={test.id} 
-                        className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 border border-gray-100 overflow-hidden"
+                        className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 border border-gray-100 overflow-hidden flex flex-col h-full"
                         style={{
                             background: `linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)`,
                         }}
@@ -77,7 +77,7 @@ const ListeningTestListPage = () => {
                         <div className="p-6 sm:p-8">
                             {/* Header */}
                             <div className="flex flex-col sm:flex-row sm:justify-between items-start mb-4 gap-3">
-                                <h3 className="font-bold text-xl sm:text-2xl text-gray-800 leading-tight group-hover:text-blue-700 transition-colors duration-300">
+                                <h3 className="font-bold text-xl sm:text-2xl text-gray-800 leading-tight group-hover:text-blue-700 transition-colors duration-300 line-clamp-2">
                                     {test.title}
                                 </h3>
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-md">
@@ -89,13 +89,13 @@ const ListeningTestListPage = () => {
                             </div>
                             
                             {/* Description */}
-                            <p className="text-gray-600 text-sm sm:text-base mb-6 leading-relaxed">
+                            <p className="text-gray-600 text-sm sm:text-base mb-6 leading-relaxed line-clamp-2">
                                 {test.description || 'Practice your listening with IELTS-style audio and questions.'}
                             </p>
                         </div>
                         
                         {/* Stats and Button */}
-                        <div className="px-6 sm:px-8 pb-6 sm:pb-8">
+                        <div className="px-6 sm:px-8 pb-6 sm:pb-8 mt-auto">
                             {/* Stats */}
                             <div className="flex justify-around text-center mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                                 <div className="flex flex-col items-center">
