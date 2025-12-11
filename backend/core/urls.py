@@ -10,6 +10,7 @@ from .views import (
     StartWritingSessionView,
     SubmitTaskView,
     FinishWritingSessionView,
+    WritingSessionSyncView,
     WritingPromptViewSet,
     WritingTestViewSet,
     WritingTaskViewSet,
@@ -148,6 +149,7 @@ urlpatterns = router.urls + [
     path('start-writing-session/', StartWritingSessionView.as_view(), name='start-writing-session'),
     path('submit-task/', SubmitTaskView.as_view(), name='submit-task'),
     path('finish-writing-session/', FinishWritingSessionView.as_view(), name='finish-writing-session'),
+    path('writing-sessions/<int:session_id>/sync/', WritingSessionSyncView.as_view(), name='writing-session-sync'),
     
     # Admin endpoints
     path('admin/essays/', AdminEssayListView.as_view(), name='admin-essay-list'),

@@ -178,6 +178,21 @@ Implemented support for mixed cells using a new `parts` array structure where ea
 - Removed conditional flex/grid switching - now always uses consistent grid layout
 - Cards now display better when there are more than 3-4 tests
 
+## 2025-12-11 - Investigating Writing submissions missing on mobile
+- User reported Writing submissions not saving: Task1 submitted empty, Task2 missing; happens on mobile, sometimes both tasks empty.
+- Opened `frontend/src/pages/WritingTaskPage.js` to review submission flow, autosave, and API payloads.
+- Noted submission endpoints: `/submit-task/` called twice with `{session_id, task_type, submitted_text, question_text, task_id}`; auto-submit uses `prompt_id` for task ids; after both posts, `/finish-writing-session/` is called, then localStorage cleared and navigation to `/writing/result/{sessionId}`.
+- Observed autosave uses `localStorage writing_task{1|2}_${sessionId}`; load clears `writing_timer`; instructions rendered via `dangerouslySetInnerHTML` with copy protections.
+- Next steps: inspect backend endpoints handling `/submit-task/` and `/finish-writing-session/`, verify payload fields (task_id vs prompt_id), and check mobile-specific issues (focus/blur, event handlers).
+- Reviewed backend `SubmitTaskView` in `backend/core/views.py`: it always creates a new `Essay` per call without validation and without deduping per session/task_type, accepts empty `submitted_text`, and marks session completed once any essays exist; `FinishWritingSessionView` only processes existing essays. This can leave stale/empty essays that surface in results.
+- Confirmed frontend auto-submit uses `prompt_id` instead of `task_id`; manual submit uses `task_id`. No retry or trimming on submit; button disabled unless both texts have `.trim()`.
+- Implemented fix: frontend now trims texts before submit/auto-submit and always sends `task_id` (not `prompt_id`) for both tasks; backend `SubmitTaskView` trims, rejects empty text, performs upsert by `(session, task_type)`, and marks session completed only when both tasks have non-empty text; `FinishWritingSessionView` now requires both non-empty tasks and returns 400 otherwise. This prevents empty/duplicate essays and keeps sessions from completing on empty data.
+- Audit: rechecked lint status for `backend/core/views.py` and `frontend/src/pages/WritingTaskPage.js` — no linter errors. Verified new flow: backend 400 on empty text, upsert by session+task_type, completion only with both non-empty; frontend trims and sends task_id in manual/auto submit. Pending to observe production behavior but logic consistent across devices.
+- Added real-time timers and writing autosave/robustness:
+  - Timers (Listening/Reading/Writing) now use deadlines based on `Date.now()`; auto-submit fires once at zero; sync/submit send accurate `time_left`.
+  - Added Writing draft sync endpoint `writing-sessions/<id>/sync/` storing `task1_draft`, `task2_draft`, `time_left_seconds`; serializer exposes fields; migration 0033 adds fields to `WritingTestSession`.
+  - Writing frontend: restores drafts/time_left from server, sets timer deadline, autosaves every ~12s via sync with retries, guard against double submit, retry with backoff for submit/auto-submit, skip finish on auto-submit when both tasks empty, show warnings when not sent. WritingTimer now reports ticks to parent and uses deadline stored per session; deadline cleared on submit.
+- Restored copy/paste protections in `frontend/src/pages/WritingTaskPage.js`: task blocks again block copy/select/context, textarea blocks copy/paste/cut, global keydown block for Ctrl/Cmd+C/V/X and devtools re-enabled.
 ## 2025-12-XX - Added Missing Speaking Sessions Widget to Speaking Page
 
 - Created `CuratorMissingSpeakingView` backend endpoint (`/api/curator/missing-speaking/`) that finds students without completed speaking sessions in the selected time period

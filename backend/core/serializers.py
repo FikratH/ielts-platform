@@ -99,7 +99,17 @@ class WritingTestSessionSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WritingTestSession
-        fields = ['id', 'user', 'test', 'started_at', 'completed', 'band_score']
+        fields = [
+            'id',
+            'user',
+            'test',
+            'started_at',
+            'completed',
+            'band_score',
+            'time_left_seconds',
+            'task1_draft',
+            'task2_draft',
+        ]
 
 class WritingTestSessionLightSerializer(serializers.ModelSerializer):
     """Lightweight serializer for WritingTestSession without nested objects to avoid circular imports"""
@@ -107,7 +117,7 @@ class WritingTestSessionLightSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WritingTestSession
-        fields = ['id', 'test_title', 'started_at', 'completed', 'band_score']
+        fields = ['id', 'test_title', 'started_at', 'completed', 'band_score', 'time_left_seconds']
 
 class WritingPromptSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)

@@ -51,3 +51,5 @@ backend/Dockerfile
 frontend/Dockerfile
 nginx/
 nginx-frontend.conf
+
+cursor-logs.md

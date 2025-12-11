@@ -1501,8 +1501,10 @@ class SubmitTaskView(APIView):
 
         session_id = request.data.get('session_id')
         task_type = request.data.get('task_type')
-        question_text = request.data.get('question_text')
-        submitted_text = request.data.get('submitted_text')
+        question_text = (request.data.get('question_text') or '').strip()
+        submitted_text = (request.data.get('submitted_text') or '').strip()
+        if not submitted_text:
+            return Response({'error': 'Submitted text is empty'}, status=400)
 
         try:
             session = WritingTestSession.objects.get(id=session_id, user=user)
@@ -1519,25 +1521,29 @@ class SubmitTaskView(APIView):
         if not task and session.test:
             task = session.test.tasks.filter(task_type=task_type).first()
 
-        # SubmitTaskView: save essay with WritingTask reference
-        essay = Essay.objects.create(
-            user=user,
-            test_session=session,
-            task_type=task_type,
-            question_text=question_text,
-            submitted_text=submitted_text,
-            task=task
-        )
-        essay.submitted_at = timezone.now()
-        essay.save()
+        essay = Essay.objects.filter(test_session=session, task_type=task_type).first()
+        if essay:
+            essay.submitted_text = submitted_text
+            essay.question_text = question_text
+            essay.task = task
+            essay.submitted_at = timezone.now()
+            essay.save()
+        else:
+            essay = Essay.objects.create(
+                user=user,
+                test_session=session,
+                task_type=task_type,
+                question_text=question_text,
+                submitted_text=submitted_text,
+                task=task,
+                submitted_at=timezone.now()
+            )
 
         # Check if all required essays are submitted and mark session as completed
         essays_in_session = Essay.objects.filter(test_session=session)
-        task1_essay = essays_in_session.filter(task_type='task1').first()
-        task2_essay = essays_in_session.filter(task_type='task2').first()
-        
-        # If both task1 and task2 are submitted, mark session as completed
-        if task1_essay and task2_essay and not session.completed:
+        has_task1 = any(e.task_type == 'task1' and e.submitted_text and e.submitted_text.strip() for e in essays_in_session)
+        has_task2 = any(e.task_type == 'task2' and e.submitted_text and e.submitted_text.strip() for e in essays_in_session)
+        if has_task1 and has_task2 and not session.completed:
             session.completed = True
             session.save()
 
@@ -1573,6 +1579,10 @@ class FinishWritingSessionView(APIView):
         essays = Essay.objects.filter(user=user, test_session=session)
         if not essays.exists():
             return Response({'error': 'No essays found for this session'}, status=400)
+        has_task1 = any(e.task_type == 'task1' and e.submitted_text and e.submitted_text.strip() for e in essays)
+        has_task2 = any(e.task_type == 'task2' and e.submitted_text and e.submitted_text.strip() for e in essays)
+        if not (has_task1 and has_task2):
+            return Response({'error': 'Both tasks must be submitted with text'}, status=400)
 
         # AI-оценка для всех эссе, если ещё не оценены
         from .utils import ai_score_essay
@@ -1653,6 +1663,52 @@ class FinishWritingSessionView(APIView):
             'overall_band': overall_band,
             'essays': EssaySerializer(essays, many=True).data,
             'message': 'Session completed and AI scored successfully'
+        })
+
+
+class WritingSessionSyncView(APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self, request, session_id):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=401)
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=401)
+        uid = decoded['uid']
+        try:
+            user = User.objects.get(uid=uid)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=401)
+
+        try:
+            session = WritingTestSession.objects.get(id=session_id, user=user)
+        except WritingTestSession.DoesNotExist:
+            return Response({'error': 'Session not found'}, status=404)
+
+        task1_text = request.data.get('task1_text')
+        task2_text = request.data.get('task2_text')
+        time_left = request.data.get('time_left')
+
+        if task1_text is not None:
+            session.task1_draft = task1_text
+        if task2_text is not None:
+            session.task2_draft = task2_text
+        if time_left is not None:
+            try:
+                tl = max(0, int(float(time_left)))
+                session.time_left_seconds = tl
+            except (TypeError, ValueError):
+                return Response({'error': 'Invalid time_left'}, status=400)
+
+        session.save(update_fields=['task1_draft', 'task2_draft', 'time_left_seconds'])
+
+        return Response({
+            'task1_text': session.task1_draft,
+            'task2_text': session.task2_draft,
+            'time_left_seconds': session.time_left_seconds
         })
 
 

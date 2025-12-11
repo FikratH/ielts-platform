@@ -32,6 +32,8 @@ const ListeningTestPlayer = () => {
   const [answers, setAnswers] = useState({});
   const [flagged, setFlagged] = useState({}); // Track flagged questions
   const [timeLeft, setTimeLeft] = useState(2400); // 40 minutes
+  const deadlineRef = useRef(null);
+  const autoSubmitRef = useRef(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   
   // Audio state
@@ -84,7 +86,9 @@ const ListeningTestPlayer = () => {
         `/listening-tests/${testId}/start/`;
       const response = await api.post(url);
       setSession(response.data);
-      setTimeLeft(response.data.time_left || 2400);
+      const initial = response.data.time_left || 2400;
+      deadlineRef.current = Date.now() + initial * 1000;
+      setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
       await loadTest();
     } catch (err) {
       if (err.response?.status === 409) {
@@ -147,7 +151,9 @@ const ListeningTestPlayer = () => {
     try {
       const response = await api.get(`/listening-sessions/${sessionId}/`);
       setSession(response.data);
-      setTimeLeft(response.data.time_left || 2400);
+      const initial = response.data.time_left || 2400;
+      deadlineRef.current = Date.now() + initial * 1000;
+      setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
       setAnswers(response.data.answers || {});
     } catch (err) {
       setError('Failed to load session');
@@ -158,19 +164,18 @@ const ListeningTestPlayer = () => {
 
   // Timer effect
   useEffect(() => {
-    if (session && !isSubmitted && timeLeft > 0) {
-      const timer = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            handleAutoSubmit();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [session, isSubmitted, timeLeft]);
+    if (!session || isSubmitted) return;
+    const timer = setInterval(() => {
+      if (!deadlineRef.current) return;
+      const remaining = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0 && !autoSubmitRef.current) {
+        autoSubmitRef.current = true;
+        handleAutoSubmit();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [session, isSubmitted]);
 
   // Start session on component mount
   useEffect(() => {
@@ -320,7 +325,8 @@ const ListeningTestPlayer = () => {
   const syncAnswers = async () => {
     if (!session) return;
     try {
-      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers, flagged, time_left: timeLeft });
+      const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
+      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers, flagged, time_left: remaining });
     } catch (err) {
       // Silent error for sync
     }
@@ -338,7 +344,8 @@ const ListeningTestPlayer = () => {
       return;
     }
     try {
-      const response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers, time_left: timeLeft });
+      const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
+      const response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers, time_left: remaining });
       navigate(`/listening-result/${session.id}`);
       window.dispatchEvent(new Event('listeningHistoryUpdated'));
     } catch (err) {

@@ -71,6 +71,9 @@ class WritingTestSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed = models.BooleanField(default=False)
     band_score = models.FloatField(null=True, blank=True)
+    time_left_seconds = models.PositiveIntegerField(default=3600)
+    task1_draft = models.TextField(blank=True, default='')
+    task2_draft = models.TextField(blank=True, default='')
     # True when this session is a part of the diagnostic flow
     is_diagnostic = models.BooleanField(default=False)
 

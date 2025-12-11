@@ -1,24 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-const WritingTimer = ({ onTimeUp, initialSeconds = 60 }) => {
+const WritingTimer = ({ onTimeUp, onTick, initialSeconds = 60, sessionId, seed }) => {
+  const storageKey = sessionId ? `writing_deadline_${sessionId}` : null;
   const [seconds, setSeconds] = useState(initialSeconds);
+  const deadlineRef = useRef(null);
+  const firedRef = useRef(false);
 
   useEffect(() => {
-    setSeconds(initialSeconds);
-  }, [initialSeconds]);
+    if (storageKey) {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const ts = parseInt(stored, 10);
+        if (!Number.isNaN(ts)) {
+          deadlineRef.current = ts;
+        }
+      }
+    }
+    if (!deadlineRef.current) {
+      deadlineRef.current = Date.now() + initialSeconds * 1000;
+    }
+    if (storageKey) {
+      localStorage.setItem(storageKey, `${deadlineRef.current}`);
+    }
+    setSeconds(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
+  }, [initialSeconds, storageKey, seed]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setSeconds(prev => (prev > 0 ? prev - 1 : 0));
+      if (!deadlineRef.current) return;
+      const remaining = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
+      setSeconds(remaining);
+      if (onTick) onTick(remaining);
+      if (remaining <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        if (onTimeUp) onTimeUp();
+      }
     }, 1000);
-
-    if (seconds === 0) {
-      clearInterval(timer);
-      if (onTimeUp) onTimeUp();
-    }
-
     return () => clearInterval(timer);
-  }, [seconds, onTimeUp]);
+  }, [onTimeUp]);
 
   const min = Math.floor(seconds / 60);
   const sec = seconds % 60;

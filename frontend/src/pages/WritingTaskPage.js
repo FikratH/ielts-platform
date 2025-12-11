@@ -18,9 +18,13 @@ const WritingTaskPage = () => {
   const [task1Id, setTask1Id] = useState(null);
   const [task2Id, setTask2Id] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [timeRemaining] = useState(60 * 60); // 60 minutes total
+  const [timeRemaining, setTimeRemaining] = useState(60 * 60); // 60 minutes total
+  const [timerSeed, setTimerSeed] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [syncError, setSyncError] = useState(null);
 
-  // Load saved essays from localStorage
+  // Load saved essays from localStorage (fallback)
   useEffect(() => {
     const savedTask1 = localStorage.getItem(`writing_task1_${sessionId}`);
     const savedTask2 = localStorage.getItem(`writing_task2_${sessionId}`);
@@ -45,11 +49,32 @@ const WritingTaskPage = () => {
     fetchPrompts();
   }, [sessionId]);
 
+  const withRetry = async (fn, delays = [0, 500, 1500]) => {
+    let lastError;
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i]) {
+        await new Promise(res => setTimeout(res, delays[i]));
+      }
+      try {
+        return await fn();
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  };
+
   const fetchPrompts = async () => {
     try {
       // Get session details which includes test tasks
       const sessionResponse = await api.get(`/writing-test-sessions/${sessionId}/`);
       const session = sessionResponse.data;
+      
+      const serverTimeLeft = session.time_left_seconds ?? 60 * 60;
+      setTimeRemaining(serverTimeLeft);
+      const deadline = Date.now() + serverTimeLeft * 1000;
+      localStorage.setItem(`writing_deadline_${sessionId}`, `${deadline}`);
+      setTimerSeed(deadline);
       
       if (session.test && session.test.tasks) {
         const tasks = session.test.tasks;
@@ -72,6 +97,13 @@ const WritingTaskPage = () => {
           }
         }
       }
+
+      if (session.task1_draft !== undefined && session.task1_draft !== null && session.task1_draft !== '') {
+        setTask1Text(session.task1_draft);
+      }
+      if (session.task2_draft !== undefined && session.task2_draft !== null && session.task2_draft !== '') {
+        setTask2Text(session.task2_draft);
+      }
     } catch (err) {
       console.error("Task loading error:", err);
       // Fallback: try to get session from local storage or navigate back
@@ -80,86 +112,131 @@ const WritingTaskPage = () => {
     }
   };
 
+  const syncDraft = async () => {
+    if (!sessionId) return;
+    const payload = {
+      task1_text: task1Text,
+      task2_text: task2Text,
+      time_left: Math.max(0, Math.round(timeRemaining)),
+    };
+    await api.patch(`/writing-sessions/${sessionId}/sync/`, payload);
+    setSyncError(null);
+  };
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const interval = setInterval(() => {
+      if (loading || submitting) return;
+      withRetry(() => syncDraft(), [0, 500]).catch(() => setSyncError('Draft not saved'));
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [sessionId, loading, submitting, task1Text, task2Text, timeRemaining]);
+
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        syncDraft().catch(() => {});
+      }
+    };
+  }, [sessionId]);
+
   const handleSubmit = async () => {
-    if (!task1Text.trim() || !task2Text.trim()) {
+    if (submitting) return;
+    const task1Clean = task1Text.trim();
+    const task2Clean = task2Text.trim();
+    if (!task1Clean || !task2Clean) {
       alert("Please complete both tasks before submitting");
       return;
     }
 
+    setSubmitting(true);
     setLoading(true);
+    setSubmitError(null);
     try {
       // Submit Task 1
-      await api.post('/submit-task/', {
+      await withRetry(() => api.post('/submit-task/', {
         session_id: sessionId,
         task_type: 'task1',
-        submitted_text: task1Text,
+        submitted_text: task1Clean,
         question_text: task1Instructions,
         task_id: task1Id
-      });
+      }));
 
       // Submit Task 2
-      await api.post('/submit-task/', {
+      await withRetry(() => api.post('/submit-task/', {
         session_id: sessionId,
         task_type: 'task2',
-        submitted_text: task2Text,
+        submitted_text: task2Clean,
         question_text: task2Instructions,
         task_id: task2Id
-      });
+      }));
 
       // Finish session and get AI scoring
-      await api.post('/finish-writing-session/', { session_id: sessionId });
+      await withRetry(() => api.post('/finish-writing-session/', { session_id: sessionId }));
 
       // Clear localStorage for this session
       localStorage.removeItem(`writing_task1_${sessionId}`);
       localStorage.removeItem(`writing_task2_${sessionId}`);
+      localStorage.removeItem(`writing_deadline_${sessionId}`);
 
       navigate(`/writing/result/${sessionId}`);
     } catch (err) {
       console.error('Submit error:', err);
-      alert("Error submitting essays");
+      setSubmitError("Error submitting essays. Please try again.");
     } finally {
       setLoading(false);
+      setSubmitting(false);
     }
   };
 
   const handleTimeUp = async () => {
-    if (loading) return;
-    
+    if (loading || submitting) return;
+    const task1Clean = task1Text.trim();
+    const task2Clean = task2Text.trim();
+    if (!task1Clean && !task2Clean) {
+      setSubmitError("Time is up. Essays are empty — not submitted.");
+      return;
+    }
+
     setLoading(true);
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       // Auto-submit both tasks if they have content
-      if (task1Text.trim()) {
-        await api.post('/submit-task/', {
+      if (task1Clean) {
+        await withRetry(() => api.post('/submit-task/', {
           session_id: sessionId,
           task_type: 'task1',
-          submitted_text: task1Text,
+          submitted_text: task1Clean,
           question_text: task1Instructions,
-          prompt_id: task1Id
-        });
+          task_id: task1Id
+        }));
       }
 
-      if (task2Text.trim()) {
-        await api.post('/submit-task/', {
+      if (task2Clean) {
+        await withRetry(() => api.post('/submit-task/', {
           session_id: sessionId,
           task_type: 'task2',
-          submitted_text: task2Text,
+          submitted_text: task2Clean,
           question_text: task2Instructions,
-          prompt_id: task2Id
-        });
+          task_id: task2Id
+        }));
       }
 
-      await api.post('/finish-writing-session/', { session_id: sessionId });
+      await withRetry(() => api.post('/finish-writing-session/', { session_id: sessionId }));
 
       // Clear localStorage for this session
       localStorage.removeItem(`writing_task1_${sessionId}`);
       localStorage.removeItem(`writing_task2_${sessionId}`);
+      localStorage.removeItem(`writing_deadline_${sessionId}`);
 
       navigate(`/writing/result/${sessionId}`);
     } catch (err) {
       console.error('Auto-submit error:', err);
-      alert("Error auto-submitting essays");
+      setSubmitError("Auto-submit failed. Please check connection and submit manually.");
     } finally {
       setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -269,7 +346,14 @@ const WritingTaskPage = () => {
             
             {/* Right Side - Timer */}
             <div className="flex items-center gap-3">
-              <WritingTimer onTimeUp={handleTimeUp} initialSeconds={timeRemaining} />
+              <WritingTimer
+                key={`${sessionId || ''}-${timerSeed}`}
+                onTimeUp={handleTimeUp}
+                onTick={setTimeRemaining}
+                initialSeconds={timeRemaining}
+                sessionId={sessionId}
+                seed={timerSeed}
+              />
             </div>
           </div>
         </div>
@@ -361,13 +445,23 @@ const WritingTaskPage = () => {
               className="w-full border rounded-xl p-4 sm:p-10 h-[12rem] sm:h-[36rem] min-h-[8rem] sm:min-h-[28rem] max-h-[24rem] sm:max-h-[48rem] mb-4 sm:mb-6 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50 text-gray-800 transition-all shadow-inner text-base sm:text-2xl"
               placeholder="Write your essay here..."
             />
-            <div className="text-right mb-4 sm:mb-8 text-sm sm:text-lg text-gray-500 w-full">
+            <div className="text-right mb-2 sm:mb-3 text-sm sm:text-lg text-gray-500 w-full">
               Words: {getCurrentText().trim().split(/\s+/).filter(Boolean).length}
             </div>
+            {submitError && (
+              <div className="w-full mb-3 sm:mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3">
+                {submitError}
+              </div>
+            )}
+            {syncError && (
+              <div className="w-full mb-3 sm:mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                Draft not saved to server. Will retry…
+              </div>
+            )}
             <button
               onClick={handleSubmit}
               className="w-full bg-purple-600 text-white px-4 sm:px-10 py-3 sm:py-6 rounded-xl font-bold hover:bg-purple-700 transition-colors duration-300 text-base sm:text-2xl shadow-lg disabled:opacity-50 mt-2"
-              disabled={loading || !task1Text.trim() || !task2Text.trim()}
+              disabled={loading || submitting || !task1Text.trim() || !task2Text.trim()}
             >
               {loading ? "Submitting..." : "Submit essays"}
             </button>

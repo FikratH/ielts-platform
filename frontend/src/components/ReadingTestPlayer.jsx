@@ -48,6 +48,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const [currentPartIndex, setCurrentPartIndex] = useState(0);
     const [answers, setAnswers] = useState({});
     const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes for reading
+    const deadlineRef = useRef(null);
+    const autoSubmitRef = useRef(false);
 
     // UI state
     const [isLoading, setIsLoading] = useState(true);
@@ -72,20 +74,18 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
     // Timer effect
     useEffect(() => {
-        if (session && !session.completed && timeLeft > 0) {
-            const timer = setInterval(() => {
-                setTimeLeft(prev => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        submitTest(); // Auto-submit when time is up
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(timer);
-        }
-    }, [session, timeLeft]);
+        if (!session || session.completed) return;
+        const timer = setInterval(() => {
+            if (!deadlineRef.current) return;
+            const remaining = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
+            setTimeLeft(remaining);
+            if (remaining <= 0 && !autoSubmitRef.current) {
+                autoSubmitRef.current = true;
+                submitTest();
+            }
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [session]);
 
     const startSessionAndLoadTest = async () => {
         setIsLoading(true);
@@ -104,7 +104,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
       const sessionResponse = await api.post(url);
       const newSession = sessionResponse.data;
       setSession(newSession);
-      setTimeLeft(newSession.time_left_seconds || 3600);
+      const initial = newSession.time_left_seconds || 3600;
+      deadlineRef.current = Date.now() + initial * 1000;
+      setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
             
             // Загружаем ответы для всех сессий (включая завершенные для отображения результатов)
             setAnswers(newSession.answers || {});
@@ -177,7 +179,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const syncAnswers = async () => {
         if (!session) return;
         try {
-            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers, time_left: timeLeft });
+            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
+            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers, time_left: remaining });
         } catch (err) {
             // Silent error for sync
         }
@@ -192,7 +195,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             return;
         }
         try {
-            const response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers });
+            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
+            const response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers, time_left: remaining });
             if (onComplete) {
                 onComplete(session.id);
             } else {
