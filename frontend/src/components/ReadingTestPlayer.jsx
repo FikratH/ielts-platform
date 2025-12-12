@@ -544,8 +544,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     }, [currentPart?.id, restoreHighlights]);
 
 
-    const renderQuestion = (question) => {
+    const renderQuestion = (question, qIdx = 0) => {
         const type = question.question_type?.toLowerCase();
+        const questionKey = question?.id ?? `q-${currentPartIndex}-${qIdx}`;
 
         // Header block for all questions
         const headerBlock = (
@@ -900,7 +901,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             const { statements } = question.extra_data;
             const choices = ["True", "False", "Not Given"];
             return (
-                <div key={question.id} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
+                <div key={questionKey} className="mb-6 lg:mb-8 p-4 lg:p-6 border border-green-100 rounded-2xl shadow-md bg-gradient-to-br from-green-50/30 to-white">
                     {headerBlock}
                     <p className="font-semibold text-gray-800 mb-3 lg:mb-4 text-base lg:text-lg whitespace-pre-wrap">{question.question_text}</p>
                     <div className="space-y-3 lg:space-y-4">
@@ -912,7 +913,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                         <label key={choice} className="flex items-center space-x-2 cursor-pointer">
                                             <input
                                                 type="radio"
-                                                name={`question-${question.id}-stmt-${sIdx}`}
+                                                name={`question-${questionKey}-stmt-${sIdx}`}
                                                 value={choice}
                                                 checked={answers[question.id.toString()]?.[`stmt${sIdx}`] === choice}
                                                 onChange={(e) => handleAnswerChange(question.id, `stmt${sIdx}`, e.target.value, 'true_false_not_given')}
@@ -1038,11 +1039,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     {/* Right Panel: Questions */}
                     <div className="lg:col-span-1 order-1 lg:order-2 flex justify-center">
                         <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-green-100 w-full">
-                            {currentPart ? (
-                                <>
-                                    <div className="mb-4 sm:mb-6">
-                                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-green-700 mb-2 sm:mb-4">Part {currentPartIndex + 1}</h2>
-                                        {/* Part Navigation */}
+            {currentPart ? (
+                <>
+                    <div className="mb-4 sm:mb-6">
+                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-green-700 mb-2 sm:mb-4">Part {currentPartIndex + 1}</h2>
+                        {/* Part Navigation */}
                                         <div className="mb-3 sm:mb-4">
                                             <div className="flex flex-wrap gap-2">
                                                 {sortedParts.map((part, index) => (
@@ -1065,11 +1066,11 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                         )}
                                     </div>
                                     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-                                        {currentPart.questions?.map(renderQuestion)}
+                                        {currentPart.questions?.map((q, idx) => renderQuestion(q, idx))}
                                     </div>
                                 </>
-                            ) : (
-                                <div className="text-center p-8 w-full">Loading test data...</div>
+            ) : (
+                <div className="text-center p-8 w-full">Loading test data...</div>
                             )}
                         </div>
                     </div>
