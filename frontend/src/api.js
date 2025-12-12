@@ -42,4 +42,29 @@ api.interceptors.request.use(async (config) => {
   return config;
 }, (error) => Promise.reject(error));
 
+// Глобальный response интерцептор: единообразный ретрай при 401/403
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    // Если нет конфига запроса или уже ретраили — отдаём ошибку
+    if (!originalRequest || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+    const status = error.response?.status;
+    if ((status === 401 || status === 403) && auth?.currentUser) {
+      originalRequest._retry = true;
+      try {
+        const newToken = await auth.currentUser.getIdToken(true);
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+        return api(originalRequest);
+      } catch (refreshErr) {
+        return Promise.reject(refreshErr);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api; 

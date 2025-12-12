@@ -18,20 +18,35 @@ const provider = new GoogleAuthProvider();
 // Глобальный слушатель для автообновления idToken
 onIdTokenChanged(auth, async (user) => {
   if (user) {
-    const token = await user.getIdToken();
-    localStorage.setItem('token', token);
-  } else {
-    localStorage.removeItem('token');
-    localStorage.removeItem('uid');
-    localStorage.removeItem('role');
-    localStorage.removeItem('student_id');
-    localStorage.removeItem('first_name');
-    localStorage.removeItem('last_name');
-    localStorage.removeItem('group');
-    // Автоматический редирект на логин
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    try {
+      const token = await user.getIdToken();
+      localStorage.setItem('token', token);
+    } catch (e) {
+      // если не смогли обновить токен — не рвём сессию мгновенно
     }
+  } else {
+    // Мягкая обработка потери пользователя: пробуем подождать короткое время
+    setTimeout(async () => {
+      if (auth.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken(true);
+          localStorage.setItem('token', token);
+          return;
+        } catch (e) {
+          // fallthrough to logout
+        }
+      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('uid');
+      localStorage.removeItem('role');
+      localStorage.removeItem('student_id');
+      localStorage.removeItem('first_name');
+      localStorage.removeItem('last_name');
+      localStorage.removeItem('group');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }, 1500);
   }
 });
 
