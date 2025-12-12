@@ -342,6 +342,17 @@ class DashboardSummaryView(APIView):
                 else:
                     diag_w_band = float(int(avg)) + 1.0
 
+        def ielts_round(score):
+            if score is None:
+                return None
+            whole = int(score)
+            dec = score - whole
+            if dec < 0.25:
+                return float(whole)
+            if dec < 0.75:
+                return float(whole) + 0.5
+            return float(whole) + 1.0
+
         diagnostic = {
             'locked': diag_locked,
             'listening_done': diag_l_session is not None,
@@ -370,6 +381,14 @@ class DashboardSummaryView(APIView):
             int( diagnostic['reading_done']) + 
             int( diagnostic['writing_done'])
         )
+
+        bands = [
+            diagnostic['listening']['band'] if diagnostic.get('listening') else None,
+            diagnostic['reading']['band'] if diagnostic.get('reading') else None,
+            diagnostic['writing']['band'] if diagnostic.get('writing') else None,
+        ]
+        filled = [b for b in bands if b is not None]
+        diagnostic['overall_band'] = ielts_round(sum(filled)/len(filled)) if len(filled) == 3 else None
 
         return Response({
             'listening': listening,
@@ -3221,7 +3240,7 @@ class ReadingTestSessionView(APIView):
 
     def post(self, request, test_id):
         """
-        Start a new test session.
+        Start (or resume) a test session.
         """
         test = get_object_or_404(ReadingTest, pk=test_id)
         
@@ -3247,7 +3266,19 @@ class ReadingTestSessionView(APIView):
             if ReadingTestSession.objects.filter(user=request.user, completed=True, is_diagnostic=True).exists():
                 return Response({'detail': 'Diagnostic reading already completed.'}, status=status.HTTP_409_CONFLICT)
         
-        # Всегда создаем новую сессию для IELTS (каждый тест - отдельная попытка)
+        # Resume existing unfinished session for this user/test/diagnostic flag
+        existing_session = (
+            ReadingTestSession.objects
+            .filter(user=request.user, test=test, completed=False, is_diagnostic=diagnostic_flag)
+            .order_by('-start_time')
+            .first()
+        )
+
+        if existing_session:
+            serializer = ReadingTestSessionSerializer(existing_session)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Create a new session if nothing to resume
         session = ReadingTestSession.objects.create(user=request.user, test=test, is_diagnostic=diagnostic_flag)
             
         serializer = ReadingTestSessionSerializer(session)
@@ -3262,10 +3293,16 @@ class ReadingTestSessionView(APIView):
             return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         answers_data = request.data.get('answers', {})
+        time_left = request.data.get('time_left')
         session.answers = answers_data
+        if time_left is not None:
+            try:
+                session.time_left_seconds = max(0, int(time_left))
+            except (TypeError, ValueError):
+                pass
         session.end_time = timezone.now()
         session.completed = True
-        session.save()
+        session.save(update_fields=['answers', 'time_left_seconds', 'end_time', 'completed'])
         
         # Trigger result calculation
         result = self._calculate_and_save_results(session)
@@ -3281,12 +3318,20 @@ class ReadingTestSessionView(APIView):
             return Response({'error': 'Cannot sync a completed session.'}, status=status.HTTP_400_BAD_REQUEST)
 
         answers_data = request.data.get('answers', {})
+        time_left = request.data.get('time_left')
         
         if not isinstance(session.answers, dict):
             session.answers = {}
             
         session.answers.update(answers_data)
-        session.save()
+
+        if time_left is not None:
+            try:
+                session.time_left_seconds = max(0, int(time_left))
+            except (TypeError, ValueError):
+                pass
+
+        session.save(update_fields=['answers', 'time_left_seconds'])
 
         return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
 

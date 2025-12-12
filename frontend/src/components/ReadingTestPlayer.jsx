@@ -50,6 +50,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes for reading
     const deadlineRef = useRef(null);
     const autoSubmitRef = useRef(false);
+    const answersRef = useRef({});
+    const timeLeftRef = useRef(timeLeft);
+    const syncTimerRef = useRef(null);
+    const localCacheKeyRef = useRef(null);
 
     // UI state
     const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +92,18 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         return () => clearInterval(timer);
     }, [session]);
 
+    useEffect(() => {
+        timeLeftRef.current = timeLeft;
+    }, [timeLeft]);
+
+    useEffect(() => {
+        return () => {
+            if (syncTimerRef.current) {
+                clearTimeout(syncTimerRef.current);
+            }
+        };
+    }, []);
+
     const startSessionAndLoadTest = async () => {
         setIsLoading(true);
         setError(null);
@@ -105,12 +121,28 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
       const sessionResponse = await api.post(url);
       const newSession = sessionResponse.data;
       setSession(newSession);
+      localCacheKeyRef.current = `reading_session_${newSession.id}`;
       const initial = newSession.time_left_seconds || 3600;
       deadlineRef.current = Date.now() + initial * 1000;
       setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
             
             // Загружаем ответы для всех сессий (включая завершенные для отображения результатов)
-            setAnswers(newSession.answers || {});
+            let hydratedAnswers = newSession.answers || {};
+            if (localCacheKeyRef.current) {
+                try {
+                    const cached = localStorage.getItem(localCacheKeyRef.current);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (parsed && typeof parsed.answers === 'object') {
+                            hydratedAnswers = parsed.answers;
+                        }
+                    }
+                } catch (e) {
+                    // ignore cache errors
+                }
+            }
+            setAnswers(hydratedAnswers);
+            answersRef.current = hydratedAnswers;
 
             const testResponse = await api.get(`/reading-tests/${testId}/`);
             const testData = testResponse.data;
@@ -141,6 +173,32 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     };
 
+    const syncAnswers = useCallback(async () => {
+        if (!session) return;
+        try {
+            const payloadAnswers = answersRef.current || {};
+            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
+            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: payloadAnswers, time_left: remaining });
+            if (localCacheKeyRef.current) {
+                try {
+                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: payloadAnswers }));
+                } catch (e) {
+                    // ignore cache errors
+                }
+            }
+        } catch (err) {
+            // Silent error for sync
+        }
+    }, [session]);
+
+    const scheduleSync = useCallback(() => {
+        if (!session) return;
+        if (syncTimerRef.current) {
+            clearTimeout(syncTimerRef.current);
+        }
+        syncTimerRef.current = setTimeout(syncAnswers, 800);
+    }, [session, syncAnswers]);
+
     const handleAnswerChange = (questionId, subKey, value, type = 'text') => {
         const qIdStr = questionId.toString();
         
@@ -170,21 +228,20 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
             }
 
+            answersRef.current = newAnswers;
+            if (localCacheKeyRef.current) {
+                try {
+                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: newAnswers }));
+                } catch (e) {
+                    // ignore cache errors
+                }
+            }
+
             return newAnswers;
         });
         
-        // Auto-sync after a delay
-        setTimeout(syncAnswers, 1000);
-    };
-
-    const syncAnswers = async () => {
-        if (!session) return;
-        try {
-            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
-            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers, time_left: remaining });
-        } catch (err) {
-            // Silent error for sync
-        }
+        // Auto-sync after a short delay with the latest answers
+        scheduleSync();
     };
 
     const submitTest = async () => {
@@ -196,8 +253,32 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             return;
         }
         try {
-            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : timeLeft;
-            const response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers, time_left: remaining });
+            // ensure latest answers/time are on server before final submit
+            await syncAnswers();
+            const payloadAnswers = answersRef.current || answers;
+            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
+            let response;
+            try {
+                response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: remaining });
+            } catch (err) {
+                // Retry once on auth expiration
+                if (err.response && (err.response.status === 401 || err.response.status === 403) && auth.currentUser) {
+                    try {
+                        await auth.currentUser.getIdToken(true);
+                        response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: remaining });
+                    } catch (retryErr) {
+                        throw retryErr;
+                    }
+                } else {
+                    throw err;
+                }
+            }
+            if (localCacheKeyRef.current) {
+                localStorage.removeItem(localCacheKeyRef.current);
+            }
+            if (syncTimerRef.current) {
+                clearTimeout(syncTimerRef.current);
+            }
             if (onComplete) {
                 onComplete(session.id);
             } else {
