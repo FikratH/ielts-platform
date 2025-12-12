@@ -14,6 +14,9 @@ const initialForm = {
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState([]);
+  const [search, setSearch] = useState('');
+  const [filterGroup, setFilterGroup] = useState('all');
+  const [filterTeacher, setFilterTeacher] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -90,13 +93,52 @@ export default function AdminStudentsPage() {
   return (
     <div className="p-10 max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Students</h1>
-      <div className="mb-4 flex justify-end">
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm); }}
-        >
-          + Add Student
-        </button>
+      <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1">
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-700 mb-1">Group</label>
+            <select
+              value={filterGroup}
+              onChange={(e) => setFilterGroup(e.target.value)}
+              className="border rounded-lg px-3 py-2"
+            >
+              <option value="all">All groups</option>
+              {[...new Set(students.map(s => s.group).filter(Boolean))].sort().map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-700 mb-1">Teacher</label>
+            <select
+              value={filterTeacher}
+              onChange={(e) => setFilterTeacher(e.target.value)}
+              className="border rounded-lg px-3 py-2"
+            >
+              <option value="all">All teachers</option>
+              {[...new Set(students.map(s => s.teacher).filter(Boolean))].sort().map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-700 mb-1">Search student</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, ID or email"
+              className="border rounded-lg px-3 py-2"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm); }}
+          >
+            + Add Student
+          </button>
+        </div>
       </div>
       {loading ? (
         <LoadingSpinner fullScreen text="Loading..." />
@@ -115,7 +157,20 @@ export default function AdminStudentsPage() {
               </tr>
             </thead>
             <tbody>
-              {students.map(s => (
+              {students
+                .filter(s => {
+                  const matchGroup = filterGroup === 'all' || s.group === filterGroup;
+                  const matchTeacher = filterTeacher === 'all' || s.teacher === filterTeacher;
+                  const term = search.trim().toLowerCase();
+                  const matchSearch = term === '' || (
+                    (s.first_name || '').toLowerCase().includes(term) ||
+                    (s.last_name || '').toLowerCase().includes(term) ||
+                    (s.student_id || '').toLowerCase().includes(term) ||
+                    (s.email || '').toLowerCase().includes(term)
+                  );
+                  return matchGroup && matchTeacher && matchSearch;
+                })
+                .map(s => (
                 <tr key={s.id} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-2">{s.student_id}</td>
                   <td className="px-4 py-2">{s.first_name}</td>
