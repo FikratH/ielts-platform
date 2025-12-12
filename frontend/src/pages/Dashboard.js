@@ -658,72 +658,81 @@ export default function Dashboard() {
         
                 {allSessions.length > 0 ? (
                   <div className="space-y-4">
-                    {(showAllTests ? allSessions : allSessions.slice(0, 5)).map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border border-gray-200 hover:border-blue-200 hover:shadow-md">
-                        <div className="flex items-center space-x-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${
-                            item.type === 'Listening' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
-                            item.type === 'Reading' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white' :
-                            item.type === 'Speaking' ? 'bg-gradient-to-br from-orange-500 to-red-600 text-white' :
-                            'bg-gradient-to-br from-purple-500 to-purple-600 text-white'
-                          }`}>
-                            {item.type === 'Listening' ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 9H4a1 1 0 00-1 1v4a1 1 0 001 1h1.586l4.707 4.707C10.923 20.337 12 19.907 12 19V5c0-.907-1.077-1.337-1.707-.707L5.586 9z" />
-                              </svg>
-                            ) : item.type === 'Reading' ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                              </svg>
-                            ) : item.type === 'Speaking' ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                              </svg>
-                            ) : (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
+                    {(showAllTests ? allSessions : allSessions.slice(0, 5)).map((item, idx) => {
+                      const stableKey = item.session_id
+                        ? `${item.type}-${item.session_id}`
+                        : item.item?.id
+                        ? `${item.type}-${item.item.id}`
+                        : item.essays?.length
+                        ? `${item.type}-${item.essays.map(e => e.id).join('-')}`
+                        : `${item.type}-${idx}`;
+                      return (
+                        <div key={stableKey} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border border-gray-200 hover:border-blue-200 hover:shadow-md">
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${
+                              item.type === 'Listening' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
+                              item.type === 'Reading' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white' :
+                              item.type === 'Speaking' ? 'bg-gradient-to-br from-orange-500 to-red-600 text-white' :
+                              'bg-gradient-to-br from-purple-500 to-purple-600 text-white'
+                            }`}>
+                              {item.type === 'Listening' ? (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 9H4a1 1 0 00-1 1v4a1 1 0 001 1h1.586l4.707 4.707C10.923 20.337 12 19.907 12 19V5c0-.907-1.077-1.337-1.707-.707L5.586 9z" />
+                                </svg>
+                              ) : item.type === 'Reading' ? (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                              ) : item.type === 'Speaking' ? (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{item.test_title || 'Practice'}</h4>
+                              <p className="text-sm text-gray-500">
+                                {item.date ? new Date(item.date).toLocaleDateString() : 'No date'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <>
+                                <div className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                                  {item.band_score || 'N/A'}
+                                </div>
+                                <div className="text-xs text-gray-500 font-medium">score</div>
+                              </>
+                            </div>
+                            {item.type === 'Reading' && item.item.id && (
+                              <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                Details
+                              </button>
+                            )}
+                            {item.type === 'Listening' && item.item.id && (
+                              <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                Details
+                              </button>
+                            )}
+                            {item.type === 'Speaking' && item.item.id && (
+                              <button onClick={() => navigate(`/speaking/result/${item.item.id}`)} className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                Details
+                              </button>
+                            )}
+                            {item.type === 'Writing' && (
+                              <button onClick={() => handleOpenDetails(item)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                Details
+                              </button>
                             )}
                           </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">{item.test_title || 'Practice'}</h4>
-                            <p className="text-sm text-gray-500">
-                              {item.date ? new Date(item.date).toLocaleDateString() : 'No date'}
-                            </p>
-                          </div>
                         </div>
-                                                <div className="flex items-center space-x-4">
-                                                    <div className="text-right">
-                            <>
-                              <div className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                                {item.band_score || 'N/A'}
-                              </div>
-                              <div className="text-xs text-gray-500 font-medium">score</div>
-                            </>
-            </div>
-              {item.type === 'Reading' && item.item.id && (
-                            <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
-                              Details
-                            </button>
-              )}
-              {item.type === 'Listening' && item.item.id && (
-                            <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
-                              Details
-                            </button>
-              )}
-              {item.type === 'Speaking' && item.item.id && (
-                            <button onClick={() => navigate(`/speaking/result/${item.item.id}`)} className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
-                              Details
-                            </button>
-              )}
-              {item.type === 'Writing' && (
-                            <button onClick={() => handleOpenDetails(item)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
-                              Details
-                            </button>
-              )}
-            </div>
-          </div>
-        ))}
+                      );
+                    })}
                     {allSessions.length > 5 && (
                       <div className="text-center pt-4">
                         <button 

@@ -35,6 +35,7 @@ const ListeningTestPlayer = () => {
   const deadlineRef = useRef(null);
   const autoSubmitRef = useRef(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1075,13 +1076,35 @@ const ListeningTestPlayer = () => {
       {/* Submit Button */}
       <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-2 pb-8 sm:pb-16 lg:pb-[60px]">
         <button
-          onClick={submitTest}
+          onClick={() => setShowConfirm(true)}
           disabled={isSubmitted}
           className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-blue-200 hover:to-blue-300 transition-all duration-300 disabled:opacity-50 border border-blue-200"
         >
           Submit Test
         </button>
       </div>
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-blue-100">
+            <h3 className="text-xl font-bold text-blue-800 mb-3">Submit Listening test?</h3>
+            <p className="text-sm text-gray-700 mb-6">Check all parts before sending. You won’t be able to edit answers after submit.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+              >
+                Continue editing
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); submitTest(); }}
+                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition shadow"
+              >
+                Submit now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

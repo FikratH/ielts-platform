@@ -23,6 +23,7 @@ const WritingTaskPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [syncError, setSyncError] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Load saved essays from localStorage (fallback)
   useEffect(() => {
@@ -459,7 +460,7 @@ const WritingTaskPage = () => {
               </div>
             )}
             <button
-              onClick={handleSubmit}
+              onClick={() => setShowConfirm(true)}
               className="w-full bg-purple-600 text-white px-4 sm:px-10 py-3 sm:py-6 rounded-xl font-bold hover:bg-purple-700 transition-colors duration-300 text-base sm:text-2xl shadow-lg disabled:opacity-50 mt-2"
               disabled={loading || submitting || !task1Text.trim() || !task2Text.trim()}
             >
@@ -468,6 +469,28 @@ const WritingTaskPage = () => {
           </div>
         </div>
       </main>
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-purple-100">
+            <h3 className="text-xl font-bold text-purple-800 mb-3">Submit Writing essays?</h3>
+            <p className="text-sm text-gray-700 mb-6">Make sure both tasks are complete. You won’t be able to edit after submit.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+              >
+                Continue editing
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); handleSubmit(); }}
+                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition shadow"
+              >
+                Submit now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

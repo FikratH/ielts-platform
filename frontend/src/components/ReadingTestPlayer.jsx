@@ -55,6 +55,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
     
     // Highlighting state
     const [highlights, setHighlights] = useState({});
@@ -997,13 +998,35 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             {/* Submit Button */}
             <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-2 pb-8 sm:pb-16 lg:pb-[60px]">
                 <button
-                    onClick={submitTest}
+                    onClick={() => setShowConfirm(true)}
                     disabled={isSubmitting}
                     className="w-full mt-6 sm:mt-8 lg:mt-10 bg-gradient-to-r from-green-100 to-green-200 text-green-700 font-bold text-base sm:text-lg lg:text-xl py-3 sm:py-4 rounded-2xl shadow-lg hover:from-green-200 hover:to-green-300 transition-all duration-300 disabled:opacity-50 border border-green-200"
                 >
                     {isSubmitting ? 'Submitting...' : 'Submit Test'}
                 </button>
             </div>
+            {showConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-green-100">
+                        <h3 className="text-xl font-bold text-green-800 mb-3">Submit Reading test?</h3>
+                        <p className="text-sm text-gray-700 mb-6">Review your answers. You won’t be able to edit them after submit.</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowConfirm(false)}
+                                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                            >
+                                Continue editing
+                            </button>
+                            <button
+                                onClick={() => { setShowConfirm(false); submitTest(); }}
+                                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition shadow"
+                            >
+                                Submit now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
