@@ -2132,13 +2132,18 @@ class ListeningTestSerializer(serializers.ModelSerializer):
         return test
 
     def update(self, instance, validated_data):
-        parts_data = validated_data.pop('parts', [])
+        parts_present = 'parts' in self.initial_data
+        parts_data = validated_data.pop('parts', []) if parts_present else None
         instance.title = validated_data.get('title', instance.title)
         instance.description = validated_data.get('description', instance.description)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.is_diagnostic_template = validated_data.get('is_diagnostic_template', instance.is_diagnostic_template)
         instance.explanation_url = validated_data.get('explanation_url', instance.explanation_url)
         instance.save()
+
+        # Если parts не переданы в запросе (обычный PATCH статуса) — не трогаем структуру теста
+        if not parts_present:
+            return instance
 
         existing_parts = {p.id: p for p in instance.parts.all()}
         sent_part_ids = set()
@@ -2190,7 +2195,6 @@ class ListeningTestSerializer(serializers.ModelSerializer):
                     for attr, value in question_data.items():
                         setattr(question, attr, value)
                     if should_update_image:
-                        # Удаляем старый файл перед присваиванием нового
                         if question.image_file:
                             try:
                                 question.image_file.delete(save=False)

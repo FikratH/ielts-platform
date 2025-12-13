@@ -42,27 +42,15 @@ const AdminListeningManagePage = () => {
   
   const toggleTestStatus = async (testId, isActive) => {
     try {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
-
-        await api.patch(`/listening-tests/${testId}/`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ is_active: isActive }),
-        });
-        setTests(tests.map(test => 
-          test.id === testId ? { ...test, is_active: isActive } : test
-        ));
-        setSnackbar({ 
-          open: true, 
-          message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`, 
-          severity: 'success' 
-        });
+      await api.patch(`/listening-tests/${testId}/`, { is_active: isActive });
+      setTests(tests.map(test => 
+        test.id === testId ? { ...test, is_active: isActive } : test
+      ));
+      setSnackbar({ 
+        open: true, 
+        message: `Test ${isActive ? 'activated' : 'deactivated'} successfully`, 
+        severity: 'success' 
+      });
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to update test status', severity: 'error' });
     }

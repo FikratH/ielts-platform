@@ -547,6 +547,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const renderQuestion = (question, qIdx = 0) => {
         const type = question.question_type?.toLowerCase();
         const questionKey = question?.id ?? `q-${currentPartIndex}-${qIdx}`;
+        const questionKeyStr = questionKey.toString();
 
         // Header block for all questions
         const headerBlock = (
@@ -915,8 +916,8 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                                 type="radio"
                                                 name={`question-${questionKey}-stmt-${sIdx}`}
                                                 value={choice}
-                                                checked={answers[question.id.toString()]?.[`stmt${sIdx}`] === choice}
-                                                onChange={(e) => handleAnswerChange(question.id, `stmt${sIdx}`, e.target.value, 'true_false_not_given')}
+                                                checked={answers[questionKeyStr]?.[`stmt${sIdx}`] === choice}
+                                                onChange={(e) => handleAnswerChange(questionKeyStr, `stmt${sIdx}`, e.target.value, 'true_false_not_given')}
                                                 className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 border-gray-300 focus:ring-green-500 accent-green-600 flex-shrink-0"
                                             />
                                             <span className="font-medium text-sm lg:text-base">{choice}</span>
@@ -941,7 +942,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     return (
         <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
             {/* Elegant Header with Logo and Timer */}
-            <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+            <div className="bg-white shadow-sm border-b border-gray-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
                     <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                         {/* Left Side - Logo and Test Info */}
@@ -972,7 +973,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 lg:gap-8 justify-center items-start">
                     {/* Left Panel: Passage + Navigation */}
                     <div className="lg:col-span-1 order-2 lg:order-1">
-                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-green-100">
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-green-100 h-full lg:h-[calc(100vh-80px)] overflow-hidden flex flex-col">
                             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-700 mb-3 sm:mb-4">
                                 {currentPart?.passage_heading || 'Passage'}
                             </h1>
@@ -1019,26 +1020,28 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                             )}
 
                             {/* Passage content */}
-                            <div 
-                                ref={passageRef}
-                                className="max-h-[300px] sm:max-h-[500px] lg:max-h-[1000px] overflow-y-auto mb-4 sm:mb-6"
-                                style={{ userSelect: isHighlightMode ? 'text' : 'auto' }}
-                            >
-                                {currentPart ? (
-                                    <PassageContent 
-                                        key={`passage-${currentPart.id}`}
-                                        passageHtml={currentPart.passage_text}
-                                        onMouseUp={handleTextSelection}
-                                    />
-                                ) : (
-                                    <div className="text-gray-400 text-center">Loading passage...</div>
-                                )}
+                            <div className="flex-1 overflow-y-auto pr-3 sm:pr-4 mb-4 sm:mb-6 custom-scroll">
+                                <div 
+                                    ref={passageRef}
+                                    className="min-h-[300px] sm:min-h-[400px] lg:min-h-[500px]"
+                                    style={{ userSelect: isHighlightMode ? 'text' : 'auto' }}
+                                >
+                                    {currentPart ? (
+                                        <PassageContent 
+                                            key={`passage-${currentPart.id}`}
+                                            passageHtml={currentPart.passage_text}
+                                            onMouseUp={handleTextSelection}
+                                        />
+                                    ) : (
+                                        <div className="text-gray-400 text-center">Loading passage...</div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
                     {/* Right Panel: Questions */}
                     <div className="lg:col-span-1 order-1 lg:order-2 flex justify-center">
-                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-green-100 w-full">
+                        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 border border-green-100 w-full h-full lg:h-[calc(100vh-80px)] overflow-hidden flex flex-col">
             {currentPart ? (
                 <>
                     <div className="mb-4 sm:mb-6">
@@ -1065,8 +1068,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                                             <p className="text-xs sm:text-sm lg:text-base text-gray-500 mb-2 sm:mb-4 bg-green-50/30 p-2 sm:p-3 lg:p-4 rounded-lg whitespace-pre-wrap">{currentPart.instructions}</p>
                                         )}
                                     </div>
-                                    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-                                        {currentPart.questions?.map((q, idx) => renderQuestion(q, idx))}
+                                    <div className="flex-1 overflow-y-auto pr-3 sm:pr-4 custom-scroll">
+                                        <div className="space-y-4 sm:space-y-6 lg:space-y-8 pb-6">
+                                            {currentPart.questions?.map((q, idx) => renderQuestion(q, idx))}
+                                        </div>
                                     </div>
                                 </>
             ) : (
