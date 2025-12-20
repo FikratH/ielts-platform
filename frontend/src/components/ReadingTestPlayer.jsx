@@ -141,8 +141,35 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     // ignore cache errors
                 }
             }
-            setAnswers(hydratedAnswers);
-            answersRef.current = hydratedAnswers;
+            
+            // Migrate old nested table answers to flat format
+            // Table questions use keys like "r0c1__gap1" or "r0c1" which should be flat: "questionId__r0c1__gap1"
+            // Gap fill uses "gap1", "gap2" etc. - keep nested
+            // Matching uses other keys - keep nested
+            const migratedAnswers = { ...hydratedAnswers };
+            const tableKeyPattern = /^r\d+c\d+(__gap\d+)?$/;
+            
+            for (const [questionId, answerValue] of Object.entries(migratedAnswers)) {
+                // Check if this looks like a nested table answer structure
+                if (answerValue && typeof answerValue === 'object' && !Array.isArray(answerValue)) {
+                    const nestedKeys = Object.keys(answerValue);
+                    // If all keys match table pattern (r\d+c\d+__gap\d+ or r\d+c\d+), migrate to flat format
+                    const allTableKeys = nestedKeys.length > 0 && nestedKeys.every(key => tableKeyPattern.test(key));
+                    
+                    if (allTableKeys) {
+                        // Migrate to flat format
+                        for (const [subKey, value] of Object.entries(answerValue)) {
+                            const flatKey = `${questionId}__${subKey}`;
+                            migratedAnswers[flatKey] = value;
+                        }
+                        // Remove old nested structure
+                        delete migratedAnswers[questionId];
+                    }
+                }
+            }
+            
+            setAnswers(migratedAnswers);
+            answersRef.current = migratedAnswers;
 
             const testResponse = await api.get(`/reading-tests/${testId}/`);
             const testData = testResponse.data;
@@ -223,7 +250,20 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     newAnswers[qIdStr] = currentGroupAnswers;
                     newAnswers[`${qIdStr}__${subKey}`] = value;
                 }
-            } else { // For gap_fill, matching, table... which use a subKey
+            } else if (type === 'table') {
+                // Table questions use flat format: questionId__subKey (e.g., "123__r0c1__gap1")
+                // This matches what backend expects in create_detailed_breakdown
+                const flatKey = `${qIdStr}__${subKey}`;
+                newAnswers[flatKey] = value;
+                // Also clean up old nested format if it exists
+                if (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr])) {
+                    delete newAnswers[qIdStr][subKey];
+                    // Remove the nested object if it's empty
+                    if (Object.keys(newAnswers[qIdStr]).length === 0) {
+                        delete newAnswers[qIdStr];
+                    }
+                }
+            } else { // For gap_fill, matching... which use nested structure
                 const currentSubAnswers = newAnswers[qIdStr] || {};
                 newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
             }
@@ -255,7 +295,32 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         try {
             // ensure latest answers/time are on server before final submit
             await syncAnswers();
-            const payloadAnswers = answersRef.current || answers;
+            let payloadAnswers = answersRef.current || answers;
+            
+            // Ensure all table answers are in flat format before submit
+            // This is a safety check in case any nested table answers still exist
+            const cleanedAnswers = { ...payloadAnswers };
+            const tableKeyPattern = /^r\d+c\d+(__gap\d+)?$/;
+            
+            for (const [questionId, answerValue] of Object.entries(cleanedAnswers)) {
+                // Check if this looks like a nested table answer structure
+                if (answerValue && typeof answerValue === 'object' && !Array.isArray(answerValue)) {
+                    const nestedKeys = Object.keys(answerValue);
+                    // If all keys match table pattern, migrate to flat format
+                    const allTableKeys = nestedKeys.length > 0 && nestedKeys.every(key => tableKeyPattern.test(key));
+                    
+                    if (allTableKeys) {
+                        // Migrate to flat format
+                        for (const [subKey, value] of Object.entries(answerValue)) {
+                            const flatKey = `${questionId}__${subKey}`;
+                            cleanedAnswers[flatKey] = value;
+                        }
+                        // Remove old nested structure
+                        delete cleanedAnswers[questionId];
+                    }
+                }
+            }
+            payloadAnswers = cleanedAnswers;
             const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
             let response;
             try {
@@ -793,11 +858,12 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                     }
                     const gapNumber = match[1];
                     const gapKey = `r${rIdx}c${cIdx}__gap${gapNumber}`;
+                    const flatKey = `${question.id}__${gapKey}`;
                     parts.push(
                         <input
                             key={`gap${gapNumber}`}
                             type="text"
-                            value={answers[question.id.toString()]?.[gapKey] || ''}
+                            value={answers[flatKey] || ''}
                             onChange={e => handleAnswerChange(question.id, gapKey, e.target.value, 'table')}
                             className="inline-block min-w-[60px] lg:min-w-[80px] p-1 lg:p-2 border-2 border-blue-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base mx-1"
                             placeholder="..."
@@ -819,11 +885,13 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
 
                 if (parts.length === 0) {
                     if (typeof cell === 'object' && cell.type === 'gap') {
+                        const cellKey = `r${rIdx}c${cIdx}`;
+                        const flatKey = `${question.id}__${cellKey}`;
                         return (
                             <input
                                 type="text"
-                                value={answers[question.id.toString()]?.[`r${rIdx}c${cIdx}`] || ''}
-                                onChange={e => handleAnswerChange(question.id, `r${rIdx}c${cIdx}`, e.target.value, 'table')}
+                                value={answers[flatKey] || ''}
+                                onChange={e => handleAnswerChange(question.id, cellKey, e.target.value, 'table')}
                                 className="w-full border-2 border-blue-200 rounded-lg p-2 outline-none bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-sm lg:text-base"
                                 placeholder="..."
                                 autoComplete="off"
