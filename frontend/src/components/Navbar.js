@@ -19,10 +19,11 @@ const Navbar = ({ role, setRole }) => {
 
   const studentLinks = (
     <>
+      <Link to="/dashboard" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Dashboard</Link>
       <Link to="/listening" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Listening</Link>
       <Link to="/reading" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Reading</Link>
-      <Link to="/writing/start" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Writing</Link>
-      <Link to="/dashboard" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+      <Link to="/writing" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Writing</Link>
+      <Link to="/speaking/sessions" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Speaking Results</Link>
     </>
   );
 
@@ -88,13 +89,22 @@ const Navbar = ({ role, setRole }) => {
     <>
       <Link to="/admin/students" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Students</Link>
       <Link to="/admin/teachers" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Teachers</Link>
-      <Link to="/admin/bulk-import" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Bulk Import</Link>
-      <Link to="/admin/dashboard" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-      <Link to="/admin/student-results" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Student Results</Link>
-      <Link to="/admin/teacher-survey-results" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Teacher Surveys</Link>
-      <Link to="/admin/prompts" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Writing</Link>
-      <Link to="/admin/listening" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Listening</Link>
-      <Link to="/admin/reading" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Reading</Link>
+      <Link to="/admin/curators" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Curators</Link>
+      <Link to="/admin/writing-tests" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Writing Tests</Link>
+      <Link to="/admin/listening" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Listening Tests</Link>
+      <Link to="/admin/reading" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Reading Tests</Link>
+      <Link to="/admin/placement-test-results" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Placement Test</Link>
+      <Link to="/admin/teacher-survey-results" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Surveys</Link>
+      <Link to="/admin/bulk-import" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Import</Link>
+    </>
+  );
+
+  const curatorLinks = (
+    <>
+      <Link to="/curator/dashboard" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+      <Link to="/curator/speaking" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Speaking</Link>
+      <Link to="/curator/test-comparison" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Comparison</Link>
+      <Link to="/curator/diagnostic" className="text-blue-800 font-medium hover:underline underline-offset-4 transition font-sans" onClick={() => setMenuOpen(false)}>Diagnostic</Link>
     </>
   );
 
@@ -110,6 +120,7 @@ const Navbar = ({ role, setRole }) => {
           {role === 'student' && studentLinks}
           {isTeacherRole && teacherLinks}
           {role === 'admin' && adminLinks}
+          {role === 'curator' && curatorLinks}
           {role && (
             <button onClick={handleLogout} className="ml-4 bg-red-500 hover:bg-red-600 text-white font-bold px-5 py-2 rounded-xl shadow transition font-sans flex items-center gap-2">
               
@@ -132,6 +143,7 @@ const Navbar = ({ role, setRole }) => {
           {role === 'student' && studentLinks}
           {isTeacherRole && teacherLinks}
           {role === 'admin' && adminLinks}
+          {role === 'curator' && curatorLinks}
           {role && (
             <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-xl shadow transition font-sans flex items-center gap-2 w-full justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6A2.25 2.25 0 002.25 18.75V15M18 12l-3-3m3 3l-3 3m3-3H9" /></svg>

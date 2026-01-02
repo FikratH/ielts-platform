@@ -123,13 +123,13 @@ export default function Sidebar({ role, setRole }) {
   ];
 
   const adminLinks = [
-    { to: '/admin/dashboard', label: 'Dashboard', icon: () => <LayoutDashboard className="w-6 h-6" /> },
     { to: '/admin/students', label: 'Students', icon: () => <Users className="w-6 h-6" /> },
     { to: '/admin/teachers', label: 'Teachers', icon: () => <UserCheck className="w-6 h-6" /> },
+    { to: '/admin/curators', label: 'Curators', icon: () => <UserCheck className="w-6 h-6" /> },
     { to: '/admin/writing-tests', label: 'Writing Tests', icon: () => <FileText className="w-6 h-6" /> },
     { to: '/admin/listening', label: 'Listening Tests', icon: () => <Headphones className="w-6 h-6" /> },
     { to: '/admin/reading', label: 'Reading Tests', icon: () => <BookOpen className="w-6 h-6" /> },
-    { to: '/admin/student-results', label: 'Results', icon: () => <BarChart3 className="w-6 h-6" /> },
+    { to: '/admin/placement-test-results', label: 'Placement Test', icon: () => <Target className="w-6 h-6" /> },
     { to: '/admin/teacher-survey-results', label: 'Surveys', icon: () => <MessageSquare className="w-6 h-6" /> },
     { to: '/admin/bulk-import', label: 'Import', icon: () => <Plus className="w-6 h-6" /> }
   ];

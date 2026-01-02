@@ -41,7 +41,7 @@ from rest_framework import viewsets
 from .models import WritingPrompt
 from .serializers import WritingPromptSerializer
 from rest_framework.generics import ListAPIView
-from .models import Essay, User, TeacherFeedback, SpeakingSession
+from .models import Essay, User, TeacherFeedback, SpeakingSession, PlacementTestQuestion, PlacementTestSubmission
 from .serializers import EssaySerializer
 from .permissions import IsAdmin, IsTeacher, IsTeacherOrCurator
 from rest_framework.permissions import IsAuthenticated
@@ -6891,3 +6891,206 @@ class CuratorTestComparisonExportCSVView(APIView):
                     ])
         
         return response
+
+
+# ===== Placement Test Views =====
+
+class PlacementTestQuestionsView(APIView):
+    """
+    GET /api/placement-test/questions/
+    Получить 20 активных вопросов placement теста (без правильных ответов)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        questions = PlacementTestQuestion.objects.filter(is_active=True).order_by('order')
+        
+        data = []
+        for q in questions:
+            data.append({
+                'id': q.id,
+                'order': q.order,
+                'question_text': q.question_text,
+                'options': {
+                    'A': q.option_a,
+                    'B': q.option_b,
+                    'C': q.option_c,
+                    'D': q.option_d,
+                }
+                # Не отправляем correct_answer
+            })
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class PlacementTestSubmitView(APIView):
+    """
+    POST /api/placement-test/submit/
+    Принять ответы, посчитать результат, сохранить submission, вернуть результат
+    
+    Request body:
+    {
+        "full_name": "Иванов Иван",
+        "email": "ivan@example.com",
+        "planned_exam_date": "Ближайшие 3 месяца",
+        "answers": {1: "A", 2: "B", 3: "C", ...}
+    }
+    
+    Response:
+    {
+        "score": 15,
+        "total": 20,
+        "recommendation": "ielts",
+        "results": [
+            {
+                "order": 1,
+                "question_text": "...",
+                "user_answer": "A",
+                "correct_answer": "B",
+                "is_correct": false
+            },
+            ...
+        ]
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        full_name = request.data.get('full_name', '').strip()
+        email = request.data.get('email', '').strip()
+        planned_exam_date = request.data.get('planned_exam_date', '').strip()
+        answers = request.data.get('answers', {})
+        
+        # Валидация
+        if not full_name:
+            return Response({'error': 'Full name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not planned_exam_date:
+            return Response({'error': 'Planned exam date is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not answers:
+            return Response({'error': 'Answers are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Получаем все вопросы
+        questions = PlacementTestQuestion.objects.filter(is_active=True).order_by('order')
+        
+        # Подсчитываем баллы и формируем результаты
+        score = 0
+        results = []
+        
+        for q in questions:
+            # answers может прийти как {1: "A", 2: "B"} или {"1": "A", "2": "B"}
+            user_answer = answers.get(str(q.order)) or answers.get(q.order)
+            is_correct = user_answer == q.correct_answer if user_answer else False
+            
+            if is_correct:
+                score += 1
+            
+            results.append({
+                'order': q.order,
+                'question_text': q.question_text,
+                'options': {
+                    'A': q.option_a,
+                    'B': q.option_b,
+                    'C': q.option_c,
+                    'D': q.option_d,
+                },
+                'user_answer': user_answer,
+                'correct_answer': q.correct_answer,
+                'is_correct': is_correct
+            })
+        
+        # Определяем рекомендацию
+        recommendation = 'ielts' if score >= 11 else 'pre-ielts'
+        
+        # Сохраняем submission
+        submission = PlacementTestSubmission.objects.create(
+            full_name=full_name,
+            email=email,
+            planned_exam_date=planned_exam_date,
+            answers=answers,
+            score=score,
+            recommendation=recommendation
+        )
+        
+        return Response({
+            'submission_id': submission.id,
+            'score': score,
+            'total': len(questions),
+            'recommendation': recommendation,
+            'results': results
+        }, status=status.HTTP_201_CREATED)
+
+
+class AdminPlacementTestResultsView(APIView):
+    """
+    GET /api/admin/placement-test-results/
+    Получить список всех результатов Placement Test для админов
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Проверка что пользователь - админ
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        id_token = auth_header.split(' ')[1]
+        decoded = verify_firebase_token(id_token)
+        if not decoded:
+            return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        uid = decoded.get('uid')
+        try:
+            user = User.objects.get(uid=uid)
+            if user.role != 'admin':
+                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Получаем все submissions
+        submissions = PlacementTestSubmission.objects.all().order_by('-submitted_at')
+        
+        # Применяем фильтры если есть
+        recommendation_filter = request.query_params.get('recommendation')
+        if recommendation_filter:
+            submissions = submissions.filter(recommendation=recommendation_filter)
+        
+        date_from = request.query_params.get('date_from')
+        if date_from:
+            try:
+                date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+                submissions = submissions.filter(submitted_at__date__gte=date_from_parsed)
+            except ValueError:
+                pass
+        
+        date_to = request.query_params.get('date_to')
+        if date_to:
+            try:
+                date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+                submissions = submissions.filter(submitted_at__date__lte=date_to_parsed)
+            except ValueError:
+                pass
+        
+        search = request.query_params.get('search', '').strip()
+        if search:
+            submissions = submissions.filter(
+                models.Q(full_name__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+        
+        # Формируем результат
+        data = []
+        for submission in submissions:
+            data.append({
+                'id': submission.id,
+                'full_name': submission.full_name,
+                'email': submission.email,
+                'planned_exam_date': submission.planned_exam_date,
+                'score': submission.score,
+                'total': 20,
+                'recommendation': submission.recommendation,
+                'submitted_at': submission.submitted_at.isoformat(),
+            })
+        
+        return Response(data, status=status.HTTP_200_OK)

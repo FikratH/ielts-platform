@@ -449,3 +449,38 @@ class SpeakingSession(models.Model):
         return f"Speaking Session: {self.student.first_name} {self.student.last_name} ({self.conducted_at.strftime('%Y-%m-%d')})"
 
 
+# Placement Test Models
+class PlacementTestQuestion(models.Model):
+    order = models.PositiveIntegerField(unique=True)  # 1-20
+    question_text = models.TextField()
+    option_a = models.CharField(max_length=255)
+    option_b = models.CharField(max_length=255)
+    option_c = models.CharField(max_length=255)
+    option_d = models.CharField(max_length=255)
+    correct_answer = models.CharField(max_length=1, choices=[('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')])
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"Q{self.order}: {self.question_text[:50]}..."
+
+
+class PlacementTestSubmission(models.Model):
+    full_name = models.CharField(max_length=255)  # Имя Фамилия
+    email = models.EmailField()
+    planned_exam_date = models.CharField(max_length=50)  # "Ближайшие 3 месяца", "Ближайшие полгода", и т.д.
+    answers = models.JSONField(default=dict)  # {1: 'A', 2: 'B', ...}
+    score = models.IntegerField(default=0)  # 0-20
+    recommendation = models.CharField(max_length=50)  # 'pre-ielts' or 'ielts'
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-submitted_at']
+    
+    def __str__(self):
+        return f"{self.full_name} - {self.score}/20 ({self.submitted_at.strftime('%Y-%m-%d')})"
+
+

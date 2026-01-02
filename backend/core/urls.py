@@ -107,6 +107,11 @@ from .views import (
     TeacherSessionFeedbackView,
     TeacherSessionPublishView,
     StudentSessionFeedbackView,
+    
+    # Placement Test Views
+    PlacementTestQuestionsView,
+    PlacementTestSubmitView,
+    AdminPlacementTestResultsView,
 )
 
 router = DefaultRouter()
@@ -242,4 +247,9 @@ urlpatterns += [
     path('curator/missing-tests/', CuratorMissingTestsView.as_view(), name='curator-missing-tests'),
     path('curator/missing-speaking/', CuratorMissingSpeakingView.as_view(), name='curator-missing-speaking'),
     path('admin/curators/', AdminCuratorsListView.as_view(), name='admin-curators-list'),
+    
+    # Placement Test
+    path('placement-test/questions/', PlacementTestQuestionsView.as_view(), name='placement-test-questions'),
+    path('placement-test/submit/', PlacementTestSubmitView.as_view(), name='placement-test-submit'),
+    path('admin/placement-test-results/', AdminPlacementTestResultsView.as_view(), name='admin-placement-test-results'),
 ]

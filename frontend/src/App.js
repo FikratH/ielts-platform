@@ -60,11 +60,13 @@ import CuratorTestComparisonPage from './pages/CuratorTestComparisonPage';
 import CuratorStudentDetailPage from './pages/CuratorStudentDetailPage';
 import AdminCuratorsPage from './pages/AdminCuratorsPage';
 import LoginSurveyModal from './components/LoginSurveyModal';
+import PlacementTestPage from './pages/PlacementTestPage';
+import AdminPlacementTestResultsPage from './pages/AdminPlacementTestResultsPage';
 
 
 const MainLayout = ({ role, setRole, children }) => {
   const location = useLocation();
-  const noNavRoutes = ['/login'];
+  const noNavRoutes = ['/login', '/Ptest'];
 
   if (noNavRoutes.includes(location.pathname)) {
     return <>{children}</>;
@@ -196,6 +198,7 @@ function App() {
       <MainLayout role={role} setRole={setRole}>
       <Routes>
           <Route path="/login" element={<LoginPage setRole={setRole} />} />
+          <Route path="/Ptest" element={<PlacementTestPage />} />
           <Route path="/" element={
             !role ? <Navigate to="/login" /> : 
             (role === 'admin' ? <Navigate to="/admin/dashboard" /> : 
@@ -228,6 +231,7 @@ function App() {
                       <Route path="/admin/teachers" element={<AdminTeachersPage />} />
             <Route path="/admin/bulk-import" element={<AdminBulkImportPage />} />
           <Route path="/admin/student-results" element={<AdminStudentResultsPage />} />
+          <Route path="/admin/placement-test-results" element={<AdminPlacementTestResultsPage />} />
           <Route path="/admin/teacher-survey-results" element={<AdminTeacherSurveyResultsPage />} />
           
           <Route path="/listening" element={<ListeningTestListPage />} />
