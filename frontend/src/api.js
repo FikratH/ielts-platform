@@ -31,13 +31,19 @@ const waitForAuth = () => {
 
 // Интерцептор для подстановки актуального idToken
 api.interceptors.request.use(async (config) => {
-  // Ждем готовности Firebase
-  await waitForAuth();
+  const isPublicEndpoint = config.url && (
+    config.url.includes('/placement-test/') ||
+    config.url.includes('/login/')
+  );
   
-  const user = auth.currentUser;
-  if (user) {
-    const token = await user.getIdToken();
-    config.headers['Authorization'] = `Bearer ${token}`;
+  if (!isPublicEndpoint) {
+    await waitForAuth();
+    
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
   }
   return config;
 }, (error) => Promise.reject(error));

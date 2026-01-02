@@ -2,6 +2,31 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-01-02 - Fixed Placement Test SSL Error on Production
+
+### Problem
+Placement Test page was showing "No questions available" on production with SSL error `ERR_SSL_UNRECOGNIZED_NAME_ALERT` when trying to fetch questions from `https://ieltsapi.mastereducation.kz/api/placement-test/questions/`. The issue was that the API was using an absolute URL that caused SSL certificate problems.
+
+### Solution
+Created a separate axios instance for public Placement Test endpoints that uses relative path `/api` instead of absolute URL. This ensures requests go through the same domain (ielts.mastereducation.kz) where nginx proxies `/api/` to the backend, avoiding SSL issues.
+
+### Changes Made
+
+#### Frontend - PlacementTestPage.js
+- Replaced `import api from '../api'` with direct `axios` import
+- Created `publicApi` instance with `baseURL: '/api'` for public endpoints
+- Updated `fetchQuestions()` to use `publicApi.get()` instead of `api.get()`
+- Updated `handleSubmitTest()` to use `publicApi.post()` instead of `api.post()`
+
+#### Frontend - api.js
+- Updated request interceptor to skip Firebase auth for public endpoints (`/placement-test/`, `/login/`)
+- This prevents unnecessary auth token requests for public pages
+
+### Technical Details
+- Placement Test endpoints are public (no authentication required) as defined in backend with `permission_classes = [AllowAny]`
+- Using relative path `/api` ensures requests stay on the same domain and go through nginx proxy
+- This avoids SSL certificate issues with separate API domain
+
 ## 2025-01-XX - Table Questions: Simplified Implementation with [[number]] Syntax
 
 ### Problem

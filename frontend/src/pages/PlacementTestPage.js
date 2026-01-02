@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
-import api from '../api';
+import axios from 'axios';
+
+const publicApi = axios.create({
+  baseURL: '/api'
+});
 
 const PlacementTestPage = () => {
   const [step, setStep] = useState('form'); // 'form', 'test', 'result'
@@ -29,7 +33,7 @@ const PlacementTestPage = () => {
   const fetchQuestions = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/placement-test/questions/');
+      const response = await publicApi.get('/placement-test/questions/');
       setQuestions(response.data);
     } catch (error) {
       console.error('Error fetching questions:', error);
@@ -86,7 +90,7 @@ const PlacementTestPage = () => {
 
     setLoading(true);
     try {
-      const response = await api.post('/placement-test/submit/', {
+      const response = await publicApi.post('/placement-test/submit/', {
         full_name: fullName,
         email: email,
         planned_exam_date: plannedExamDate,
