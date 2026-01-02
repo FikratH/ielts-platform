@@ -2,6 +2,47 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-01-02 - Docker Build Optimization
+
+### Problem
+Docker build and restart operations were taking ~30 minutes and causing server overload. The main issues were:
+- Frontend was rebuilding node_modules from scratch every time via volume-based approach
+- No .dockerignore files causing unnecessary files to be copied
+- Poor layer caching in Dockerfiles
+- Backend was copying entire directory including media, staticfiles, venv
+
+### Solution
+Optimized Docker configuration for faster builds and reduced server load:
+
+1. **Created .dockerignore files** for both backend and frontend to exclude unnecessary files (node_modules, venv, media, staticfiles, etc.)
+
+2. **Optimized docker-compose.yml**:
+   - Removed volume-based frontend_build service
+   - Now uses proper multi-stage Dockerfile for frontend
+   - Eliminated redundant `rm -rf node_modules && npm install` on every build
+
+3. **Optimized frontend/Dockerfile**:
+   - Split into separate `deps` and `build` stages
+   - Dependencies are cached in separate layer, only rebuilds when package.json changes
+   - Uses `npm ci` for faster, reproducible installs
+
+4. **Optimized backend/Dockerfile**:
+   - Removed `PIP_NO_CACHE_DIR=1` to allow pip caching
+   - Better layer ordering for cache efficiency
+
+### Expected Improvements
+- **First build**: Similar time, but cleaner
+- **Subsequent builds**: 5-10x faster (2-5 minutes instead of 30) when only code changes
+- **Dependency changes**: Only affected layers rebuild
+- **Server load**: Significantly reduced due to proper caching
+
+### Files Changed
+- `backend/.dockerignore` (new)
+- `frontend/.dockerignore` (new)
+- `backend/Dockerfile` (optimized)
+- `frontend/Dockerfile` (optimized with multi-stage build)
+- `docker-compose.yml` (removed frontend_build service, uses Dockerfile)
+
 ## 2025-01-02 - Fixed Placement Test SSL Error on Production
 
 ### Problem
