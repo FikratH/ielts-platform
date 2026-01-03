@@ -2,6 +2,81 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-01-XX - Created Restore Script for Reading and Listening Tests
+
+### Context
+User needed to restore reading and listening tests from a JSON export file (`test_data.json`) and associated media files from `media123/secure_audio/` directory. The script needed to be very careful and not break anything, especially not touching existing tests.
+
+### Solution Implemented
+
+Created `backend/restore_tests.py` script that:
+
+1. **Extracts from Zip Archive**: 
+   - Opens `backend/my_tests_export.zip` archive
+   - Reads `test_data.json` directly from zip (no temporary files)
+   - Extracts MP3 files from `media123/secure_audio/` in zip to `backend/media/secure_audio/`
+   - **Skips files that already exist** to avoid overwriting
+   - Creates destination directory if it doesn't exist
+
+2. **Restores Listening Tests**:
+   - **Checks if test with same title already exists - if yes, SKIPS completely (does not touch existing data)**
+   - Creates new `ListeningTest` objects only for non-existing tests
+   - Creates `ListeningPart` objects with audio paths, duration, instructions
+   - Creates `ListeningQuestion` objects with all fields (question_type, question_text, extra_data, correct_answers, header, instruction, points, scoring_mode, etc.)
+   - Creates `ListeningAnswerOption` objects for multiple choice questions
+   - Validates JSON fields (extra_data, correct_answers) to ensure correct types
+   - Skips invalid or empty option data
+
+3. **Restores Reading Tests**:
+   - **Checks if test with same title already exists - if yes, SKIPS completely (does not touch existing data)**
+   - Creates new `ReadingTest` objects only for non-existing tests
+   - Creates `ReadingPart` objects with passage_text, title, instructions, passage_heading, passage_image_url, order
+   - Creates `ReadingQuestion` objects with all fields (question_type, header, instruction, task_prompt, image_url, question_text, points, correct_answers, extra_data, reading_scoring_type)
+   - Creates `ReadingAnswerOption` objects for multiple choice/multiple response questions
+   - Validates JSON fields (extra_data, correct_answers) to ensure correct types
+   - Skips invalid or empty option data
+
+4. **Safety Features**:
+   - **PRESERVES EXISTING TESTS**: Does not modify, update, or delete any existing tests
+   - Uses Django transactions (`transaction.atomic()`) for each test to ensure data integrity
+   - Comprehensive error handling with detailed error messages and tracebacks
+   - Skips existing audio files to avoid overwriting
+   - Validates data types for JSON fields before saving
+   - Handles None values and empty strings correctly
+   - Provides detailed progress output with counts of created vs skipped tests
+
+### File Structure
+- **Zip archive**: `backend/my_tests_export.zip` (contains test_data.json and media files)
+- JSON file: Extracted from zip archive (`test_data.json` in zip root)
+- Media files: Extracted from `media123/secure_audio/` in zip archive
+- Media destination: `backend/media/secure_audio/`
+- Script location: `backend/restore_tests.py`
+
+### Usage
+Run from project root or backend directory:
+```bash
+cd backend
+python restore_tests.py
+```
+
+Or using Django management:
+```bash
+python backend/manage.py shell < backend/restore_tests.py
+```
+
+### Key Implementation Details
+- **Checks for existing tests by title BEFORE creating** - if exists, returns None and skips completely
+- **Never modifies existing tests** - only creates new ones
+- Handles all question types (gap_fill, multiple_choice, multiple_response, true_false_not_given, etc.)
+- Preserves all JSON fields including extra_data, correct_answers, scoring modes
+- Validates JSON field types (dict for extra_data, list for correct_answers)
+- Safe file copying that doesn't overwrite existing files
+- Properly handles None values and empty strings for optional fields
+- Skips invalid option data (empty label and text)
+
+### Files Created
+- `backend/restore_tests.py` - Main restore script
+
 ## 2025-01-02 - Fixed Production Deployment Issues
 
 ### Problems Detected
@@ -1994,3 +2069,34 @@ Table question answers were still showing as "(empty)" in results. Need to debug
   - When answers are saved in handleAnswerChange
   - What answers are sent during submit
 - Simplified backend search logic to only look for exact key matches and keys ending with sub_id (no broad pattern matching that could affect other question types)
+
+## 2025-01-XX - Added Multiple Choice to Multiple Choice Group Conversion
+
+### Problem
+JSON data contains multiple sequential `multiple_choice` questions that should be grouped into `multiple_choice_group` questions. For example, questions with header "Questions 11–16" followed by individual "Question 12", "Question 13", etc. should be combined into one `multiple_choice_group`.
+
+### Solution
+- Added `convert_multiple_choice_to_group()` function that:
+  - Detects patterns: first question with header "Questions X–Y" or "Questions X and Y"
+  - Finds following questions with header "Question N" (where N is in range X–Y)
+  - Combines them into a single `multiple_choice_group` question with `extra_data.group_items`
+  - Each group item has: `id`, `prompt`, `correct_answer`, `points`, `options`
+  - Only creates group if at least 2 items are found
+  - Preserves header and instruction from first question
+  - Calculates total points as sum of all items
+- Applied conversion to both Listening and Reading tests before processing questions
+- Handles edge cases:
+  - If group has < 2 items, keeps original question
+  - If first question missing options/correct answer, skips group creation
+  - If subsequent questions don't match pattern, stops grouping
+
+### Full Script Review Completed
+- ✅ Syntax check: No errors
+- ✅ Linter check: No errors
+- ✅ Transaction safety: All operations wrapped in `transaction.atomic()`
+- ✅ Data safety: Existing tests are NOT modified (checked with `filter().exists()`)
+- ✅ Order handling: Parts sorted by `part_number`, questions auto-ordered if all have same order
+- ✅ Type validation: All fields validated with try-except blocks
+- ✅ Multiple choice group conversion: Working correctly
+- ✅ Media file extraction: Handles zip archive correctly
+- ✅ Error handling: Comprehensive error handling with detailed messages

@@ -75,6 +75,151 @@ def extract_from_zip():
         traceback.print_exc()
         return None, None
 
+def convert_multiple_choice_to_group(questions_list):
+    """
+    Преобразует последовательные multiple_choice вопросы в multiple_choice_group.
+    Ищет паттерн: первый вопрос с header "Questions X–Y" или "Questions X and Y",
+    за которым следуют вопросы с header "Question N".
+    """
+    if not questions_list:
+        return questions_list
+    
+    result = []
+    i = 0
+    
+    while i < len(questions_list):
+        q = questions_list[i]
+        if not isinstance(q, dict):
+            result.append(q)
+            i += 1
+            continue
+        
+        if q.get('question_type') != 'multiple_choice':
+            result.append(q)
+            i += 1
+            continue
+        
+        header = q.get('header', '')
+        if not header:
+            result.append(q)
+            i += 1
+            continue
+        
+        import re
+        range_match = re.match(r'Questions?\s+(\d+)[–-](\d+)', header)
+        pair_match = re.match(r'Questions?\s+(\d+)\s+and\s+(\d+)', header)
+        
+        if range_match or pair_match:
+            if range_match:
+                start_num = int(range_match.group(1))
+                end_num = int(range_match.group(2))
+            else:
+                start_num = int(pair_match.group(1))
+                end_num = int(pair_match.group(2))
+            
+            group_items = []
+            group_header = header
+            group_instruction = q.get('instruction', '')
+            group_question_text = ''
+            
+            first_q_options = q.get('options', []) or q.get('extra_data', {}).get('options', [])
+            first_q_correct = q.get('correct_answers', [])
+            if not first_q_correct:
+                answer = q.get('extra_data', {}).get('answer', '')
+                if answer:
+                    first_q_correct = [answer]
+            
+            if not first_q_options or not first_q_correct or not first_q_correct[0]:
+                print(f"      WARNING: First question in group '{header}' missing options or correct_answer, skipping group creation")
+                result.append(q)
+                i += 1
+                continue
+            
+            first_item = {
+                'id': f'item-{start_num}',
+                'prompt': q.get('question_text', '') or '',
+                'correct_answer': str(first_q_correct[0]) if first_q_correct else 'A',
+                'points': q.get('points', 1),
+                'options': []
+            }
+            for opt in first_q_options:
+                if isinstance(opt, dict):
+                    first_item['options'].append({
+                        'label': str(opt.get('label', '')),
+                        'text': str(opt.get('text', ''))
+                    })
+            if first_item['options']:
+                group_items.append(first_item)
+            
+            i += 1
+            current_num = start_num + 1
+            
+            while i < len(questions_list) and current_num <= end_num:
+                next_q = questions_list[i]
+                if not isinstance(next_q, dict):
+                    break
+                
+                if next_q.get('question_type') != 'multiple_choice':
+                    break
+                
+                next_header = next_q.get('header', '')
+                num_match = re.match(r'Question\s+(\d+)', next_header)
+                
+                if num_match and int(num_match.group(1)) == current_num:
+                    options = next_q.get('options', []) or next_q.get('extra_data', {}).get('options', [])
+                    correct = next_q.get('correct_answers', [])
+                    if not correct:
+                        answer = next_q.get('extra_data', {}).get('answer', '')
+                        if answer:
+                            correct = [answer]
+                    
+                    if options and correct and correct[0]:
+                        item = {
+                            'id': f'item-{current_num}',
+                            'prompt': next_q.get('question_text', '') or '',
+                            'correct_answer': str(correct[0]) if correct else 'A',
+                            'points': next_q.get('points', 1),
+                            'options': []
+                        }
+                        for opt in options:
+                            if isinstance(opt, dict):
+                                item['options'].append({
+                                    'label': str(opt.get('label', '')),
+                                    'text': str(opt.get('text', ''))
+                                })
+                        if item['options']:
+                            group_items.append(item)
+                    i += 1
+                    current_num += 1
+                else:
+                    break
+            
+            if len(group_items) >= 2:
+                group_question = {
+                    'question_type': 'multiple_choice_group',
+                    'header': group_header,
+                    'instruction': group_instruction,
+                    'question_text': group_question_text or '',
+                    'points': sum(item.get('points', 1) for item in group_items),
+                    'scoring_mode': 'total',
+                    'correct_answers': [],
+                    'extra_data': {
+                        'group_items': group_items
+                    },
+                    'options': []
+                }
+                result.append(group_question)
+                print(f"      Converted {len(group_items)} multiple_choice questions to multiple_choice_group")
+                # i уже увеличен внутри while цикла, цикл продолжается автоматически
+            else:
+                result.append(q)
+                i += 1
+        else:
+            result.append(q)
+            i += 1
+    
+    return result
+
 def restore_listening_test(test_data):
     title = test_data.get('title')
     if not title:
@@ -96,7 +241,10 @@ def restore_listening_test(test_data):
         
         print(f"  Creating test: {test.title}")
         
-        for part_data in test_data.get('parts', []):
+        parts_list = test_data.get('parts', [])
+        parts_list = sorted(parts_list, key=lambda x: x.get('part_number', 999) if isinstance(x, dict) else 999)
+        
+        for part_data in parts_list:
             if not isinstance(part_data, dict):
                 continue
             if 'part_number' not in part_data:
@@ -121,7 +269,22 @@ def restore_listening_test(test_data):
                 print(f"    ERROR creating part {part_data.get('part_number', '?')}: {e}")
                 continue
             
-            for question_data in part_data.get('questions', []):
+            questions_list = part_data.get('questions', [])
+            questions_list = convert_multiple_choice_to_group(questions_list)
+            
+            orders = []
+            for q in questions_list:
+                if isinstance(q, dict):
+                    order = q.get('order')
+                    if order is not None:
+                        try:
+                            orders.append(int(order))
+                        except (ValueError, TypeError):
+                            pass
+            
+            use_index_order = len(set(orders)) <= 1 if orders else True
+            
+            for idx, question_data in enumerate(questions_list, start=1):
                 if not isinstance(question_data, dict):
                     continue
                 
@@ -144,53 +307,84 @@ def restore_listening_test(test_data):
                     else:
                         points_val = int(points_val)
                     
-                    order_val = question_data.get('order', 1)
-                    if order_val is None:
-                        order_val = 1
+                    if use_index_order:
+                        order_val = idx
                     else:
-                        order_val = int(order_val)
+                        order_val = question_data.get('order')
+                        if order_val is None:
+                            order_val = idx
+                        else:
+                            try:
+                                order_val = int(order_val)
+                                if order_val <= 0:
+                                    order_val = idx
+                            except (ValueError, TypeError):
+                                order_val = idx
                     
-                    question = ListeningQuestion.objects.create(
-                        part=part,
-                        order=order_val,
-                        question_type=question_data.get('question_type') or None,
-                        question_text=question_data.get('question_text') or None,
-                        task_prompt=question_data.get('task_prompt', ''),
-                        extra_data=extra_data,
-                        correct_answers=correct_answers,
-                        header=question_data.get('header', ''),
-                        instruction=question_data.get('instruction', ''),
-                        image=question_data.get('image') or None,
-                        points=points_val,
-                        scoring_mode=question_data.get('scoring_mode', 'total')
-                    )
+                    question_type = question_data.get('question_type') or None
+                    
+                    if question_type == 'multiple_choice_group':
+                        group_items = extra_data.get('group_items', [])
+                        if not group_items:
+                            print(f"      WARNING: multiple_choice_group has no group_items, skipping...")
+                            continue
+                        
+                        question = ListeningQuestion.objects.create(
+                            part=part,
+                            order=order_val,
+                            question_type=question_type,
+                            question_text=question_data.get('question_text') or None,
+                            task_prompt=question_data.get('task_prompt', ''),
+                            extra_data=extra_data,
+                            correct_answers=[],
+                            header=question_data.get('header', ''),
+                            instruction=question_data.get('instruction', ''),
+                            image=question_data.get('image') or None,
+                            points=points_val,
+                            scoring_mode=question_data.get('scoring_mode', 'total')
+                        )
+                    else:
+                        question = ListeningQuestion.objects.create(
+                            part=part,
+                            order=order_val,
+                            question_type=question_type,
+                            question_text=question_data.get('question_text') or None,
+                            task_prompt=question_data.get('task_prompt', ''),
+                            extra_data=extra_data,
+                            correct_answers=correct_answers,
+                            header=question_data.get('header', ''),
+                            instruction=question_data.get('instruction', ''),
+                            image=question_data.get('image') or None,
+                            points=points_val,
+                            scoring_mode=question_data.get('scoring_mode', 'total')
+                        )
+                        
+                        for option_data in question_data.get('options', []):
+                            if not isinstance(option_data, dict):
+                                continue
+                            label = option_data.get('label', '')
+                            text = option_data.get('text', '')
+                            if not label and not text:
+                                continue
+                            try:
+                                opt_points = option_data.get('points', 1)
+                                if opt_points is None:
+                                    opt_points = 1
+                                else:
+                                    opt_points = int(opt_points)
+                                
+                                ListeningAnswerOption.objects.create(
+                                    question=question,
+                                    label=str(label) or '',
+                                    text=str(text) or '',
+                                    points=opt_points
+                                )
+                            except (ValueError, TypeError) as e:
+                                print(f"        ERROR creating option: {e}")
+                                continue
                 except (ValueError, TypeError) as e:
                     print(f"      ERROR creating question: {e}")
                     continue
-                
-                for option_data in question_data.get('options', []):
-                    if not isinstance(option_data, dict):
-                        continue
-                    label = option_data.get('label', '')
-                    text = option_data.get('text', '')
-                    if not label and not text:
-                        continue
-                    try:
-                        points_val = option_data.get('points', 1)
-                        if points_val is None:
-                            points_val = 1
-                        else:
-                            points_val = int(points_val)
-                        
-                        ListeningAnswerOption.objects.create(
-                            question=question,
-                            label=str(label) or '',
-                            text=str(text) or '',
-                            points=points_val
-                        )
-                    except (ValueError, TypeError) as e:
-                        print(f"        ERROR creating option: {e}")
-                        continue
         
         return test
 
@@ -217,7 +411,10 @@ def restore_reading_test(test_data):
         
         print(f"  Creating test: {test.title}")
         
-        for part_data in test_data.get('parts', []):
+        parts_list = test_data.get('parts', [])
+        parts_list = sorted(parts_list, key=lambda x: x.get('part_number', 999) if isinstance(x, dict) else 999)
+        
+        for idx, part_data in enumerate(parts_list, start=1):
             if not isinstance(part_data, dict):
                 continue
             if 'part_number' not in part_data:
@@ -233,9 +430,14 @@ def restore_reading_test(test_data):
                 
                 order_val = part_data.get('order')
                 if order_val is None:
-                    order_val = part_number_val
+                    order_val = idx
                 else:
-                    order_val = int(order_val)
+                    try:
+                        order_val = int(order_val)
+                        if order_val <= 0:
+                            order_val = idx
+                    except (ValueError, TypeError):
+                        order_val = idx
                 
                 part = ReadingPart.objects.create(
                     test=test,
@@ -251,7 +453,22 @@ def restore_reading_test(test_data):
                 print(f"    ERROR creating part {part_data.get('part_number', '?')}: {e}")
                 continue
             
-            for question_data in part_data.get('questions', []):
+            questions_list = part_data.get('questions', [])
+            questions_list = convert_multiple_choice_to_group(questions_list)
+            
+            orders = []
+            for q in questions_list:
+                if isinstance(q, dict):
+                    order = q.get('order')
+                    if order is not None:
+                        try:
+                            orders.append(int(order))
+                        except (ValueError, TypeError):
+                            pass
+            
+            use_index_order = len(set(orders)) <= 1 if orders else True
+            
+            for idx, question_data in enumerate(questions_list, start=1):
                 if not isinstance(question_data, dict):
                     continue
                 
@@ -274,59 +491,90 @@ def restore_reading_test(test_data):
                     else:
                         points_val = float(points_val)
                     
-                    order_val = question_data.get('order', 1)
-                    if order_val is None:
-                        order_val = 1
+                    if use_index_order:
+                        order_val = idx
                     else:
-                        order_val = int(order_val)
+                        order_val = question_data.get('order')
+                        if order_val is None:
+                            order_val = idx
+                        else:
+                            try:
+                                order_val = int(order_val)
+                                if order_val <= 0:
+                                    order_val = idx
+                            except (ValueError, TypeError):
+                                order_val = idx
                     
-                    question = ReadingQuestion.objects.create(
-                        part=part,
-                        order=order_val,
-                        question_type=question_data.get('question_type') or None,
-                        header=question_data.get('header', ''),
-                        instruction=question_data.get('instruction', ''),
-                        task_prompt=question_data.get('task_prompt', ''),
-                        image_url=question_data.get('image_url') or None,
-                        question_text=question_data.get('question_text') or None,
-                        points=points_val,
-                        correct_answers=correct_answers,
-                        extra_data=extra_data,
-                        reading_scoring_type=question_data.get('reading_scoring_type', 'all_or_nothing')
-                    )
+                    question_type = question_data.get('question_type') or None
+                    
+                    if question_type == 'multiple_choice_group':
+                        group_items = extra_data.get('group_items', [])
+                        if not group_items:
+                            print(f"      WARNING: multiple_choice_group has no group_items, skipping...")
+                            continue
+                        
+                        question = ReadingQuestion.objects.create(
+                            part=part,
+                            order=order_val,
+                            question_type=question_type,
+                            header=question_data.get('header', ''),
+                            instruction=question_data.get('instruction', ''),
+                            task_prompt=question_data.get('task_prompt', ''),
+                            image_url=question_data.get('image_url') or None,
+                            question_text=question_data.get('question_text') or None,
+                            points=points_val,
+                            correct_answers=[],
+                            extra_data=extra_data,
+                            reading_scoring_type=question_data.get('reading_scoring_type', 'all_or_nothing')
+                        )
+                    else:
+                        question = ReadingQuestion.objects.create(
+                            part=part,
+                            order=order_val,
+                            question_type=question_type,
+                            header=question_data.get('header', ''),
+                            instruction=question_data.get('instruction', ''),
+                            task_prompt=question_data.get('task_prompt', ''),
+                            image_url=question_data.get('image_url') or None,
+                            question_text=question_data.get('question_text') or None,
+                            points=points_val,
+                            correct_answers=correct_answers,
+                            extra_data=extra_data,
+                            reading_scoring_type=question_data.get('reading_scoring_type', 'all_or_nothing')
+                        )
+                        
+                        for option_data in question_data.get('answer_options', []):
+                            if not isinstance(option_data, dict):
+                                continue
+                            label = option_data.get('label', '')
+                            text = option_data.get('text', '')
+                            if not label and not text:
+                                continue
+                            try:
+                                reading_points_val = option_data.get('reading_points', 1)
+                                if reading_points_val is None:
+                                    reading_points_val = 1
+                                else:
+                                    reading_points_val = int(reading_points_val)
+                                
+                                is_correct_val = option_data.get('is_correct', False)
+                                if not isinstance(is_correct_val, bool):
+                                    is_correct_val = bool(is_correct_val)
+                                
+                                ReadingAnswerOption.objects.create(
+                                    question=question,
+                                    label=str(label) or '',
+                                    text=str(text) or '',
+                                    image_url=option_data.get('image_url') or None,
+                                    is_correct=is_correct_val,
+                                    reading_points=reading_points_val
+                                )
+                            except (ValueError, TypeError) as e:
+                                print(f"        ERROR creating option: {e}")
+                                continue
                 except (ValueError, TypeError) as e:
                     print(f"      ERROR creating question: {e}")
                     continue
-                
-                for option_data in question_data.get('answer_options', []):
-                    if not isinstance(option_data, dict):
-                        continue
-                    label = option_data.get('label', '')
-                    text = option_data.get('text', '')
-                    if not label and not text:
-                        continue
-                    try:
-                        reading_points_val = option_data.get('reading_points', 1)
-                        if reading_points_val is None:
-                            reading_points_val = 1
-                        else:
-                            reading_points_val = int(reading_points_val)
-                        
-                        is_correct_val = option_data.get('is_correct', False)
-                        if not isinstance(is_correct_val, bool):
-                            is_correct_val = bool(is_correct_val)
-                        
-                        ReadingAnswerOption.objects.create(
-                            question=question,
-                            label=str(label) or '',
-                            text=str(text) or '',
-                            image_url=option_data.get('image_url') or None,
-                            is_correct=is_correct_val,
-                            reading_points=reading_points_val
-                        )
-                    except (ValueError, TypeError) as e:
-                        print(f"        ERROR creating option: {e}")
-                        continue
         
         return test
 
