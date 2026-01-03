@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 
 const publicApi = axios.create({
@@ -22,6 +22,7 @@ const PlacementTestPage = () => {
   
   // Result data
   const [result, setResult] = useState(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   // Fetch questions when moving to test step
   useEffect(() => {
@@ -124,11 +125,13 @@ const PlacementTestPage = () => {
               </label>
               <input
                 id="full-name"
+                name="placement-fullname"
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Enter your full name"
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-base transition"
+                autoComplete="off"
                 required
               />
             </div>
@@ -139,11 +142,13 @@ const PlacementTestPage = () => {
               </label>
               <input
                 id="email"
+                name="placement-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-base transition"
+                autoComplete="off"
                 required
               />
             </div>
@@ -154,9 +159,11 @@ const PlacementTestPage = () => {
               </label>
               <select
                 id="planned-date"
+                name="placement-examdate"
                 value={plannedExamDate}
                 onChange={(e) => setPlannedExamDate(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-base transition"
+                autoComplete="off"
                 required
               >
                 <option value="">Select an option</option>
@@ -320,50 +327,61 @@ const PlacementTestPage = () => {
               </div>
             </div>
 
-            {/* Detailed Results */}
-            <h2 className="text-2xl font-bold text-blue-700 mb-4">Detailed Results</h2>
-            <div className="space-y-4 max-h-[600px] overflow-y-auto">
-              {result.results.map((item, index) => (
-                <div
-                  key={index}
-                  className={`border-2 rounded-lg p-4 ${
-                    item.is_correct
-                      ? 'border-green-300 bg-green-50'
-                      : 'border-red-300 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {item.is_correct ? (
-                      <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
-                    )}
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800 mb-2">
-                        Question {item.order}: {item.question_text}
-                      </p>
-                      <div className="text-sm">
-                        <p className="text-gray-700">
-                          <strong>Your answer:</strong>{' '}
-                          <span className={item.is_correct ? 'text-green-700' : 'text-red-700'}>
-                            {item.user_answer || 'Not answered'} -{' '}
-                            {item.options[item.user_answer] || 'N/A'}
-                          </span>
+            {/* Collapsible Detailed Results */}
+            <button
+              onClick={() => setShowBreakdown(!showBreakdown)}
+              className="w-full mb-4 flex items-center justify-between bg-blue-100 hover:bg-blue-200 px-6 py-4 rounded-xl transition-colors"
+            >
+              <span className="text-lg font-semibold text-blue-700">
+                {showBreakdown ? 'Hide' : 'Show'} Detailed Results
+              </span>
+              <ChevronDown className={`w-6 h-6 text-blue-700 transition-transform ${showBreakdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showBreakdown && (
+              <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                {result.results.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`border-2 rounded-lg p-4 ${
+                      item.is_correct
+                        ? 'border-green-300 bg-green-50'
+                        : 'border-red-300 bg-red-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {item.is_correct ? (
+                        <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+                      ) : (
+                        <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800 mb-2">
+                          Question {item.order}: {item.question_text}
                         </p>
-                        {!item.is_correct && (
-                          <p className="text-gray-700 mt-1">
-                            <strong>Correct answer:</strong>{' '}
-                            <span className="text-green-700">
-                              {item.correct_answer} - {item.options[item.correct_answer]}
+                        <div className="text-sm">
+                          <p className="text-gray-700">
+                            <strong>Your answer:</strong>{' '}
+                            <span className={item.is_correct ? 'text-green-700' : 'text-red-700'}>
+                              {item.user_answer || 'Not answered'} -{' '}
+                              {item.options[item.user_answer] || 'N/A'}
                             </span>
                           </p>
-                        )}
+                          {!item.is_correct && (
+                            <p className="text-gray-700 mt-1">
+                              <strong>Correct answer:</strong>{' '}
+                              <span className="text-green-700">
+                                {item.correct_answer} - {item.options[item.correct_answer]}
+                              </span>
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Contact Info */}
             <div className="mt-8 text-center bg-blue-50 rounded-lg p-6">

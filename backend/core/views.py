@@ -2165,8 +2165,23 @@ class SubmitListeningTestView(APIView):
         except ListeningTestSession.DoesNotExist:
             return Response({"error": "Session not found or doesn't belong to the user."}, status=status.HTTP_404_NOT_FOUND)
 
+        # КРИТИЧНО: Мержим финальные ответы с существующими, чтобы не потерять данные
         answers_data = request.data.get("answers", {})
-        session.answers = answers_data
+        
+        if not isinstance(session.answers, dict):
+            session.answers = {}
+        
+        if isinstance(answers_data, dict):
+            # Мержим данные так же как в sync endpoint
+            for question_id, answer_value in answers_data.items():
+                if isinstance(answer_value, dict) and question_id in session.answers and isinstance(session.answers[question_id], dict):
+                    session.answers[question_id].update(answer_value)
+                else:
+                    session.answers[question_id] = answer_value
+        else:
+            # Если клиент отправил полный словарь, используем его
+            session.answers = answers_data if isinstance(answers_data, dict) else {}
+        
         session.completed = True
         session.completed_at = timezone.now()
         
@@ -2514,9 +2529,41 @@ class ListeningTestSessionView(APIView):
     def patch(self, request, session_id=None):
         # Sync answers (save progress)
         session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
-        serializer = ListeningTestSessionSyncSerializer(session, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        
+        if session.submitted:
+            return Response({'error': 'Cannot sync a submitted session.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        answers_data = request.data.get('answers', {})
+        flagged_data = request.data.get('flagged', {})
+        time_left = request.data.get('time_left')
+        
+        # КРИТИЧНО: Мержим данные правильно для listening, как в reading
+        if not isinstance(session.answers, dict):
+            session.answers = {}
+        
+        if isinstance(answers_data, dict):
+            # Для вложенных структур (gap_fill, matching) мержим правильно
+            for question_id, answer_value in answers_data.items():
+                if isinstance(answer_value, dict) and question_id in session.answers and isinstance(session.answers[question_id], dict):
+                    # Мержим вложенные ответы
+                    session.answers[question_id].update(answer_value)
+                else:
+                    # Для плоских структур или новых вопросов просто обновляем
+                    session.answers[question_id] = answer_value
+        
+        if isinstance(flagged_data, dict):
+            if not isinstance(session.flagged, dict):
+                session.flagged = {}
+            session.flagged.update(flagged_data)
+        
+        if time_left is not None:
+            try:
+                session.time_left = max(0, int(time_left))
+            except (TypeError, ValueError):
+                pass
+        
+        session.save(update_fields=['answers', 'flagged', 'time_left'])
+        
         return Response({'detail': 'Progress saved'}, status=status.HTTP_200_OK)
 
 # --- ListeningTestResult: student/admin view ---
@@ -3322,8 +3369,22 @@ class ReadingTestSessionView(APIView):
         
         if not isinstance(session.answers, dict):
             session.answers = {}
-            
-        session.answers.update(answers_data)
+        
+        # КРИТИЧНО: Мержим данные правильно, чтобы не потерять существующие ответы
+        # Если клиент отправляет неполные данные (например, только последние изменения),
+        # мы должны сохранить старые данные и обновить только новые
+        if isinstance(answers_data, dict):
+            # Для вложенных структур (gap_fill, matching) мержим правильно
+            for question_id, answer_value in answers_data.items():
+                if isinstance(answer_value, dict) and question_id in session.answers and isinstance(session.answers[question_id], dict):
+                    # Мержим вложенные ответы (например, gap_fill: {gap8: value, gap9: value})
+                    session.answers[question_id].update(answer_value)
+                else:
+                    # Для плоских структур или новых вопросов просто обновляем
+                    session.answers[question_id] = answer_value
+        else:
+            # Fallback для некорректных данных
+            session.answers = answers_data if isinstance(answers_data, dict) else {}
 
         if time_left is not None:
             try:

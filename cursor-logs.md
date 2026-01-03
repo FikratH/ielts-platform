@@ -2100,3 +2100,268 @@ JSON data contains multiple sequential `multiple_choice` questions that should b
 - ✅ Multiple choice group conversion: Working correctly
 - ✅ Media file extraction: Handles zip archive correctly
 - ✅ Error handling: Comprehensive error handling with detailed messages
+
+### Reading Test Answer Sync Fix (2026-01-03)
+**Problem**: Some users (especially in Opera browser) reported that their answers were not being saved properly - half of the answers showed as "(empty)" even though they filled them in.
+
+**Root Cause Analysis**:
+- In session 1152, only questions 79-80 had answers in `session.answers`, but breakdown showed questions 79-88
+- The issue was in `syncAnswers` function which only used `answersRef.current`, which might not be synchronized with React state
+- Sync delay of 800ms might be too long for browsers with performance issues
+- No error logging made it impossible to diagnose sync failures
+- No forced sync on page visibility change or before unload
+
+**Fixes Applied**:
+1. **Improved syncAnswers function** (`frontend/src/components/ReadingTestPlayer.jsx`):
+   - Now uses `answersRef.current || answers || {}` to ensure all answers are captured
+   - Added error logging for sync failures (console.error)
+   - Added warning when no answers to sync
+   - Updates `answersRef.current` after successful sync
+
+2. **Reduced sync delay**:
+   - Changed from 800ms to 500ms for more frequent synchronization
+   - Especially important for browsers with performance issues (Opera)
+
+3. **Improved submitTest function**:
+   - Ensures latest answers are captured before sync
+   - Updates `answersRef.current` before calling `syncAnswers()`
+   - Uses both ref and state after sync to ensure all answers are included
+
+4. **Added visibility change handler**:
+   - Forces immediate sync when page loses focus (tab switch, minimize)
+   - Prevents loss of answers when user switches tabs or minimizes browser
+   - Critical for browsers with performance issues
+
+**Files Modified**:
+- `frontend/src/components/ReadingTestPlayer.jsx`: Updated `syncAnswers`, `scheduleSync`, `submitTest`, added visibility change handler
+
+### Root Cause Fix: Race Condition in handleAnswerChange (2026-01-03)
+**Root Cause Identified**: The real problem was a race condition in `handleAnswerChange` function. When users quickly filled multiple gap_fill fields (gap8, gap9, gap10, etc.), the function used `setAnswers(prev => {...})` which could receive stale `prev` state if multiple setState calls were batched by React. This caused later answers to overwrite earlier ones.
+
+**The Fix**:
+- Changed `handleAnswerChange` to use `answersRef.current` as the source of truth instead of `prev` from setState
+- This ensures that when a user quickly fills gap8, gap9, gap10, each change sees ALL previous changes, not just the state that React has processed
+- Updated ref synchronously BEFORE calling setState, ensuring ref is always up-to-date
+- This prevents data loss when users type quickly, especially in browsers with performance issues (Opera)
+
+**Technical Details**:
+- Before: `setAnswers(prev => { const newAnswers = { ...prev }; ... })` - could lose data if React batches updates
+- After: `const currentAnswers = answersRef.current || {}; const newAnswers = { ...currentAnswers }; ... answersRef.current = newAnswers; setAnswers(newAnswers);` - always uses latest ref state
+
+**Files Modified**:
+- `frontend/src/components/ReadingTestPlayer.jsx`: Fixed `handleAnswerChange` to use ref as source of truth
+
+### Critical Data Loss Fix: Backend Merge and Frontend Hydration (2026-01-03)
+**Root Cause**: Data was being lost in two places:
+1. **Backend sync endpoint**: Used simple `session.answers.update(answers_data)` which could overwrite nested structures (gap_fill, matching) if client sent partial data
+2. **Frontend hydration**: When loading answers from server and localStorage, data was being replaced instead of merged, causing loss of answers from different parts
+
+**Fixes Applied**:
+
+1. **Backend sync endpoint** (`backend/core/views.py`):
+   - Changed from simple `update()` to proper deep merge for nested structures
+   - For gap_fill questions (e.g., `{question_id: {gap8: value, gap9: value}}`), now merges nested objects instead of replacing
+   - For flat structures, still updates directly
+   - This prevents loss of answers when client sends partial updates
+
+2. **Frontend hydration** (`frontend/src/components/ReadingTestPlayer.jsx`):
+   - Changed from replacing server answers with cached answers to proper merging
+   - Priority: localStorage (most recent) > server (may be stale)
+   - For nested structures (gap_fill, matching), merges nested objects properly
+   - For flat structures, updates directly
+   - This ensures all answers from all parts are preserved when page reloads
+
+**Technical Details**:
+- Before: `hydratedAnswers = cached.answers` (replaced all server data)
+- After: `mergedAnswers = { ...serverAnswers }; for (const [qId, val] of Object.entries(cachedAnswers)) { if (nested) mergedAnswers[qId] = { ...mergedAnswers[qId], ...val }; else mergedAnswers[qId] = val; }`
+
+- Before: `session.answers.update(answers_data)` (could overwrite nested structures)
+- After: Deep merge for nested structures, direct update for flat structures
+
+**Files Modified**:
+- `backend/core/views.py`: Fixed sync endpoint to properly merge nested answer structures
+- `frontend/src/components/ReadingTestPlayer.jsx`: Fixed hydration to properly merge server and cached answers
+
+### Full Audit: Reading & Listening Data Loss (2026-01-03)
+**Comprehensive audit revealed identical issues in both Reading and Listening:**
+
+#### Issues Found:
+
+**Frontend (Both ReadingTestPlayer.jsx & ListeningTestPlayer.jsx):**
+1. ❌ **handleAnswerChange**: Used `setAnswers(prev => ...)` causing race condition when users type quickly
+2. ❌ **Hydration**: Replaced server answers with localStorage (`hydratedAnswers = cached.answers`) instead of merging
+3. ❌ **syncAnswers**: No error logging, making debugging impossible
+4. ❌ **No visibility change handler**: Answers not saved when switching tabs
+
+**Backend (views.py):**
+1. ❌ **Reading sync endpoint**: Used simple `update()` that could overwrite nested structures
+2. ❌ **Listening sync endpoint**: Used `ModelSerializer.save()` that replaces data completely
+3. ❌ **Listening submit endpoint**: `session.answers = answers_data` completely replaced existing data
+
+#### Fixes Applied:
+
+**Reading Frontend (ReadingTestPlayer.jsx):**
+- ✅ Fixed `handleAnswerChange` to use `answersRef.current` as source of truth
+- ✅ Implemented proper merge of server + localStorage data on hydration
+- ✅ Added error logging to `syncAnswers`
+- ✅ Added visibility change handler for forced sync on tab switch
+- ✅ Reduced sync delay from 800ms to 500ms
+
+**Listening Frontend (ListeningTestPlayer.jsx):**
+- ✅ Fixed `handleAnswerChange` to use `answersRef.current` as source of truth
+- ✅ Fixed `handleGroupAnswerChange` to use `answersRef.current`
+- ✅ Implemented proper merge of server + localStorage data on hydration
+- ✅ Added error logging to `syncAnswers`
+- ✅ Added visibility change handler for forced sync on tab switch
+- ✅ Using both `answersRef.current` and `answers` state in `syncAnswers`
+
+**Reading Backend (views.py - ReadingTestSessionView.patch):**
+- ✅ Deep merge for nested answer structures (gap_fill, matching)
+- ✅ Direct update for flat structures
+- ✅ Prevents data loss when client sends partial updates
+
+**Listening Backend (views.py):**
+- ✅ **ListeningTestSessionView.patch**: Replaced `ModelSerializer.save()` with manual deep merge logic
+- ✅ **SubmitListeningTestView**: Added deep merge before final submission
+- ✅ Both endpoints now use same merge logic as Reading
+
+**Files Modified**:
+- `backend/core/views.py`: Fixed Reading sync (line 3312), Listening sync (line 2514), Listening submit (line 2168)
+- `frontend/src/components/ReadingTestPlayer.jsx`: Fixed all data handling issues
+- `frontend/src/components/ListeningTestPlayer.jsx`: Fixed all data handling issues (identical fixes to Reading)
+
+### CRITICAL: Auto-Submit Data Loss (2026-01-03)
+**THE ROOT CAUSE - Most Critical Issue:**
+
+When timer expires and auto-submit triggers, the code calls `submitTest()` IMMEDIATELY without waiting for pending sync operations. This is the MAIN reason for data loss.
+
+**The Problem:**
+```javascript
+// BEFORE (BROKEN):
+if (remaining <= 0 && !autoSubmitRef.current) {
+    autoSubmitRef.current = true;
+    submitTest();  // ❌ Called immediately, doesn't wait for pending sync!
+}
+```
+
+**What happens:**
+1. User fills answers → `scheduleSync()` schedules sync in 500ms
+2. Timer hits 0:00 → auto-submit triggers IMMEDIATELY
+3. `submitTest()` calls `syncAnswers()` → but there's already a pending sync scheduled!
+4. Two sync operations race, one might use stale `answersRef.current`
+5. Submit happens before all answers are synced → **DATA LOSS**
+
+**The Fix:**
+```javascript
+// AFTER (FIXED):
+if (remaining <= 0 && !autoSubmitRef.current) {
+    autoSubmitRef.current = true;
+    // ✅ Force sync with current answers BEFORE submit
+    (async () => {
+        try {
+            const currentAnswers = answersRef.current || {};
+            console.log('⏰ Auto-submit: syncing', Object.keys(currentAnswers).length, 'questions');
+            await api.patch(`/...-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: 0 });
+        } catch (err) {
+            console.error('❌ Failed to sync before auto-submit:', err);
+        }
+        submitTest();  // Now submit after sync completes
+    })();
+}
+```
+
+**Why This Was THE Problem:**
+- Affects ALL tests (Reading, Listening, Writing)
+- Happens specifically when timer expires (most common scenario)
+- Race condition between scheduled sync and auto-submit
+- Explains why "some students" have issues - timing dependent
+- Explains why Opera users affected more - slower browser = more race conditions
+
+**Why Writing Might Have Same Issue:**
+Writing uses `syncDraft()` every 5 seconds, but `handleTimeUp()` doesn't explicitly sync before submit. However, Writing submits text directly (not via sync endpoint), so less affected.
+
+**Summary of ALL Issues Found:**
+
+1. **❌ CRITICAL: Auto-submit race condition** (Reading, Listening)
+   - Timer expires → immediate submit without waiting for pending sync
+   - **THIS WAS THE MAIN PROBLEM**
+
+2. **❌ Race condition in handleAnswerChange** (Reading, Listening)
+   - Used `setAnswers(prev => ...)` causing data loss on fast typing
+
+3. **❌ Data loss on hydration** (Reading, Listening)
+   - localStorage replaced server data instead of merging
+
+4. **❌ Backend merge issues** (Reading, Listening)
+   - Simple `update()` overwrote nested structures
+
+5. **❌ No forced sync on visibility change** (Reading, Listening)
+   - Tab switch didn't trigger sync
+
+**Files Modified**:
+- `frontend/src/components/ReadingTestPlayer.jsx`: Fixed auto-submit race + all other issues
+- `frontend/src/components/ListeningTestPlayer.jsx`: Fixed auto-submit race + all other issues
+- `backend/core/views.py`: Fixed merge logic for both Reading and Listening
+
+### Final Audit: All Issues Found & Fixed (2026-01-03)
+
+**✅ AUTO-SUBMIT NOW WORKS CORRECTLY:**
+- Timer effect now calls submit logic directly (not via dependencies)
+- Forces sync before submit with current `answersRef.current`
+- No dependency on `submitTest` function in useEffect
+- Prevents React stale closure issues
+
+**🔍 COMPLETE LIST OF ALL ISSUES FOUND:**
+
+**1. ❌ CRITICAL: Auto-submit race condition** (Reading, Listening)
+   - **Problem**: Timer expires → immediate `submitTest()` without waiting for pending sync
+   - **Impact**: Main cause of data loss, especially when timer expires
+   - **Fix**: Force sync with `answersRef.current` before submit, inline submit logic in timer
+
+**2. ❌ Race condition in handleAnswerChange** (Reading, Listening)
+   - **Problem**: Used `setAnswers(prev => ...)` causing stale state on fast typing
+   - **Impact**: Data loss when users type quickly (gap_fill questions)
+   - **Fix**: Use `answersRef.current` as source of truth, update ref synchronously
+
+**3. ❌ Data loss on hydration/loading** (Reading, Listening)
+   - **Problem**: localStorage completely replaced server data instead of merging
+   - **Impact**: Lost answers from different parts when page reloads
+   - **Fix**: Proper deep merge: server (baseline) + localStorage (fresher)
+
+**4. ❌ Backend merge issues** (Reading, Listening)
+   - **Problem**: Simple `update()` or `ModelSerializer.save()` overwrote nested structures
+   - **Impact**: Lost answers when client sends partial updates (e.g., only new gaps)
+   - **Fix**: Deep merge for nested structures (gap_fill, matching), direct update for flat
+
+**5. ❌ No forced sync on visibility change** (Reading, Listening)
+   - **Problem**: Tab switch/minimize didn't trigger sync
+   - **Impact**: Lost answers when users switch tabs (common in Opera)
+   - **Fix**: Added `visibilitychange` event listener with immediate sync
+
+**6. ❌ Sync delay too long** (Reading)
+   - **Problem**: 800ms delay between answer change and sync
+   - **Impact**: More time for race conditions in slow browsers
+   - **Fix**: Reduced to 500ms for Reading
+
+**7. ❌ No error logging** (Reading, Listening)
+   - **Problem**: Silent failures in sync operations
+   - **Impact**: Impossible to diagnose issues
+   - **Fix**: Added console.error/console.warn for all sync operations
+
+**8. ⚠️ Listening submit endpoint** (Backend)
+   - **Problem**: Old `SubmitListeningTestView` used `session.answers = answers_data` (complete replacement)
+   - **Impact**: Could lose data if client sends partial answers
+   - **Fix**: Added deep merge logic before final submission
+
+**✅ ALL FIXES APPLIED TO:**
+- Reading: Frontend (ReadingTestPlayer.jsx) + Backend (views.py)
+- Listening: Frontend (ListeningTestPlayer.jsx) + Backend (views.py)
+- Writing: Already uses direct text submission, less affected
+
+**🎯 ROOT CAUSE SUMMARY:**
+The main issue was auto-submit race condition (#1) combined with race condition in handleAnswerChange (#2). When timer expired, it triggered submit before all answers were synced, and fast typing could cause answers to be lost due to React state batching. Backend merge issues (#4) amplified the problem by overwriting existing data.
+
+**Files Modified (Final)**:
+- `frontend/src/components/ReadingTestPlayer.jsx`: All 7 frontend issues fixed
+- `frontend/src/components/ListeningTestPlayer.jsx`: All 7 frontend issues fixed  
+- `backend/core/views.py`: Backend merge issues fixed for Reading sync, Listening sync, and Listening submit

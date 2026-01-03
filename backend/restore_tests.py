@@ -11,6 +11,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ielts_platform.settings')
 import django
 django.setup()
 
+from django.conf import settings
 from core.models import (
     ListeningTest, ListeningPart, ListeningQuestion, ListeningAnswerOption,
     ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption
@@ -19,7 +20,7 @@ from core.models import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASE_DIR = SCRIPT_DIR.parent
 ZIP_FILE = SCRIPT_DIR / 'my_tests_export.zip'
-MEDIA_DEST = SCRIPT_DIR / 'media' / 'secure_audio'
+MEDIA_DEST = Path(settings.MEDIA_ROOT) / 'secure_audio'
 
 def extract_from_zip():
     print("Extracting files from zip archive...")
@@ -42,6 +43,7 @@ def extract_from_zip():
                 return None, None
             
             MEDIA_DEST.mkdir(parents=True, exist_ok=True)
+            print(f"  Media destination: {MEDIA_DEST}")
             copied = 0
             skipped = 0
             

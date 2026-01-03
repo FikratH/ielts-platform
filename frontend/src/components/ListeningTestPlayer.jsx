@@ -97,19 +97,23 @@ const ListeningTestPlayer = () => {
       deadlineRef.current = Date.now() + initial * 1000;
       setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
       timeLeftRef.current = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
-      // hydrate answers/flags from server and cache if present
-      let hydratedAnswers = response.data.answers || {};
-      let hydratedFlagged = response.data.flagged || {};
+      // КРИТИЧНО: Загружаем и мержим ответы правильно, чтобы не потерять данные
+      // Приоритет: localStorage (самые свежие) > сервер (может быть устаревшим)
+      let serverAnswers = response.data.answers || {};
+      let serverFlagged = response.data.flagged || {};
+      let cachedAnswers = {};
+      let cachedFlagged = {};
+      
       if (localCacheKeyRef.current) {
         try {
           const cached = localStorage.getItem(localCacheKeyRef.current);
           if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed.answers && typeof parsed.answers === 'object') {
-              hydratedAnswers = parsed.answers;
+              cachedAnswers = parsed.answers;
             }
             if (parsed.flagged && typeof parsed.flagged === 'object') {
-              hydratedFlagged = parsed.flagged;
+              cachedFlagged = parsed.flagged;
             }
             if (parsed.time_left != null && Number.isFinite(parsed.time_left)) {
               const cachedLeft = Math.max(0, parseInt(parsed.time_left, 10));
@@ -121,13 +125,30 @@ const ListeningTestPlayer = () => {
             }
           }
         } catch (e) {
-          // ignore cache errors
+          console.warn('⚠️ Failed to parse localStorage cache:', e);
         }
       }
-      answersRef.current = hydratedAnswers;
-      flaggedRef.current = hydratedFlagged;
-      setAnswers(hydratedAnswers);
-      setFlagged(hydratedFlagged);
+      
+      // Мержим answers: сначала серверные (базовая линия), потом кеш (более свежие)
+      const mergedAnswers = { ...serverAnswers };
+      for (const [questionId, answerValue] of Object.entries(cachedAnswers)) {
+        if (typeof answerValue === 'object' && !Array.isArray(answerValue) && 
+            questionId in mergedAnswers && typeof mergedAnswers[questionId] === 'object' && !Array.isArray(mergedAnswers[questionId])) {
+          // Мержим вложенные ответы (например, gap_fill)
+          mergedAnswers[questionId] = { ...mergedAnswers[questionId], ...answerValue };
+        } else {
+          // Для плоских структур или новых вопросов просто обновляем
+          mergedAnswers[questionId] = answerValue;
+        }
+      }
+      
+      // Мержим flagged (плоская структура)
+      const mergedFlagged = { ...serverFlagged, ...cachedFlagged };
+      
+      answersRef.current = mergedAnswers;
+      flaggedRef.current = mergedFlagged;
+      setAnswers(mergedAnswers);
+      setFlagged(mergedFlagged);
       await loadTest();
     } catch (err) {
       if (err.response?.status === 409) {
@@ -201,6 +222,29 @@ const ListeningTestPlayer = () => {
 
 
 
+  // Принудительная синхронизация при потере фокуса
+  useEffect(() => {
+    if (!session || isSubmitted) return;
+
+    const handleVisibilityChange = () => {
+      // Синхронизируем при потере фокуса (переключение вкладок, минимизация)
+      // Это особенно важно для браузеров с проблемами производительности (Opera)
+      if (document.hidden) {
+        if (syncTimerRef.current) {
+          clearTimeout(syncTimerRef.current);
+        }
+        // Принудительно синхронизируем сразу, без задержки
+        syncAnswers();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session, isSubmitted, syncAnswers, answers, flagged]);
+
   // Timer effect
   useEffect(() => {
     if (!session || isSubmitted) return;
@@ -211,11 +255,40 @@ const ListeningTestPlayer = () => {
       timeLeftRef.current = remaining;
       if (remaining <= 0 && !autoSubmitRef.current) {
         autoSubmitRef.current = true;
-        handleAutoSubmit();
+        // КРИТИЧНО: Принудительно синхронизируем перед автосабмитом
+        (async () => {
+          try {
+            const currentAnswers = answersRef.current || {};
+            const currentFlagged = flaggedRef.current || {};
+            const remaining = 0;
+            console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
+            await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
+          } catch (err) {
+            console.error('❌ Failed to sync before auto-submit:', err);
+          }
+          
+          // Вызываем submit напрямую, чтобы не зависеть от handleAutoSubmit в dependencies
+          try {
+            const payloadAnswers = answersRef.current || {};
+            await api.post(`/listening-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: 0 });
+            
+            if (localCacheKeyRef.current) {
+              localStorage.removeItem(localCacheKeyRef.current);
+            }
+            if (syncTimerRef.current) {
+              clearTimeout(syncTimerRef.current);
+            }
+            navigate(`/listening-result/${session.id}`);
+            window.dispatchEvent(new Event('listeningHistoryUpdated'));
+          } catch (err) {
+            console.error('🔥 ERROR auto-submitting test:', err.response?.data || err);
+            alert('Failed to auto-submit test. Please submit manually.');
+          }
+        })();
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [session, isSubmitted]);
+  }, [session, isSubmitted, navigate]);
 
   // Start session on component mount
   useEffect(() => {
@@ -277,79 +350,75 @@ const ListeningTestPlayer = () => {
   // }, [session, isSubmitted]);
 
   const handleAnswerChange = (subKey, value) => {
-    setAnswers(prev => {
-      let nextState = prev;
-      // Проверяем, это gap fill или multiple choice
-      if (subKey.includes('__')) {
-        const parts = subKey.split('__');
-        const questionId = parts[0];
-        const gapPart = parts[1];
-        
-        // Если это table question (формат: questionId__r{row}c{col}__gap{number})
-        if (parts.length === 3 && gapPart.match(/^r\d+c\d+$/) && parts[2].startsWith('gap')) {
-          nextState = {
-            ...prev,
-            [subKey]: value
-          };
-        } else if (gapPart.startsWith('gap')) {
-          // gap fill — не очищаем другие gaps
-          nextState = {
-            ...prev,
-            [subKey]: value
-          };
-        } else if (['A', 'B', 'C', 'D'].includes(gapPart)) {
-          // Multiple choice
-          const questionElement = document.querySelector(`input[name="question-${questionId}"]`);
-          if (questionElement && questionElement.type === 'checkbox') {
-            // Multiple Response (checkbox) - allow multiple
-            nextState = {
-              ...prev,
-              [subKey]: value
-            };
-          } else {
-            // Multiple Choice (radio) - clear other options (except table cells)
-            const newAnswers = { ...prev };
-            Object.keys(newAnswers).forEach(key => {
-              if (key.startsWith(`${questionId}__`) && !key.match(/^.*__r\d+c\d+__gap\d+$/)) {
-                delete newAnswers[key];
-              }
-            });
-            newAnswers[subKey] = value;
-            nextState = newAnswers;
-          }
+    // КРИТИЧНО: Используем актуальный answersRef.current как основу, а не prev из setState
+    // Это предотвращает потерю данных при быстрых последовательных изменениях
+    const currentAnswers = answersRef.current || {};
+    let nextState = { ...currentAnswers };
+    
+    // Проверяем, это gap fill или multiple choice
+    if (subKey.includes('__')) {
+      const parts = subKey.split('__');
+      const questionId = parts[0];
+      const gapPart = parts[1];
+      
+      // Если это table question (формат: questionId__r{row}c{col}__gap{number})
+      if (parts.length === 3 && gapPart.match(/^r\d+c\d+$/) && parts[2].startsWith('gap')) {
+        nextState[subKey] = value;
+      } else if (gapPart.startsWith('gap')) {
+        // gap fill — не очищаем другие gaps
+        nextState[subKey] = value;
+      } else if (['A', 'B', 'C', 'D'].includes(gapPart)) {
+        // Multiple choice
+        const questionElement = document.querySelector(`input[name="question-${questionId}"]`);
+        if (questionElement && questionElement.type === 'checkbox') {
+          // Multiple Response (checkbox) - allow multiple
+          nextState[subKey] = value;
         } else {
-          nextState = {
-            ...prev,
-            [subKey]: value
-          };
+          // Multiple Choice (radio) - clear other options (except table cells)
+          Object.keys(nextState).forEach(key => {
+            if (key.startsWith(`${questionId}__`) && !key.match(/^.*__r\d+c\d+__gap\d+$/)) {
+              delete nextState[key];
+            }
+          });
+          nextState[subKey] = value;
         }
       } else {
-        nextState = {
-          ...prev,
-          [subKey]: value
-        };
+        nextState[subKey] = value;
       }
-      answersRef.current = nextState;
-      persistLocalCache(nextState, flaggedRef.current || {}, timeLeftRef.current || 0);
-      return nextState;
-    });
+    } else {
+      nextState[subKey] = value;
+    }
+    
+    // Обновляем ref СРАЗУ и синхронно
+    answersRef.current = nextState;
+    
+    // Обновляем state (асинхронно, но это не критично, так как ref уже обновлен)
+    setAnswers(nextState);
+    
+    persistLocalCache(nextState, flaggedRef.current || {}, timeLeftRef.current || 0);
     scheduleSync();
   };
 
   const handleGroupAnswerChange = (questionId, itemId, selectedLabel) => {
-    setAnswers(prev => {
-      const newAnswers = { ...prev };
-      const flatKey = `${questionId}__${itemId}`;
-      newAnswers[flatKey] = selectedLabel;
-      const nested = newAnswers[questionId] && typeof newAnswers[questionId] === 'object' && !Array.isArray(newAnswers[questionId])
-        ? { ...newAnswers[questionId] }
-        : {};
-      nested[itemId] = selectedLabel;
-      newAnswers[questionId] = nested;
-      answersRef.current = newAnswers;
-      persistLocalCache(newAnswers, flaggedRef.current || {}, timeLeftRef.current || 0);
-      return newAnswers;
-    });
+    // КРИТИЧНО: Используем актуальный answersRef.current как основу
+    const currentAnswers = answersRef.current || {};
+    const newAnswers = { ...currentAnswers };
+    
+    const flatKey = `${questionId}__${itemId}`;
+    newAnswers[flatKey] = selectedLabel;
+    const nested = newAnswers[questionId] && typeof newAnswers[questionId] === 'object' && !Array.isArray(newAnswers[questionId])
+      ? { ...newAnswers[questionId] }
+      : {};
+    nested[itemId] = selectedLabel;
+    newAnswers[questionId] = nested;
+    
+    // Обновляем ref СРАЗУ и синхронно
+    answersRef.current = newAnswers;
+    
+    // Обновляем state
+    setAnswers(newAnswers);
+    
+    persistLocalCache(newAnswers, flaggedRef.current || {}, timeLeftRef.current || 0);
     scheduleSync();
   };
 
@@ -371,13 +440,26 @@ const ListeningTestPlayer = () => {
   const syncAnswers = async () => {
     if (!session) return;
     try {
-      const payloadAnswers = answersRef.current || {};
-      const payloadFlagged = flaggedRef.current || {};
+      // Используем актуальное состояние answers, а не только ref
+      const currentAnswers = answersRef.current || answers || {};
+      const currentFlagged = flaggedRef.current || flagged || {};
       const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
-      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: payloadAnswers, flagged: payloadFlagged, time_left: remaining });
-      persistLocalCache(payloadAnswers, payloadFlagged, remaining);
+      
+      // Логируем для отладки
+      if (Object.keys(currentAnswers).length === 0) {
+        console.warn('⚠️ syncAnswers: No answers to sync');
+      }
+      
+      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
+      
+      // Обновляем refs после успешной синхронизации
+      answersRef.current = currentAnswers;
+      flaggedRef.current = currentFlagged;
+      
+      persistLocalCache(currentAnswers, currentFlagged, remaining);
     } catch (err) {
-      // Silent error for sync
+      // Логируем ошибки синхронизации для диагностики
+      console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
     }
   };
 

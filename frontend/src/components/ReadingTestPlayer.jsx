@@ -86,11 +86,58 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setTimeLeft(remaining);
             if (remaining <= 0 && !autoSubmitRef.current) {
                 autoSubmitRef.current = true;
-                submitTest();
+                // КРИТИЧНО: Принудительно синхронизируем перед автосабмитом
+                // чтобы гарантировать, что все ответы на сервере
+                (async () => {
+                    try {
+                        // Используем актуальные данные из ref
+                        const currentAnswers = answersRef.current || {};
+                        const remaining = 0;
+                        console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
+                        await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
+                    } catch (err) {
+                        console.error('❌ Failed to sync before auto-submit:', err);
+                    }
+                    // Теперь вызываем submit
+                    // Вызываем напрямую через navigate, чтобы не зависеть от submitTest в dependencies
+                    try {
+                        const latestAnswers = answersRef.current || {};
+                        const cleanedAnswers = { ...latestAnswers };
+                        const tableKeyPattern = /^r\d+c\d+(__gap\d+)?$/;
+                        
+                        for (const [questionId, answerValue] of Object.entries(cleanedAnswers)) {
+                            if (answerValue && typeof answerValue === 'object' && !Array.isArray(answerValue)) {
+                                const nestedKeys = Object.keys(answerValue);
+                                const allTableKeys = nestedKeys.length > 0 && nestedKeys.every(key => tableKeyPattern.test(key));
+                                
+                                if (allTableKeys) {
+                                    for (const [subKey, value] of Object.entries(answerValue)) {
+                                        const flatKey = `${questionId}__${subKey}`;
+                                        cleanedAnswers[flatKey] = value;
+                                    }
+                                    delete cleanedAnswers[questionId];
+                                }
+                            }
+                        }
+                        
+                        await api.put(`/reading-sessions/${session.id}/submit/`, { answers: cleanedAnswers, time_left: 0 });
+                        
+                        if (localCacheKeyRef.current) {
+                            localStorage.removeItem(localCacheKeyRef.current);
+                        }
+                        if (syncTimerRef.current) {
+                            clearTimeout(syncTimerRef.current);
+                        }
+                        navigate(`/reading-result/${session.id}`);
+                    } catch (err) {
+                        console.error('🔥 ERROR auto-submitting test:', err.response?.data || err);
+                        alert('Failed to auto-submit test. Please submit manually.');
+                    }
+                })();
             }
         }, 1000);
         return () => clearInterval(timer);
-    }, [session]);
+    }, [session, navigate]);
 
     useEffect(() => {
         timeLeftRef.current = timeLeft;
@@ -103,6 +150,29 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             }
         };
     }, []);
+
+    // Принудительная синхронизация при потере фокуса
+    useEffect(() => {
+        if (!session || session.completed) return;
+
+        const handleVisibilityChange = () => {
+            // Синхронизируем при потере фокуса (переключение вкладок, минимизация)
+            // Это особенно важно для браузеров с проблемами производительности (Opera)
+            if (document.hidden) {
+                if (syncTimerRef.current) {
+                    clearTimeout(syncTimerRef.current);
+                }
+                // Принудительно синхронизируем сразу, без задержки
+                syncAnswers();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [session, syncAnswers, answers]);
 
     const startSessionAndLoadTest = async () => {
         setIsLoading(true);
@@ -126,19 +196,36 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
       deadlineRef.current = Date.now() + initial * 1000;
       setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
             
-            // Загружаем ответы для всех сессий (включая завершенные для отображения результатов)
-            let hydratedAnswers = newSession.answers || {};
+            // КРИТИЧНО: Загружаем и мержим ответы правильно, чтобы не потерять данные
+            // Приоритет: localStorage (самые свежие) > сервер (может быть устаревшим)
+            let serverAnswers = newSession.answers || {};
+            let cachedAnswers = {};
+            
             if (localCacheKeyRef.current) {
                 try {
                     const cached = localStorage.getItem(localCacheKeyRef.current);
                     if (cached) {
                         const parsed = JSON.parse(cached);
                         if (parsed && typeof parsed.answers === 'object') {
-                            hydratedAnswers = parsed.answers;
+                            cachedAnswers = parsed.answers;
                         }
                     }
                 } catch (e) {
-                    // ignore cache errors
+                    console.warn('⚠️ Failed to parse localStorage cache:', e);
+                }
+            }
+            
+            // Мержим данные: сначала серверные (базовая линия), потом кеш (более свежие)
+            // Для вложенных структур (gap_fill, matching) мержим правильно
+            const mergedAnswers = { ...serverAnswers };
+            for (const [questionId, answerValue] of Object.entries(cachedAnswers)) {
+                if (typeof answerValue === 'object' && !Array.isArray(answerValue) && 
+                    questionId in mergedAnswers && typeof mergedAnswers[questionId] === 'object' && !Array.isArray(mergedAnswers[questionId])) {
+                    // Мержим вложенные ответы (например, gap_fill: {gap8: value, gap9: value})
+                    mergedAnswers[questionId] = { ...mergedAnswers[questionId], ...answerValue };
+                } else {
+                    // Для плоских структур или новых вопросов просто обновляем
+                    mergedAnswers[questionId] = answerValue;
                 }
             }
             
@@ -146,7 +233,7 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             // Table questions use keys like "r0c1__gap1" or "r0c1" which should be flat: "questionId__r0c1__gap1"
             // Gap fill uses "gap1", "gap2" etc. - keep nested
             // Matching uses other keys - keep nested
-            const migratedAnswers = { ...hydratedAnswers };
+            const migratedAnswers = { ...mergedAnswers };
             const tableKeyPattern = /^r\d+c\d+(__gap\d+)?$/;
             
             for (const [questionId, answerValue] of Object.entries(migratedAnswers)) {
@@ -203,82 +290,103 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     const syncAnswers = useCallback(async () => {
         if (!session) return;
         try {
-            const payloadAnswers = answersRef.current || {};
+            // Используем актуальное состояние answers, а не только ref
+            // Это гарантирует, что мы отправляем все ответы, даже если ref не обновлен
+            const currentAnswers = answersRef.current || answers || {};
             const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
-            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: payloadAnswers, time_left: remaining });
+            
+            // Логируем для отладки (можно убрать в продакшене)
+            if (Object.keys(currentAnswers).length === 0) {
+                console.warn('⚠️ syncAnswers: No answers to sync');
+            }
+            
+            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
+            
+            // Обновляем ref после успешной синхронизации
+            answersRef.current = currentAnswers;
+            
             if (localCacheKeyRef.current) {
                 try {
-                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: payloadAnswers }));
+                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: currentAnswers }));
                 } catch (e) {
+                    console.warn('⚠️ Failed to save to localStorage:', e);
                     // ignore cache errors
                 }
             }
         } catch (err) {
-            // Silent error for sync
+            // Логируем ошибки синхронизации для диагностики
+            console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
+            // Не прерываем выполнение, но логируем для диагностики
         }
-    }, [session]);
+    }, [session, answers]);
 
     const scheduleSync = useCallback(() => {
         if (!session) return;
         if (syncTimerRef.current) {
             clearTimeout(syncTimerRef.current);
         }
-        syncTimerRef.current = setTimeout(syncAnswers, 800);
+        // Уменьшаем задержку для более частой синхронизации
+        // Это особенно важно для браузеров с проблемами производительности (Opera)
+        syncTimerRef.current = setTimeout(syncAnswers, 500);
     }, [session, syncAnswers]);
 
     const handleAnswerChange = (questionId, subKey, value, type = 'text') => {
         const qIdStr = questionId.toString();
         
-        setAnswers(prev => {
-            const newAnswers = { ...prev };
-
-            if (type === 'multiple_choice') {
-                newAnswers[qIdStr] = { text: value };
-            } else if (type === 'multiple_response') {
-                const currentSelection = Array.isArray(newAnswers[qIdStr]) ? newAnswers[qIdStr] : [];
-                if (value.checked) {
-                    newAnswers[qIdStr] = [...currentSelection, value.text];
-                } else {
-                    newAnswers[qIdStr] = currentSelection.filter(item => item !== value.text);
-                }
-            } else if (type === 'multiple_choice_group') {
-                const currentGroupAnswers = (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr]))
-                    ? { ...newAnswers[qIdStr] }
-                    : {};
-                if (subKey) {
-                    currentGroupAnswers[subKey] = value;
-                    newAnswers[qIdStr] = currentGroupAnswers;
-                    newAnswers[`${qIdStr}__${subKey}`] = value;
-                }
-            } else if (type === 'table') {
-                // Table questions use flat format: questionId__subKey (e.g., "123__r0c1__gap1")
-                // This matches what backend expects in create_detailed_breakdown
-                const flatKey = `${qIdStr}__${subKey}`;
-                newAnswers[flatKey] = value;
-                // Also clean up old nested format if it exists
-                if (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr])) {
-                    delete newAnswers[qIdStr][subKey];
-                    // Remove the nested object if it's empty
-                    if (Object.keys(newAnswers[qIdStr]).length === 0) {
-                        delete newAnswers[qIdStr];
-                    }
-                }
-            } else { // For gap_fill, matching... which use nested structure
-                const currentSubAnswers = newAnswers[qIdStr] || {};
-                newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
+        // КРИТИЧНО: Используем актуальный answersRef.current как основу, а не prev из setState
+        // Это предотвращает потерю данных при быстрых последовательных изменениях
+        const currentAnswers = answersRef.current || {};
+        const newAnswers = { ...currentAnswers };
+        
+        if (type === 'multiple_choice') {
+            newAnswers[qIdStr] = { text: value };
+        } else if (type === 'multiple_response') {
+            const currentSelection = Array.isArray(newAnswers[qIdStr]) ? newAnswers[qIdStr] : [];
+            if (value.checked) {
+                newAnswers[qIdStr] = [...currentSelection, value.text];
+            } else {
+                newAnswers[qIdStr] = currentSelection.filter(item => item !== value.text);
             }
-
-            answersRef.current = newAnswers;
-            if (localCacheKeyRef.current) {
-                try {
-                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: newAnswers }));
-                } catch (e) {
-                    // ignore cache errors
+        } else if (type === 'multiple_choice_group') {
+            const currentGroupAnswers = (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr]))
+                ? { ...newAnswers[qIdStr] }
+                : {};
+            if (subKey) {
+                currentGroupAnswers[subKey] = value;
+                newAnswers[qIdStr] = currentGroupAnswers;
+                newAnswers[`${qIdStr}__${subKey}`] = value;
+            }
+        } else if (type === 'table') {
+            // Table questions use flat format: questionId__subKey (e.g., "123__r0c1__gap1")
+            // This matches what backend expects in create_detailed_breakdown
+            const flatKey = `${qIdStr}__${subKey}`;
+            newAnswers[flatKey] = value;
+            // Also clean up old nested format if it exists
+            if (newAnswers[qIdStr] && typeof newAnswers[qIdStr] === 'object' && !Array.isArray(newAnswers[qIdStr])) {
+                delete newAnswers[qIdStr][subKey];
+                // Remove the nested object if it's empty
+                if (Object.keys(newAnswers[qIdStr]).length === 0) {
+                    delete newAnswers[qIdStr];
                 }
             }
+        } else { // For gap_fill, matching... which use nested structure
+            const currentSubAnswers = newAnswers[qIdStr] || {};
+            newAnswers[qIdStr] = { ...currentSubAnswers, [subKey]: value };
+        }
 
-            return newAnswers;
-        });
+        // Обновляем ref СРАЗУ и синхронно - это критично для предотвращения потери данных
+        answersRef.current = newAnswers;
+        
+        // Обновляем state (асинхронно, но это не критично, так как ref уже обновлен)
+        setAnswers(newAnswers);
+        
+        if (localCacheKeyRef.current) {
+            try {
+                localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: newAnswers }));
+            } catch (e) {
+                // ignore cache errors
+            }
+        }
         
         // Auto-sync after a short delay with the latest answers
         scheduleSync();
@@ -294,8 +402,14 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
         try {
             // ensure latest answers/time are on server before final submit
+            // Используем актуальное состояние answers перед sync
+            const latestAnswers = answersRef.current || answers || {};
+            answersRef.current = latestAnswers; // Обновляем ref перед sync
+            
             await syncAnswers();
-            let payloadAnswers = answersRef.current || answers;
+            
+            // После sync используем актуальные данные из ref или state
+            let payloadAnswers = answersRef.current || answers || {};
             
             // Ensure all table answers are in flat format before submit
             // This is a safety check in case any nested table answers still exist
