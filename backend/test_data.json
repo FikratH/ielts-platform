@@ -1,0 +1,3292 @@
+{
+  "metadata": {
+    "export_date": "2025-09-17T16:29:28.921819",
+    "django_version": [
+      4,
+      2,
+      21,
+      "final",
+      0
+    ],
+    "exported_by": "test_export_script",
+    "missing_files": []
+  },
+  "listening_tests": [
+    {
+      "id": 11,
+      "title": "Weekly test [Listening] (30.08-31.08)",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-08-29T18:25:08.129277+00:00",
+      "updated_at": "2025-08-30T07:47:32.623867+00:00",
+      "parts": [
+        {
+          "part_number": 1,
+          "audio": "secure_audio/b770c4e367255f9cbd9baf8c4cc26f43.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-08-29T18:25:08.131088+00:00",
+          "updated_at": "2025-08-30T07:47:32.628250+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Name of restaurant: The Junction\nLocation: Greyson Street, near the station\nReason for recommendation: Good for people who are especially keen on [[1]]\nOther comments: Quite expensive. The [[2]] is a good place for a drink.\n\nName of restaurant: Paloma\nLocation: In Bow Street next to the cinema\nReason for recommendation: [[3]] food, good for sharing\nOther comments: Staff are very friendly. Need to pay £50 deposit.\nA limited selection of [[4]] food on the menu.\n\nName of restaurant: The [[5]]\nLocation: At the top of a [[6]]\nReason for recommendation: A famous chef. All the [[7]] are very good.\nOnly uses [[8]] ingredients.\nOther comments: Set lunch costs £[[9]] per person. Portions probably of [[10]] size.",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "fish",
+                    "number": 1
+                  },
+                  {
+                    "answer": "roof",
+                    "number": 2
+                  },
+                  {
+                    "answer": "Spanish",
+                    "number": 3
+                  },
+                  {
+                    "answer": "vegetarian",
+                    "number": 4
+                  },
+                  {
+                    "answer": "Audley",
+                    "number": 5
+                  },
+                  {
+                    "answer": "hotel",
+                    "number": 6
+                  },
+                  {
+                    "answer": "reviews",
+                    "number": 7
+                  },
+                  {
+                    "answer": "local",
+                    "number": 8
+                  },
+                  {
+                    "answer": "30 | thirty",
+                    "number": 9
+                  },
+                  {
+                    "answer": "average",
+                    "number": 10
+                  }
+                ]
+              },
+              "correct_answers": [
+                "fish",
+                "roof",
+                "Spanish",
+                "vegetarian",
+                "Audley",
+                "hotel",
+                "reviews",
+                "local",
+                "30 | thirty",
+                "average"
+              ],
+              "header": "Questions 1–10",
+              "instruction": "Complete the notes below.\nWrite ONE WORD AND/OR A NUMBER for each answer.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.631490+00:00",
+              "updated_at": "2025-08-30T07:47:32.631501+00:00",
+              "options": []
+            }
+          ]
+        },
+        {
+          "part_number": 2,
+          "audio": "secure_audio/00419029c45203d43c64c166f0148da8.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-08-29T18:25:08.134414+00:00",
+          "updated_at": "2025-08-30T07:47:32.639156+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Heather says pottery differs from other art forms because ____",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "it lasts longer in the ground.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "it is practised by more people.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "it can be repaired more easily.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Questions 11–16",
+              "instruction": "Choose the correct letter, A, B or C.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.642331+00:00",
+              "updated_at": "2025-08-30T07:47:32.642341+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "it lasts longer in the ground.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "it is practised by more people.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "it can be repaired more easily.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Archaeologists sometimes identify the use of ancient pottery from",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "the clay it was made with.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "the marks that are on it.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "the basic shape of it.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Question 12",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.653473+00:00",
+              "updated_at": "2025-08-30T07:47:32.653485+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "the clay it was made with.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "the marks that are on it.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "the basic shape of it.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Some people join Heather’s pottery class because they want to",
+              "extra_data": {
+                "answer": "C",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "create an item that looks very old.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "find something that they are good at.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "make something that will outlive them.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "C"
+              ],
+              "header": "Question 13",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.664759+00:00",
+              "updated_at": "2025-08-30T07:47:32.664771+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "create an item that looks very old.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "find something that they are good at.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "make something that will outlive them.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "What does Heather value most about being a potter?",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "its calming effect",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "its messy nature",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "its physical benefits",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 14",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.675038+00:00",
+              "updated_at": "2025-08-30T07:47:32.675051+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "its calming effect",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "its messy nature",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "its physical benefits",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Most of the visitors to Edelman Pottery",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "bring friends to join courses.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "have never made a pot before.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "try to learn techniques too quickly.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Question 15",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.687550+00:00",
+              "updated_at": "2025-08-30T07:47:32.687563+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "bring friends to join courses.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "have never made a pot before.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "try to learn techniques too quickly.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Heather reminds her visitors that they should",
+              "extra_data": {
+                "answer": "C",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "put on their aprons.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "change their clothes.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "take off their jewellery",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "C"
+              ],
+              "header": "Question 16",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.698844+00:00",
+              "updated_at": "2025-08-30T07:47:32.698857+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "put on their aprons.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "change their clothes.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "take off their jewellery",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_response",
+              "question_text": null,
+              "extra_data": {
+                "answer": [
+                  "A",
+                  "E"
+                ],
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "what their function is",
+                    "image": "",
+                    "label": "A",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "B",
+                    "text": "when they were invented",
+                    "image": "",
+                    "label": "B",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "C",
+                    "text": "ways of keeping them safe",
+                    "image": "",
+                    "label": "C",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "D",
+                    "text": "where to put one in your home",
+                    "image": "",
+                    "label": "D",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "E",
+                    "text": "what some people use instead of one",
+                    "image": "",
+                    "label": "E",
+                    "points": 1,
+                    "isCorrect": true
+                  }
+                ],
+                "scoring_mode": "per_correct"
+              },
+              "correct_answers": [
+                "A",
+                "E"
+              ],
+              "header": "Questions 17 and 18",
+              "instruction": "Choose TWO letters, A-E.\nWhich TWO things does Heather explain about kilns?",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "per_correct",
+              "created_at": "2025-08-30T07:47:32.713743+00:00",
+              "updated_at": "2025-08-30T07:47:32.713755+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "what their function is",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "when they were invented",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "ways of keeping them safe",
+                  "points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "where to put one in your home",
+                  "points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "what some people use instead of one",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_response",
+              "question_text": null,
+              "extra_data": {
+                "answer": [
+                  "C",
+                  "E"
+                ],
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "Some are hard to hold.",
+                    "image": "",
+                    "label": "A",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "B",
+                    "text": "Some are worth buying.",
+                    "image": "",
+                    "label": "B",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "C",
+                    "text": "Some are essential items.",
+                    "image": "",
+                    "label": "C",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "D",
+                    "text": "Some have memorable names.",
+                    "image": "",
+                    "label": "D",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "E",
+                    "text": "Some are available for use by participants.",
+                    "image": "",
+                    "label": "E",
+                    "points": 1,
+                    "isCorrect": true
+                  }
+                ],
+                "scoring_mode": "per_correct"
+              },
+              "correct_answers": [
+                "C",
+                "E"
+              ],
+              "header": "Questions 19 and 20",
+              "instruction": "Choose TWO letters, A-E.\nWhich TWO points does Heather make about a potter’s tools?",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "per_correct",
+              "created_at": "2025-08-30T07:47:32.728436+00:00",
+              "updated_at": "2025-08-30T07:47:32.728448+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Some are hard to hold.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "Some are worth buying.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "Some are essential items.",
+                  "points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "Some have memorable names.",
+                  "points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "Some are available for use by participants.",
+                  "points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 3,
+          "audio": "secure_audio/fa200eae2f34015d20de5ab33fa3403a.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-08-29T18:35:20.738071+00:00",
+          "updated_at": "2025-08-30T07:47:32.770308+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "multiple_response",
+              "question_text": null,
+              "extra_data": {
+                "answer": [
+                  "C",
+                  "E"
+                ],
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "social media",
+                    "image": "",
+                    "label": "A",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "B",
+                    "text": "smaller nuclear families",
+                    "image": "",
+                    "label": "B",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "C",
+                    "text": "urban design",
+                    "image": "",
+                    "label": "C",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "D",
+                    "text": "longer lifespans",
+                    "image": "",
+                    "label": "D",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "E",
+                    "text": "a mobile workforce",
+                    "image": "",
+                    "label": "E",
+                    "points": 1,
+                    "isCorrect": true
+                  }
+                ],
+                "scoring_mode": "per_correct"
+              },
+              "correct_answers": [
+                "C",
+                "E"
+              ],
+              "header": "Questions 21 and 22",
+              "instruction": "Choose TWO letters, A–E.\nWhich TWO things do the students both believe are responsible for the increase in loneliness?",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "per_correct",
+              "created_at": "2025-08-30T07:47:32.773741+00:00",
+              "updated_at": "2025-08-30T07:47:32.773753+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "social media",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "smaller nuclear families",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "urban design",
+                  "points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "longer lifespans",
+                  "points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "a mobile workforce",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_response",
+              "question_text": null,
+              "extra_data": {
+                "answer": [
+                  "A",
+                  "C"
+                ],
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "a weakened immune system",
+                    "image": "",
+                    "label": "A",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "B",
+                    "text": "dementia",
+                    "image": "",
+                    "label": "B",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "C",
+                    "text": "cancer",
+                    "image": "",
+                    "label": "C",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "D",
+                    "text": "obesity",
+                    "image": "",
+                    "label": "D",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "E",
+                    "text": "cardiovascular disease",
+                    "image": "",
+                    "label": "E",
+                    "points": 1,
+                    "isCorrect": false
+                  }
+                ],
+                "scoring_mode": "per_correct"
+              },
+              "correct_answers": [
+                "A",
+                "C"
+              ],
+              "header": "Questions 23 and 24",
+              "instruction": "Choose TWO letters, A–E.\nWhich TWO health risks associated with loneliness do the students agree are based on solid evidence?",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "per_correct",
+              "created_at": "2025-08-30T07:47:32.792282+00:00",
+              "updated_at": "2025-08-30T07:47:32.792296+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "a weakened immune system",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "dementia",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "cancer",
+                  "points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "obesity",
+                  "points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "cardiovascular disease",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_response",
+              "question_text": null,
+              "extra_data": {
+                "answer": [
+                  "A",
+                  "B"
+                ],
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "lt has little practical relevance.",
+                    "image": "",
+                    "label": "A",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "B",
+                    "text": "It needs further investigation.",
+                    "image": "",
+                    "label": "B",
+                    "points": 1,
+                    "isCorrect": true
+                  },
+                  {
+                    "id": "C",
+                    "text": "It is misleading.",
+                    "image": "",
+                    "label": "C",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "D",
+                    "text": "It should be more widely accepted.",
+                    "image": "",
+                    "label": "D",
+                    "points": 1,
+                    "isCorrect": false
+                  },
+                  {
+                    "id": "E",
+                    "text": "lt is difficult to understand.",
+                    "image": "",
+                    "label": "E",
+                    "points": 1,
+                    "isCorrect": false
+                  }
+                ],
+                "scoring_mode": "per_correct"
+              },
+              "correct_answers": [
+                "A",
+                "B"
+              ],
+              "header": "Questions 25 and 26",
+              "instruction": "Choose TWO letters, A–E.\nWhich TWO opinions do both the students express about the evolutionary theory of loneliness?",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "per_correct",
+              "created_at": "2025-08-30T07:47:32.812310+00:00",
+              "updated_at": "2025-08-30T07:47:32.812324+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "lt has little practical relevance.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "It needs further investigation.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "It is misleading.",
+                  "points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "It should be more widely accepted.",
+                  "points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "lt is difficult to understand.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "When comparing loneliness to depression, the students",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "doubt that there will ever be a medical cure for loneliness.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "claim that the link between loneliness and mental health is overstated.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "express frustration that loneliness is not taken more seriously.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Questions 27–30",
+              "instruction": "Choose the correct letter, A, B or C.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.826599+00:00",
+              "updated_at": "2025-08-30T07:47:32.826613+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "doubt that there will ever be a medical cure for loneliness.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "claim that the link between loneliness and mental health is overstated.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "express frustration that loneliness is not taken more seriously.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Why do the students decide to start their presentation with an example from their own experience?",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "to explain how difficult loneliness can be",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "to highlight a situation that most students will recognise",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "to emphasise that feeling lonely is more common for men than women",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Question 28",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.835933+00:00",
+              "updated_at": "2025-08-30T07:47:32.835947+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "to explain how difficult loneliness can be",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "to highlight a situation that most students will recognise",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "to emphasise that feeling lonely is more common for men than women",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "The students agree that talking to strangers is a good strategy for dealing with loneliness because",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "it creates a sense of belonging.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "it builds self-confidence.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "it makes people feel more positive.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 29",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.845141+00:00",
+              "updated_at": "2025-08-30T07:47:32.845155+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "it creates a sense of belonging.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "it builds self-confidence.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "it makes people feel more positive.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "The students find it difficult to understand why solitude is considered to be",
+              "extra_data": {
+                "answer": "C",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "similar to loneliness.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "necessary for mental health.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "an enjoyable experience.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "C"
+              ],
+              "header": "Question 30",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.854897+00:00",
+              "updated_at": "2025-08-30T07:47:32.854910+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "similar to loneliness.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "necessary for mental health.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "an enjoyable experience.",
+                  "points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 4,
+          "audio": "secure_audio/e6ab9a47e754f84c97774a1943bb3ccd.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-08-29T18:38:11.480467+00:00",
+          "updated_at": "2025-08-30T07:47:32.886478+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Reclaiming urban rivers\n\nHistorical background\n• Nearly all major cities were built on a river.\n• Rivers were traditionally used by city dwellers for transport, fishing and recreation.\n• Industrial development and rising populations later led to:\n ○ more sewage from houses being discharged into the river\n ○ pollution from [[31]] on the river bank.\n• In 1957, the River Thames in London was declared biologically [[32]].\n\nRecent improvements\n• Seals and even a [[33]] have been seen in the River Thames.\n• Riverside warehouses are converted to restaurants and [[34]]\n• In Los Angeles, there are plans to:\n ○ build a riverside [[35]]\n ○ display [[36]] projects.\n• In Paris, [[37]] are created on the sides of the river every summer.\n\nTransport possibilities\n• Over 2 billion passengers already travel by [[38]] in cities round the world.\n• Changes in shopping habits mean the number of deliveries that are made is increasing.\n• Instead of road transport, goods could be transported by large freight barges and electric [[39]] or, in future, by [[40]].",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "factories",
+                    "number": 31
+                  },
+                  {
+                    "answer": "dead",
+                    "number": 32
+                  },
+                  {
+                    "answer": "whale",
+                    "number": 33
+                  },
+                  {
+                    "answer": "apartments",
+                    "number": 34
+                  },
+                  {
+                    "answer": "park",
+                    "number": 35
+                  },
+                  {
+                    "answer": "art",
+                    "number": 36
+                  },
+                  {
+                    "answer": "beaches",
+                    "number": 37
+                  },
+                  {
+                    "answer": "ferry",
+                    "number": 38
+                  },
+                  {
+                    "answer": "bikes",
+                    "number": 39
+                  },
+                  {
+                    "answer": "drone",
+                    "number": 40
+                  }
+                ]
+              },
+              "correct_answers": [
+                "factories",
+                "dead",
+                "whale",
+                "apartments",
+                "park",
+                "art",
+                "beaches",
+                "ferry",
+                "bikes",
+                "drone"
+              ],
+              "header": "Questions 31–40",
+              "instruction": "Complete the notes below.\nWrite ONE WORD ONLY for each answer.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-08-30T07:47:32.889080+00:00",
+              "updated_at": "2025-08-30T07:47:32.889092+00:00",
+              "options": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Weekly test [Listening] (13.09-14.09)",
+      "description": "",
+      "is_active": true,
+      "created_at": "2025-09-12T22:32:39.098293+00:00",
+      "updated_at": "2025-09-13T08:15:01.111619+00:00",
+      "parts": [
+        {
+          "part_number": 1,
+          "audio": "secure_audio/512b2ad93dc3965e5f935749bdd42dc8.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-09-12T22:32:39.103064+00:00",
+          "updated_at": "2025-09-13T08:15:01.116191+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Local councils can arrange practical support to help those caring for elderly people at home.\nThis can give the carer:\n• time for other responsibilities\n• a [[1]]\n\nAssessment of mother’s needs\nThis may include discussion of:\n• how much [[2]] the caring involves\n• what types of tasks are involved, e.g.\n ○ help with dressing\n ○ helping her have a [[3]]\n ○ shopping\n ○ helping with meals\n ○ dealing with [[4]]\n• any aspects of caring that are especially difficult, e.g.\n ○ loss of [[5]]\n ○ [[6]] her\n ○ preventing a [[7]]\n\nTypes of support that may be offered to carers\n• transport costs, e.g. cost of a [[8]]\n• car-related costs, e.g. fuel and [[9]]\n• help with housework\n• help to reduce [[10]]",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "break",
+                    "number": 1
+                  },
+                  {
+                    "answer": "time",
+                    "number": 2
+                  },
+                  {
+                    "answer": "shower",
+                    "number": 3
+                  },
+                  {
+                    "answer": "money",
+                    "number": 4
+                  },
+                  {
+                    "answer": "memory",
+                    "number": 5
+                  },
+                  {
+                    "answer": "lifting",
+                    "number": 6
+                  },
+                  {
+                    "answer": "fall",
+                    "number": 7
+                  },
+                  {
+                    "answer": "taxi",
+                    "number": 8
+                  },
+                  {
+                    "answer": "insurance",
+                    "number": 9
+                  },
+                  {
+                    "answer": "stress",
+                    "number": 10
+                  }
+                ]
+              },
+              "correct_answers": [
+                "break",
+                "time",
+                "shower",
+                "money",
+                "memory",
+                "lifting",
+                "fall",
+                "taxi",
+                "insurance",
+                "stress"
+              ],
+              "header": "Questions 1–10",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.120223+00:00",
+              "updated_at": "2025-09-13T08:15:01.120237+00:00",
+              "options": []
+            }
+          ]
+        },
+        {
+          "part_number": 2,
+          "audio": "secure_audio/6495b1e15eb8ef6f6e2121044f48ce88.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-09-12T22:44:44.796757+00:00",
+          "updated_at": "2025-09-13T08:15:01.128818+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Answer choices:\nA providing entertainment\nB providing publicity about a council service\nC contacting local businesses\nD giving advice to visitors\nE collecting feedback on events\nF selling tickets\nG introducing guest speakers at an event\nH encouraging cooperation between local organisations\nI helping people find their seats\n\n[[11]] walking around the town centre\n[[12]] helping at concerts\n[[13]] getting involved with community groups\n[[14]] helping with a magazine\n[[15]] participating at lunches for retired people\n[[16]] helping with the website",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "D",
+                    "number": 11
+                  },
+                  {
+                    "answer": "I",
+                    "number": 12
+                  },
+                  {
+                    "answer": "H",
+                    "number": 13
+                  },
+                  {
+                    "answer": "E",
+                    "number": 14
+                  },
+                  {
+                    "answer": "A",
+                    "number": 15
+                  },
+                  {
+                    "answer": "B",
+                    "number": 16
+                  }
+                ]
+              },
+              "correct_answers": [
+                "D",
+                "I",
+                "H",
+                "E",
+                "A",
+                "B"
+              ],
+              "header": "Questions 11–16",
+              "instruction": "What is the role of the volunteers in each of the following activities?\nChoose SIX answers from the box and write the correct letter, A-I, next to 11-16.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.133159+00:00",
+              "updated_at": "2025-09-13T08:15:01.133171+00:00",
+              "options": []
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Which event requires the largest number of volunteers?",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "the music festival",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "the science festival",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "the book festival",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Questions 17–20",
+              "instruction": "Choose the correct letter, A, B or C.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.137904+00:00",
+              "updated_at": "2025-09-13T08:15:01.137915+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "the music festival",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "the science festival",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "the book festival",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "What is the most important requirement for volunteers at the festivals?",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "interpersonal skills",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "personal interest in the event",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "flexibility",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 18",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.152381+00:00",
+              "updated_at": "2025-09-13T08:15:01.152398+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "interpersonal skills",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "personal interest in the event",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "flexibility",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "New volunteers will start working in the week beginning",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "2 September.",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "9 September.",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "23 September.",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Question 19",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.164801+00:00",
+              "updated_at": "2025-09-13T08:15:01.164818+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "2 September.",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "9 September.",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "23 September.",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "What is the next annual event for volunteers?",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "a boat trip",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "a barbecue",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "a party",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 20",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.182437+00:00",
+              "updated_at": "2025-09-13T08:15:01.182452+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "a boat trip",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "a barbecue",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "a party",
+                  "points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 3,
+          "audio": "secure_audio/ec62175c99d8549232520e40a294be2b.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-09-12T22:44:44.852626+00:00",
+          "updated_at": "2025-09-13T08:15:01.211848+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Answer choices:\nA The information given about this was too vague.\nB This may not be relevant to their course.\nC This will involve only a small number of statistics.\nD It will be easy to find facts about this.\nE The facts about this may not be reliable.\nF No useful research has been done on this.\nG The information provided about this was interesting.\n\nAspects of human geography\nPopulation [[21]]\nHealth [[22]]\nEconomies [[23]]\nCulture [[24]]\nPoverty [[25]]",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "D",
+                    "number": 21
+                  },
+                  {
+                    "answer": "G",
+                    "number": 22
+                  },
+                  {
+                    "answer": "B",
+                    "number": 23
+                  },
+                  {
+                    "answer": "A",
+                    "number": 24
+                  },
+                  {
+                    "answer": "E",
+                    "number": 25
+                  }
+                ]
+              },
+              "correct_answers": [
+                "D",
+                "G",
+                "B",
+                "A",
+                "E"
+              ],
+              "header": "Questions 21–25",
+              "instruction": "What is Rosie and Colin’s opinion about each of the following aspects of human geography?\nChoose FIVE answers from the box and write the correct letter, A-G, next to Questions 21-25.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.214775+00:00",
+              "updated_at": "2025-09-13T08:15:01.214787+00:00",
+              "options": []
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "Rosie says that in her own city the main problem is",
+              "extra_data": {
+                "answer": "C",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "crime",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "housing",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "unemployment",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "C"
+              ],
+              "header": "Questions 26–30",
+              "instruction": "Choose the correct letter, A, B or C",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.218149+00:00",
+              "updated_at": "2025-09-13T08:15:01.218161+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "crime",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "housing",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "unemployment",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "What recent additions to the outskirts of their cities are both students happy about?",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "conference centres",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "sports centres",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "retail centres",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 27",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.231797+00:00",
+              "updated_at": "2025-09-13T08:15:01.231813+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "conference centres",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "sports centres",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "retail centres",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "The students agree that developing disused industrial sites may",
+              "extra_data": {
+                "answer": "A",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "have unexpected costs",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "damage the urban environment",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "destroy valuable historical buildings",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "A"
+              ],
+              "header": "Question 28",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.243333+00:00",
+              "updated_at": "2025-09-13T08:15:01.243347+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "have unexpected costs",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "damage the urban environment",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "destroy valuable historical buildings",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "The students will mention Masdar City as an example of an attempt to achieve",
+              "extra_data": {
+                "answer": "B",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "daily collections for waste recycling",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "sustainable energy use",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "free transport for everyone",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "B"
+              ],
+              "header": "Question 29",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.259626+00:00",
+              "updated_at": "2025-09-13T08:15:01.259642+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "daily collections for waste recycling",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "sustainable energy use",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "free transport for everyone",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "question_text": "When discussing the ecotown of Greenhill Abbots, Colin is uncertain about",
+              "extra_data": {
+                "answer": "C",
+                "options": [
+                  {
+                    "id": "A",
+                    "text": "what its objectives were",
+                    "image": "",
+                    "label": "A"
+                  },
+                  {
+                    "id": "B",
+                    "text": "why there was opposition to it",
+                    "image": "",
+                    "label": "B"
+                  },
+                  {
+                    "id": "C",
+                    "text": "how much of it has actually been built",
+                    "image": "",
+                    "label": "C"
+                  }
+                ]
+              },
+              "correct_answers": [
+                "C"
+              ],
+              "header": "Question 30",
+              "instruction": "",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.273422+00:00",
+              "updated_at": "2025-09-13T08:15:01.273437+00:00",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "what its objectives were",
+                  "points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "why there was opposition to it",
+                  "points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "how much of it has actually been built",
+                  "points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 4,
+          "audio": "secure_audio/782f8d5d122136b64f87c9fa08f9e224.mp3",
+          "audio_duration": 0.0,
+          "instructions": "",
+          "created_at": "2025-09-12T22:47:04.969443+00:00",
+          "updated_at": "2025-09-13T08:15:01.321504+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "question_text": "Developing food trends\n• The growth in interest in food fashions started with [[31]] of food being shared on social media.\n• The UK food industry is constantly developing products which are new or different.\n• Influencers on social media become ‘ambassadors’ for a brand.\n ○ Sales of [[32]] food brands have grown rapidly this way.\n• Supermarkets track demand for ingredients on social media.\n ○ Famous [[33]] are influential.\n\nMarketing campaigns\n• The avocado:\n ○ [[34]] were invited to visit growers in South Africa.\n ○ Advertising focused on its [[35]] benefits.\n\n• Oat milk:\n ○ A Swedish brand’s media campaign received publicity by upsetting competitors.\n ○ Promotion in the USA through [[36]] shops reduced the need for advertising.\n ○ It appealed to consumers who are concerned about the [[37]]\n\n• Norwegian skrei:\n ○ has helped strengthen the [[38]] of Norwegian seafood.\n\nEthical concerns\n• Quinoa:\n ○ Its success led to an increase in its [[39]]\n ○ Overuse of resources resulted in poor quality [[40]]",
+              "extra_data": {
+                "gaps": [
+                  {
+                    "answer": "photos | photographs | pictures",
+                    "number": 31
+                  },
+                  {
+                    "answer": "vegan",
+                    "number": 32
+                  },
+                  {
+                    "answer": "chefs | cooks",
+                    "number": 33
+                  },
+                  {
+                    "answer": "journalists | reporters",
+                    "number": 34
+                  },
+                  {
+                    "answer": "health",
+                    "number": 35
+                  },
+                  {
+                    "answer": "coffee",
+                    "number": 36
+                  },
+                  {
+                    "answer": "environment",
+                    "number": 37
+                  },
+                  {
+                    "answer": "reputation",
+                    "number": 38
+                  },
+                  {
+                    "answer": "price | cost",
+                    "number": 39
+                  },
+                  {
+                    "answer": "soil",
+                    "number": 40
+                  }
+                ]
+              },
+              "correct_answers": [
+                "photos | photographs | pictures",
+                "vegan",
+                "chefs | cooks",
+                "journalists | reporters",
+                "health",
+                "coffee",
+                "environment",
+                "reputation",
+                "price | cost",
+                "soil"
+              ],
+              "header": "Questions 31–40",
+              "instruction": "Complete the notes below.\nWrite ONE WORD ONLY for each answer.",
+              "image": null,
+              "points": 1,
+              "scoring_mode": "total",
+              "created_at": "2025-09-13T08:15:01.324556+00:00",
+              "updated_at": "2025-09-13T08:15:01.324568+00:00",
+              "options": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "reading_tests": [
+    {
+      "id": 6,
+      "title": "Weekly test [Reading] (30.08-31.08)",
+      "description": "",
+      "time_limit": 60,
+      "total_points": 0,
+      "is_active": true,
+      "created_at": "2025-08-29T17:43:32.933537+00:00",
+      "updated_at": "2025-08-29T17:59:47.601011+00:00",
+      "parts": [
+        {
+          "part_number": 1,
+          "title": "Part 1",
+          "instructions": "",
+          "passage_text": "The kākāpō:\n\nThe kākāpō is a nocturnal, flightless parrot that is critically endangered and one of New Zealand’s unique treasures\nThe kākāpō, also known as the owl parrot, is a large, forest-dwelling bird, with a pale owl-like face. Up to 64 cm in length, it has predominantly yellow-green feathers, forward-facing eyes, a large grey beak, large blue feet, and relatively short wings and tail. It is the world’s only flightless parrot, and is also possibly one of the world’s longest-living birds, with a reported lifespan of up to 100 years.\n\n\nKākāpō are solitary birds and tend to occupy the same home range for many years. They forage on the ground and climb high into trees. They often leap from trees and flap their wings, but at best manage a controlled descent to the ground. They are entirely vegetarian, with their diet including the leaves, roots and bark of trees as well as bulbs, and fern fronds.\nKākāpō breed in summer and autumn, but only in years when food is plentiful. Males play no part in incubation or chick-rearing – females alone incubate eggs and feed the chicks. The 1-4 eggs are laid in soil, which is repeatedly turned over before and during incubation. The female kākāpō has to spend long periods away from the nest searching for food, which leaves the unattended eggs and chicks particularly vulnerable to predators.\n\n\nBefore humans arrived, kākāpō were common throughout New Zealand’s forests. However, this all changed with the arrival of the first Polynesian settlers about 700 years ago. For the early settlers, the flightless kākāpō was easy prey. They ate its meat and used its feathers to make soft cloaks. With them came the Polynesian dog and rat, which also preyed on kākāpō. By the time European colonisers arrived in the early 1800s, kākāpō had become confined to the central North Island and forested parts of the South Island. The fall in kākāpō numbers was accelerated by European colonisation. A great deal of habitat was lost through forest clearance, and introduced species such as deer depleted the remaining forests of food. Other predators such as cats, stoats and two more species of rat were also introduced. The kākāpō were in serious trouble.\n\n\nIn 1894, the New Zealand government launched its first attempt to save the kākāpō. Conservationist Richard Henry led an effort to relocate several hundred of the birds to predator-free Resolution Island in Fiordland. Unfortunately, the island didn’t remain predator free – stoats arrived within six years, eventually destroying the kākāpō population. By the mid-1900s, the kākāpō was practically a lost species. Only a few clung to life in the most isolated parts of New Zealand.\n\n\nFrom 1949 to 1973, the newly formed New Zealand Wildlife Service made over 60 expeditions to find kākāpō, focusing mainly on Fiordland. Six were caught, but there were no females amongst them and all but one died within a few months of captivity. In 1974, a new initiative was launched, and by 1977, 18 more kākāpō were found in Fiordland. However, there were still no females. In 1977, a large population of males was spotted in Rakiura – a large island free from stoats, ferrets and weasels. There were about 200 individuals, and in 1980 it was confirmed females were also present. These birds have been the foundation of all subsequent work in managing the species.\nUnfortunately, predation by feral cats on Rakiura Island led to a rapid decline in kākāpō numbers. As a result, during 1980-97, the surviving population was evacuated to three island sanctuaries: Codfish Island, Maud Island and Little Barrier Island. However, breeding success was hard to achieve. Rats were found to be a major predator of kākāpō chicks and an insufficient number of chicks survived to offset adult mortality. By 1995, although at least 12 chicks had been produced on the islands, only three had survived. The kākāpō population had dropped to 51 birds. The critical situation prompted an urgent review of kākāpō management in New Zealand.\n\n\nIn 1996, a new Recovery Plan was launched, together with a specialist advisory group called the Kākāpō Scientific and Technical Advisory Committee and a higher amount of funding. Renewed steps were taken to control predators on the three islands. Cats were eradicated from Little Barrier Island in 1980, and possums were eradicated from Codfish Island by 1986. However, the population did not start to increase until rats were removed from all three islands, and the birds were more intensively managed. This involved moving the birds between islands, supplementary feeding of adults and rescuing and hand-raising any failing chicks.\n\n\nAfter the first five years of the Recovery Plan, the population was on target. By 2000, five new females had been produced, and the total population had grown to 62 birds. For the first time, there was cautious optimism for the future of kākāpō and by June 2020, a total of 210 birds was recorded.\nToday, kākāpō management continues to be guided by the kākāpō Recovery Plan. Its key goals are: minimise the loss of genetic diversity in the kākāpō population, restore or maintain sufficient habitat to accommodate the expected increase in the kākāpō population, and ensure stakeholders continue to be fully engaged in the preservation of the species.",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-08-29T17:43:32.935634+00:00",
+          "updated_at": "2025-08-29T17:59:47.604810+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "true_false_not_given",
+              "header": "Questions 1–6",
+              "instruction": "Do the following statements agree with the information given in Reading Passage 1?",
+              "image_url": null,
+              "question_text": "In boxes 1–6 on your answer sheet, write\nTRUE           \tif the statement agrees with the information\nFALSE          \tif the statement contradicts the information\nNOT GIVEN \tif there is no information on this",
+              "points": 1.0,
+              "correct_answers": [
+                "False",
+                "False",
+                "False",
+                "Not Given",
+                "True",
+                "True"
+              ],
+              "extra_data": {
+                "answers": [
+                  "False",
+                  "False",
+                  "False",
+                  "Not Given",
+                  "True",
+                  "True"
+                ],
+                "statements": [
+                  "There are other parrots that share the kakapo’s inability to fly.",
+                  "Adult kakapo produce chicks every year.",
+                  "Adult male kakapo bring food back to nesting females.",
+                  "The Polynesian rat was a greater threat to the kakapo than Polynesian settlers.",
+                  "Kakapo were transferred from Rakiura Island to other locations because they were at risk from feral cats.",
+                  "One Recovery Plan initiative that helped increase the kakapo population size was caring for struggling young birds."
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:43:32.939354+00:00",
+              "updated_at": "2025-08-29T17:59:47.609179+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 2,
+              "question_type": "gap_fill",
+              "header": "Questions 7–13",
+              "instruction": "Complete the notes below.\nChoose ONE WORD AND/OR A NUMBER from the passage for each answer.\nWrite your answers in boxes 7–13 on your answer sheet.",
+              "image_url": null,
+              "question_text": "New Zealand’s kākāpō\n\nA type of parrot:\n• diet consists of fern fronds, various parts of a tree and[[7]]\n• nests are created in[[8]]where eggs are laid\n\nArrival of Polynesian settlers\n• the[[9]]of the kākāpō were used to make clothes\n\nArrival of European colonisers\n•[[10]]were an animal which they introduced that ate the kākāpō’s food sources\n\nProtecting kākāpō\n• Richard Henry, a conservationist, tried to protect the kākāpō\n• a definite sighting of female kākāpō on Rakiura Island was reported in the year[[11]]\n• the Recovery Plan included an increase in[[12]]\n• a current goal of the Recovery Plan is to maintain the involvement of[[13]]in kākāpō protection",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "bulbs",
+                  "number": "7"
+                },
+                {
+                  "answer": "soil",
+                  "number": "8"
+                },
+                {
+                  "answer": "feathers",
+                  "number": "9"
+                },
+                {
+                  "answer": "deer",
+                  "number": "10"
+                },
+                {
+                  "answer": "1980",
+                  "number": "11"
+                },
+                {
+                  "answer": "funding",
+                  "number": "12"
+                },
+                {
+                  "answer": "stakeholders",
+                  "number": "13"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "7": "bulbs",
+                  "8": "soil",
+                  "9": "feathers",
+                  "10": "deer",
+                  "11": "1980",
+                  "12": "funding",
+                  "13": "stakeholders"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:43:32.941077+00:00",
+              "updated_at": "2025-08-29T17:59:47.611949+00:00",
+              "answer_options": []
+            }
+          ]
+        },
+        {
+          "part_number": 2,
+          "title": "Part 2",
+          "instructions": "",
+          "passage_text": "To Britain:\n\nMark Rowe investigates attempts to reintroduce elms to Britain:\n\nA\nAround 25 million elms, accounting for 90% of all elm trees in the UK, died during the 1960s and ’70s of Dutch elm disease. In the aftermath, the elm, once so dominant in the British landscape, was largely forgotten. However, there’s now hope the elm may be reintroduced to the countryside of central and southern England. Any reintroduction will start from a very low base. ‘The impact of the disease is difficult to picture if you hadn’t seen what was there before,’ says Matt Elliot of the Woodland Trust. ‘You look at old photographs from the 1960s and it’s only then that you realise the impact [elms had] … They were significant, large trees… then they were gone.’\n\nB\nThe disease is caused by a fungus that blocks the elms’ vascular (water, nutrient and food transport) system, causing branches to wilt and die. A first epidemic, which occurred in the 1920s, gradually died down, but in the ’70s a second epidemic was triggered by shipments of elm from Canada. The wood came in the form of logs destined for boat building and its intact bark was perfect for the elm bark beetles that spread the deadly fungus. This time, the beetles carried a much more virulent strain that destroyed the vast majority of British elms.\n\nC\nToday, elms still exist in the southern English countryside but mostly only in low hedgerows between fields. ‘We have millions of small elms in hedgerows but they get targeted by the beetle as soon as they reach a certain size,’ says Karen Russell, co-author of the report ‘Where we are with elm’. Once the trunk of the elm reaches 10-15 centimetres or so in diameter, it becomes a perfect size for beetles to lay eggs and for the fungus to take hold. Yet mature specimens have been identified, in counties such as Cambridgeshire, that are hundreds of years old, and have mysteriously escaped the epidemic.\n\n\nThe key, Russell says, is to identify and study those trees that have survived and work out why they stood tall when millions of others succumbed. Nevertheless, opportunities are limited as the number of these mature survivors is relatively small. ‘What are the reasons for their survival?’ asks Russell. ‘Avoidance, tolerance, resistance? We don’t know where the balance lies between the three. I don’t see how it can be entirely down to luck.’\n\nD\nFor centuries, elm ran a close second to oak as the hardwood tree of choice in Britain and was in many instances the most prominent tree in the landscape. Not only was elm common in European forests, it became a key component of birch, ash and hazel woodlands. The use of elm is thought to go back to the Bronze Age, when it was widely used for tools. Elm was also the preferred material for shields and early swords. In the 18th century, it was planted more widely and its wood was used for items such as storage crates and flooring. It was also suitable for items that experienced high levels of impact and was used to build the keel of the 19th-century sailing ship Cutty Sark as well as mining equipment.\n\nE\nGiven how ingrained elm is in British culture, it’s unsurprising the tree has many advocates. Amongst them is Peter Bourne of the National Elm Collection in Brighton. ‘I saw Dutch elm disease unfold as a small boy,’ he says. ‘The elm seemed to be part of rural England, but I remember watching trees just lose their leaves and that really stayed with me.’ Today, the city of Brighton’s elms total about 17,000. Local factors appear to have contributed to their survival. Strong winds from the sea make it difficult for the determined elm bark beetle to attack this coastal city’s elm population. However, the situation is precarious. ‘The beetles can just march in if we’re not careful, as the threat is right on our doorstep,’ says Bourne.\n\nF\nAny prospect of the elm returning relies heavily on trees being either resistant to, or tolerant of, the disease. This means a widespread reintroduction would involve existing or new hybrid strains derived from resistant, generally non-native elm species. A new generation of seedlings have been bred and tested to see if they can withstand the fungus by cutting a small slit on the bark and injecting a tiny amount of the pathogen. ‘The effects are very quick,’ says Russell. ‘You return in four to six weeks and trees that are resistant show no symptoms, whereas those that are susceptible show leaf loss and may even have died completely.’\n\nG\nAll of this raises questions of social acceptance, acknowledges Russell. ‘If we’re putting elm back into the landscape, a small element of it is not native – are we bothered about that?’ For her, the environmental case for reintroducing elm is strong. ‘They will host wildlife, which is a good thing. Others are more wary. ‘On the face of it, it seems like a good idea,’ says Elliot. The problem, he suggests, is that, ‘You’re replacing a native species with a horticultural analogue*. You’re effectively cloning.’ There’s also the risk of introducing new diseases. Rather than plant new elms, the Woodland Trust emphasises providing space to those elms that have survived independently. ‘Sometimes the best thing you can do is just give nature time to recover over time, you might get resistance,’ says Elliot.\n\n* horticultural analogue: a cultivated plant species that is genetically similar to an existing species",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-08-29T17:51:46.101882+00:00",
+          "updated_at": "2025-08-29T17:59:47.614909+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "header": "Questions 14–18",
+              "instruction": "Reading Passage 2 has seven sections, A–G.\nWhich section contains the following information?\nWrite the correct letter, A–G, in boxes 14–18 on your answer sheet.\nNB   You may use any letter more than once.",
+              "image_url": null,
+              "question_text": "14 reference to the research problems that arise from there being only a few surviving large elms [[14]]\n15 details of a difference of opinion about the value of reintroducing elms to Britain [[15]]\n16 reference to how Dutch elm disease was brought into Britain [[16]]\n17 a description of the conditions that have enabled a location in Britain to escape Dutch elm disease [[17]]\n18 reference to the stage at which young elms become vulnerable to Dutch elm disease [[18]]",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "C",
+                  "number": "14"
+                },
+                {
+                  "answer": "G",
+                  "number": "15"
+                },
+                {
+                  "answer": "B",
+                  "number": "16"
+                },
+                {
+                  "answer": "E",
+                  "number": "17"
+                },
+                {
+                  "answer": "C",
+                  "number": "18"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "14": "C",
+                  "15": "G",
+                  "16": "B",
+                  "17": "E",
+                  "18": "C"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:51:46.104856+00:00",
+              "updated_at": "2025-08-29T17:59:47.620448+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 2,
+              "question_type": "gap_fill",
+              "header": "Questions 19-23",
+              "instruction": "Look at the following statements (19-23) and the list of people below.\nMatch each statement with the correct person, A, B, or C.\nWrite your answers in boxes 19–23 on your answer sheet.\nNB   You may use any letter more than once.",
+              "image_url": null,
+              "question_text": "19 If a tree gets infected with Dutch elm disease, the damage rapidly becomes visible. [[19]]\n20 It may be better to wait and see if the mature elms that have survived continue to flourish. [[20]]\n21 There must be an explanation for the survival of some mature elms. [[21]]\n22 We need to be aware that insects carrying Dutch elm disease are not very far away. [[22]]\n23 You understand the effect Dutch elm disease has had when you see evidence of how prominent the tree once was. [[23]]\nList of People:\nA   Matt Elliot\nB   Karen Russell\nC   Peter Bourne",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "B",
+                  "number": "19"
+                },
+                {
+                  "answer": "A",
+                  "number": "20"
+                },
+                {
+                  "answer": "B",
+                  "number": "21"
+                },
+                {
+                  "answer": "C",
+                  "number": "22"
+                },
+                {
+                  "answer": "A",
+                  "number": "23"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "19": "B",
+                  "20": "A",
+                  "21": "B",
+                  "22": "C",
+                  "23": "A"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:51:46.107624+00:00",
+              "updated_at": "2025-08-29T17:59:47.622916+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 3,
+              "question_type": "gap_fill",
+              "header": "Questions 24–26",
+              "instruction": "Complete the summary below.\nChoose ONE WORD ONLY from the passage for each answer.\nWrite your answers in boxes 24–26 on your answer sheet.",
+              "image_url": null,
+              "question_text": "Uses of a popular tree:\n\nFor hundreds of years, the only tree that was more popular in Britain than elm was [[24]]. Starting in the Bronze Age, many tools were made from elm and people also used it to make weapons. In the 18th century, it was grown to provide wood for boxes and [[25]]. Due to its strength, elm was often used for mining equipment and the Cutty Sark’s [[26]] was also constructed from elm.",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "oak",
+                  "number": "24"
+                },
+                {
+                  "answer": "flooring",
+                  "number": "25"
+                },
+                {
+                  "answer": "keel",
+                  "number": "26"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "24": "oak",
+                  "25": "flooring",
+                  "26": "keel"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:51:46.110109+00:00",
+              "updated_at": "2025-08-29T17:59:47.625289+00:00",
+              "answer_options": []
+            }
+          ]
+        },
+        {
+          "part_number": 3,
+          "title": "Part 3",
+          "instructions": "",
+          "passage_text": "How stress affects our judgement:\n\n\nSome of the most important decisions of our lives occur while we’re feeling stressed and anxious. From medical decisions to financial and professional ones, we are all sometimes required to weigh up information under stressful conditions. But do we become better or worse at processing and using information under such circumstances?\n\n\nMy colleague and I, both neuroscientists, wanted to investigate how the mind operates under stress, so we visited some local fire stations. Firefighters’ workdays vary quite a bit. Some are pretty relaxed; they’ll spend their time washing the truck, cleaning equipment, cooking meals and reading. Other days can be hectic, with numerous life-threatening incidents to attend to; they’ll enter burning homes to rescue trapped residents, and assist with medical emergencies. These ups and downs presented the perfect setting for an experiment on how people’s ability to use information changes when they feel under pressure.\n\n\nWe found that perceived threat acted as a trigger for a stress reaction that made the task of processing information easier for the firefighters – but only as long as it conveyed bad news.\n\n\nThis is how we arrived at these results. We asked the firefighters to estimate their likelihood of experiencing 40 different adverse events in their life, such as being involved in an accident or becoming a victim of card fraud. We then gave them either good news (that their likelihood of experiencing these events was lower than they’d thought) or bad news (that it was higher) and asked them to provide new estimates.\nBuy bestselling books online\nPeople are normally quite optimistic – they will ignore bad news and embrace the good. This is what happened when the firefighters were relaxed; but when they were under stress, a different pattern emerged. Under these conditions, they became hyper-vigilant to bad news, even when it had nothing to do with their job (such as learning that the likelihood of card fraud was higher than they’d thought), and altered their beliefs in response. In contrast, stress didn’t change how they responded to good news (such as learning that the likelihood of card fraud was lower than they’d thought).\n\n\nBack in our lab, we observed the same pattern in students who were told they had to give a surprise public speech, which would be judged by a panel, recorded and posted online. Sure enough, their cortisol levels spiked, their heart rates went up and they suddenly became better at processing unrelated, yet alarming, information about rates of disease and violence.\n\n\nWhen we experience stressful events, a physiological change is triggered that causes us to take in warnings and focus on what might go wrong. Brain imaging reveals that this ‘switch’ is related to a sudden boost in a neural signal important for learning, specifically in response to unexpected warning signs, such as faces expressing fear.\n\n\nSuch neural engineering could have helped prehistoric humans to survive. When our ancestors found themselves surrounded by hungry animals, they would have benefited from an increased ability to learn about hazards. In a safe environment, however, it would have been wasteful to be on high alert constantly. So, a neural switch that automatically increases or decreases our ability to process warnings in response to changes in our environment could have been useful. In fact, people with clinical depression and anxiety seem unable to switch away from a state in which they absorb all the negative messages around them.\n\n\nIt is also important to realise that stress travels rapidly from one person to the next. If a co-worker is stressed, we are more likely to tense up and feel stressed ourselves. We don’t even need to be in the same room with someone for their emotions to influence our behaviour. Studies show that if we observe positive feeds on social media, such as images of a pink sunset, we are more likely to post uplifting messages ourselves. If we observe negative posts, such as complaints about a long queue at the coffee shop, we will in turn create more negative posts.\n\n\nIn some ways, many of us now live as if we are in danger, constantly ready to tackle demanding emails and text messages, and respond to news alerts and comments on social media. Repeatedly checking your phone, according to a survey conducted by the American Psychological Association, is related to stress. In other words, a pre-programmed physiological reaction, which evolution has equipped us with to help us avoid famished predators, is now being triggered by an online post. Social media posting, according to one study, raises your pulse, makes you sweat, and enlarges your pupils more than most daily activities.\n\n\nThe fact that stress increases the likelihood that we will focus more on alarming messages, together with the fact that it spreads extremely rapidly, can create collective fear that is not always justified. After a stressful public event, such as a natural disaster or major financial crash, there is often a wave of alarming information in traditional and social media, which individuals become very aware of. But that has the effect of exaggerating existing danger. And so, a reliable pattern emerges – stress is triggered, spreading from one person to the next, which temporarily enhances the likelihood that people will take in negative reports, which increases stress further. As a result, trips are cancelled, even if the disaster took place across the globe; stocks are sold, even when holding on is the best thing to do. The good news, however, is that positive emotions, such as hope, are contagious too, and are powerful in inducing people to act to find solutions. Being aware of the close relationship between people’s emotional state and how they process information can help us frame our messages more effectively and become conscientious agents of change.",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-08-29T17:59:47.627795+00:00",
+          "updated_at": "2025-08-29T17:59:47.627806+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "multiple_choice",
+              "header": "Questions 27–30",
+              "instruction": "Choose the correct letter, A, B, C or D.\nWrite the correct letter in boxes 27–30 on your answer sheet.",
+              "image_url": null,
+              "question_text": "In the first paragraph, the writer introduces the topic of the text by",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "defining some commonly used terms.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "questioning a widely held assumption.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "mentioning a challenge faced by everyone.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "specifying a situation which makes us most anxious.",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.631392+00:00",
+              "updated_at": "2025-08-29T17:59:47.631404+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "defining some commonly used terms.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "questioning a widely held assumption.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "mentioning a challenge faced by everyone.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "specifying a situation which makes us most anxious.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 2,
+              "question_type": "multiple_choice",
+              "header": "Question 28",
+              "instruction": "",
+              "image_url": null,
+              "question_text": "What point does the writer make about firefighters in the second paragraph?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "The regular changes of stress levels in their working lives make them ideal study subjects.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "The strategies they use to handle stress are of particular interest to researchers.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "The stressful nature of their job is typical of many public service professions.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "Their personalities make them especially well-suited to working under stress.",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.640728+00:00",
+              "updated_at": "2025-08-29T17:59:47.640740+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "The regular changes of stress levels in their working lives make them ideal study subjects.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "The strategies they use to handle stress are of particular interest to researchers.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "The stressful nature of their job is typical of many public service professions.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "Their personalities make them especially well-suited to working under stress.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 3,
+              "question_type": "multiple_choice",
+              "header": "Question 29",
+              "instruction": "",
+              "image_url": null,
+              "question_text": "What is the writer doing in the fourth paragraph?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "explaining their findings",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "justifying their approach",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "setting out their objectives",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "describing their methodology",
+                    "is_correct": true
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.647994+00:00",
+              "updated_at": "2025-08-29T17:59:47.648005+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "explaining their findings",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "justifying their approach",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "setting out their objectives",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "describing their methodology",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 4,
+              "question_type": "multiple_choice",
+              "header": "Question 30",
+              "instruction": "",
+              "image_url": null,
+              "question_text": "In the seventh paragraph, the writer describes a mechanism in the brain which",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "enables people to respond more quickly to stressful situations.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "results in increased ability to control our levels of anxiety.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "produces heightened sensitivity to indications of external threats.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "is activated when there is a need to communicate a sense of danger.",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.655148+00:00",
+              "updated_at": "2025-08-29T17:59:47.655159+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "enables people to respond more quickly to stressful situations.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "results in increased ability to control our levels of anxiety.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "produces heightened sensitivity to indications of external threats.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "is activated when there is a need to communicate a sense of danger.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 5,
+              "question_type": "gap_fill",
+              "header": "Questions 31–35",
+              "instruction": "Complete each sentence with the correct ending, A–G, below\nWrite the correct letter, A–G, in boxes 31–35 on your answer sheet.",
+              "image_url": null,
+              "question_text": "Answer choices:\nA made them feel optimistic\nB took relatively little notice of bad news\nC responded to negative and positive information in the same way\nD were feeling under stress\nE put them in a stressful situation\nF behaved in a similar manner, regardless of the circumstances\nG thought it more likely that they would experience something bad\n\n31 At times when they were relaxed, the firefighters usually [[31]]\n32 The researchers noted that when the firefighters were stressed, they [[32]]\n33 When the firefighters were told good news, they always [[33]]\n34 The students’ cortisol levels and heart rates were affected when the researchers [[34]]\n35 In both experiments, negative information was processed better when the subjects [[35]]",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "B",
+                  "number": "31"
+                },
+                {
+                  "answer": "G",
+                  "number": "32"
+                },
+                {
+                  "answer": "F",
+                  "number": "33"
+                },
+                {
+                  "answer": "E",
+                  "number": "34"
+                },
+                {
+                  "answer": "D",
+                  "number": "35"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "31": "B",
+                  "32": "G",
+                  "33": "F",
+                  "34": "E",
+                  "35": "D"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.661687+00:00",
+              "updated_at": "2025-08-29T17:59:47.661698+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 6,
+              "question_type": "gap_fill",
+              "header": "Questions 36–40",
+              "instruction": "Do the following statements agree with the information given in Reading Passage 3?\nIn boxes 36–40 on your answer sheet, write",
+              "image_url": null,
+              "question_text": "YES              \tif the statement agrees with the claims of the writer\nNO               \tif the statement contradicts the claims of the writer\nNOT GIVEN \tif it is impossible to say what the writer thinks about this\n36 The tone of the content we post on social media tends to reflect the nature of the posts in our feeds. [[36]]\n37 Phones have a greater impact on our stress levels than other electronic media devices. [[37]]\n38 The more we read about a stressful public event on social media, the less able we are to take the information in. [[38]]\n39 Stress created by social media posts can lead us to take unnecessary precautions. [[39]]\n40 Our tendency to be affected by other people’s moods can be used in a positive way. [[40]]",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "YES",
+                  "number": "36"
+                },
+                {
+                  "answer": "NOT GIVEN",
+                  "number": "37"
+                },
+                {
+                  "answer": "NO",
+                  "number": "38"
+                },
+                {
+                  "answer": "YES",
+                  "number": "39"
+                },
+                {
+                  "answer": "YES",
+                  "number": "40"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "36": "YES",
+                  "37": "NOT GIVEN",
+                  "38": "NO",
+                  "39": "YES",
+                  "40": "YES"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-08-29T17:59:47.664028+00:00",
+              "updated_at": "2025-08-29T17:59:47.664039+00:00",
+              "answer_options": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Weekly test [Reading] (13.09-14.09)",
+      "description": "",
+      "time_limit": 60,
+      "total_points": 0,
+      "is_active": true,
+      "created_at": "2025-09-12T22:04:52.450718+00:00",
+      "updated_at": "2025-09-14T13:23:25.405429+00:00",
+      "parts": [
+        {
+          "part_number": 2,
+          "title": "Part 2",
+          "instructions": "",
+          "passage_text": "Procrastination\n\n\nA psychologist explains why we put off important tasks and how we can break this habit\n\nA\nProcrastination is the habit of delaying a necessary task, usually by focusing on less urgent, more enjoyable, and easier activities instead. We all do it from time to time. We might be composing a message to a friend who we have to let down, or putting together an important report for college or work; we’re doing our best to avoid doing the job at hand, but deep down we know that we should just be getting on with it. Unfortunately, berating ourselves won’t stop us procrastinating again. In fact, it’s one of the worst things we can do. This matters because, as my research shows, procrastination doesn’t just waste time, but is actually linked to other problems, too.\n\nB\nContrary to popular belief, procrastination is not due to laziness or poor time management. Scientific studies suggest procrastination is, in fact, caused by poor mood management. This makes sense if we consider that people are more likely to put off starting or completing tasks that they are really not keen to do. If just thinking about the task threatens our sense of self-worth or makes us anxious, we will be more likely to put it off. Research involving brain imaging has found that areas of the brain linked to detection of threats and emotion regulation are actually different in people who chronically procrastinate compared to those who don’t procrastinate frequently.\n\nC\nTasks that are emotionally loaded or difficult, such as preparing for exams, are prime candidates for procrastination. People with low self-esteem are more likely to procrastinate. Another group of people who tend to procrastinate are perfectionists, who worry their work will be judged harshly by others. We know that if we don’t finish that report or complete those home repairs, then what we did can’t be evaluated. When we avoid such tasks, we also avoid the negative emotions associated with them. This is rewarding, and it conditions us to use procrastination to repair our mood. If we engage in more enjoyable tasks instead, we get another mood boost. In the long run, however, procrastination isn’t an effective way of managing emotions. The ‘mood repair’ we experience is temporary. Afterwards, people tend to be left with a sense of guilt that not only increases their negative mood, but also reinforces their tendency to procrastinate.\n\nD\nSo why is this such a problem? When most people think of the costs of procrastination, they think of the toll on productivity. For example, studies have shown that procrastination negatively impacts on student performance. But putting off reading textbooks and writing essays may affect other areas of students’ lives. In one study of over 3,000 German students over a six-month period, those who reported procrastinating over their university work were also more likely to engage in study-related misconduct, such as cheating and plagiarism. But the behaviour that procrastination was most closely linked with was using fraudulent excuses to get deadline extensions. Other research shows that employees on average spend almost a quarter of their workday procrastinating, and again this is linked with negative outcomes. In fact, in one US survey of over 22,000 employees, participants who said they regularly procrastinated had less annual income and less employment stability. For every one-point increase on a measure of chronic procrastination, annual income decreased by US$$15,000.\n\nE\nProcrastination also correlates with serious health and well-being problems. A tendency to procrastinate is linked to poor mental health, including higher levels of depression and anxiety. Across numerous studies, I’ve found people who regularly procrastinate report a greater number of health issues, such as headaches, flu and colds, and digestive issues. They also experience higher levels of stress and poor sleep quality. They are less likely to practise healthy behaviours, such as eating a healthy diet and regularly exercising, and use destructive coping strategies to manage their stress. In one study of over 700 people, I found people prone to procrastination had a 63% greater risk of poor heart health after accounting for other personality traits and demographics.\n\nF\nFinding better ways of managing our emotions is one route out of the vicious cycle of procrastination. An important first step is to manage our environment and how we view the task. There are a number of evidence-based strategies that can help us fend off distractions that can occupy our minds when we should be focusing on the thing we should be getting on with. For example, reminding ourselves about why the task is important and valuable can increase positive feelings towards it. Forgiving ourselves and feeling compassion when we procrastinate can help break the procrastination cycle. We should admit that we feel bad, but not be overly critical of ourselves. We should remind ourselves that we’re not the first person to procrastinate, nor the last. Doing this can take the edge off the negative feelings we have about ourselves when we procrastinate. This can all make it easier to get back on track.",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-09-12T22:22:11.326030+00:00",
+          "updated_at": "2025-09-14T13:23:25.418129+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "header": "Questions 14–16",
+              "instruction": "Reading Passage 2 has six paragraphs, A–F.\nWhich paragraph contains the following information?\nWrite the correct letter, A–F, in boxes 14–16 on your answer sheet.\nNB   You may use any letter more than once.",
+              "image_url": null,
+              "question_text": "[[14]] mention of false assumptions about why people procrastinate\n[[15]] reference to the realisation that others also procrastinate\n[[16]] neurological evidence of a link between procrastination and emotion",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "B",
+                  "number": "14"
+                },
+                {
+                  "answer": "F",
+                  "number": "15"
+                },
+                {
+                  "answer": "B",
+                  "number": "16"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "14": "B",
+                  "15": "F",
+                  "16": "B"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.330615+00:00",
+              "updated_at": "2025-09-14T13:23:25.421042+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 2,
+              "question_type": "gap_fill",
+              "header": "Questions 17–22",
+              "instruction": "Complete the summary below.\nChoose ONE WORD ONLY from the passage for each answer.\nWrite your answers in boxes 17–22 on your answer sheet.",
+              "image_url": null,
+              "question_text": "What makes us procrastinate?\n\nMany people think that procrastination is the result of [[17]].\nOthers believe it to be the result of an inability to organise time efficiently.\n\nBut scientific studies suggest that procrastination is actually due to poor mood management. The tasks we are most likely to put off are those that could damage our self-esteem or cause us to feel [[18]] when we think about them.\n\nResearch comparing chronic procrastinators with other people even found differences in the brain regions associated with regulating emotions and identifying [[19]].\n\nEmotionally loaded and difficult tasks often cause us to procrastinate. Getting ready to take [[20]] might be a typical example of one such task.\n\nPeople who are likely to procrastinate tend to be either [[21]] those with low self-esteem.\n\nProcrastination is only a short-term measure for managing emotions. It’s often followed by a feeling of [[22]], which worsens our mood and leads to more procrastination.",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "laziness",
+                  "number": "17"
+                },
+                {
+                  "answer": "anxious",
+                  "number": "18"
+                },
+                {
+                  "answer": "threats",
+                  "number": "19"
+                },
+                {
+                  "answer": "exams",
+                  "number": "20"
+                },
+                {
+                  "answer": "perfectionists",
+                  "number": "21"
+                },
+                {
+                  "answer": "guilt",
+                  "number": "22"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "17": "laziness",
+                  "18": "anxious",
+                  "19": "threats",
+                  "20": "exams",
+                  "21": "perfectionists",
+                  "22": "guilt"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.333640+00:00",
+              "updated_at": "2025-09-14T13:23:25.424354+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 3,
+              "question_type": "multiple_response",
+              "header": "Questions 23 and 24",
+              "instruction": "Choose TWO letters, A–E.\nWrite the correct letters in boxes 23 and 24 on your answer sheet.",
+              "image_url": null,
+              "question_text": "Which TWO comparisons between employees who often procrastinate and those who do not are mentioned in the text?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "Their salaries are lower.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "The quality of their work is inferior.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "They don’t keep their jobs for as long.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "They don’t enjoy their working lives as much.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "They have poorer relationships with colleagues.",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "per_correct_option",
+              "created_at": "2025-09-12T22:22:11.336007+00:00",
+              "updated_at": "2025-09-14T13:23:25.426742+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "Their salaries are lower.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "The quality of their work is inferior.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "They don’t keep their jobs for as long.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "They don’t enjoy their working lives as much.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "They have poorer relationships with colleagues.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 4,
+              "question_type": "multiple_response",
+              "header": "Questions 25 and 26",
+              "instruction": "Choose TWO letters, A–E.\nWrite the correct letters in boxes 25 and 26 on your answer sheet.",
+              "image_url": null,
+              "question_text": "Which TWO recommendations for getting out of a cycle of procrastination does the writer give?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "not judging ourselves harshly",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "setting ourselves manageable aims",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "rewarding ourselves for tasks achieved",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "prioritising tasks according to their importance",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "avoiding things that stop us concentrating on our tasks",
+                    "is_correct": true
+                  }
+                ]
+              },
+              "reading_scoring_type": "per_correct_option",
+              "created_at": "2025-09-12T22:22:11.345021+00:00",
+              "updated_at": "2025-09-14T13:23:25.436005+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "not judging ourselves harshly",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "setting ourselves manageable aims",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "rewarding ourselves for tasks achieved",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "prioritising tasks according to their importance",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "E",
+                  "text": "avoiding things that stop us concentrating on our tasks",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 3,
+          "title": "Part 3",
+          "instructions": "",
+          "passage_text": "Invasion of the Robot Umpires\nA few years ago, Fred DeJesus from Brooklyn, New York became the first umpire in a minor league baseball game to use something called the Automated Ball-Strike System (ABS), often referred to as the ‘robo-umpire’. Instead of making any judgments himself about a strike”, DeJesus had decisions fed to him through an earpiece, connected to a modified missile-tracking system. The contraption looked like a large black pizza box with one glowing green eye; it was mounted above the press stand.\nMajor League Baseball (MLB), who had commissioned the system, wanted human umpires to announce the calls, just as they would have done in the past. When the first pitch came in, a recorded voice told DeJesus it was a strike. Previously, calling a strike was a judgment call on the part of the umpire. Even if the batter does not hit the ball, a pitch that passes through the ‘strike zone (an imaginary zone about seventeen inches wide, stretching from the batter’s knees to the middle of his chest) is considered a strike. During that first game, when DeJesus announced calls, there was no heckling and no shouted disagreement. Nobody said a word.\nFor a hundred and fifty years or so, the strike zone has been the game’s animating force-countless arguments between a team’s manager and the umpire have taken place over its boundaries and whether a ball had crossed through it. The rules of play have evolved in various stages. Today, everyone knows that you may scream your disagreement in an umpire’s face, but you must never shout personal abuse at them or touch them. That’s a no-no. When the robo-umpires came, however, the arguments stopped.\nDuring the first robo-umpire season, players complained about some strange calls. In response, MLB decided to tweak the dimensions of the zone, and the following year the consensus was that ABS is profoundly consistent. MLB says the device is near-perfect, precise to within fractions of an inch. “It’ll reduce controversy in the game, and be good for the game,” says Rob Manfred, who is Commissioner for MLB. But the question is whether controversy is worth reducing, or whether it is the sign of a human hand.\nA human, at least, yells back. When I spoke with Frank Viola, a coach for a North Carolina team, he said that ABS works as designed, but that it was also unforgiving and pedantic, almost legalistic. “Manfred is a lawyer,” Viola noted. Some pitchers have complained that, compared with a human’s, the robot’s strike zone seems too precise. Viola was once a major-league player himself. When he was pitching, he explained, umpires rewarded skill. “Throw it where you aimed, and it would be a strike, even if it was an inch or two outside. There was a dialogue between pitcher and umpire.”\nThe executive tasked with running the experiment for MLB is Morgan Sword, who’s in charge of baseball operations. According to Sword, ABS was part of a larger project to make baseball more exciting since executives are terrified of losing younger fans, as has been the case with horse racing and boxing. He explains how they began the process by asking fans what version of baseball they found most exciting. The results showed that everyone wanted more action: more hits, more defense, more baserunning. This type of baseball essentially hasn’t existed since the 1960s, when the hundred-mile-an-hour fastball, which is difficult to hit and control, entered the game. It flattened the game into strikeouts, walks, and home runs a type of play lacking much action.\nSword’s team brainstormed potential fixes. Any rule that existed, they talked about changing-from changing the bats to changing the geometry of the field. But while all of these were ruled out as potential fixes, ABS was seen as a perfect vehicle for change. According to Sword, once you get the technology right, you can load any strike zone you want into the system. “It might be a triangle, or a blob, or something shaped like Texas. Over time, as baseball evolves, ABS can allow the zone to change with it.”\n“In the past twenty years, sports have moved away from judgment calls. Soccer has Video Assistant Referees (for offside decisions, for example). Tennis has Hawk-Eye da chon 1 muc (for line calls, for example). For almost a decade, baseball has used instant replay on the base paths. This is widely liked, even if the precision can sometimes cause problems. But these applications deal with something physical: bases, lines, goals. The boundaries of action are precise, delineated like the keys of a piano. This is not the case with ABS and the strike zone. Historically, a certain discretion has been appreciated.”\nI decided to email Alva Noë, a professor at Berkeley University and a baseball fan, for his opinion. “Hardly a day goes by that I don’t wake up and run through the reasons that this [robo-umpires] is such a terrible idea,” he replied. He later told me, “This is part of a movement to use algorithms to take the hard choices of living out of life.” Perhaps he’s right. We watch baseball to kill time, not to maximize it. Some players I have met take a dissenting stance toward the robots too, believing that accuracy is not the answer. According to Joe Russo, who plays for a New Jersey team, “With technology, people just want everything to be perfect. That’s not reality. I think perfect would be weird. Your teams are always winning, work is always just great, there’s always money in your pocket, your car never breaks down. What is there to talk about?”\n —————————–\n*strike: a strike is when the batter swings at a ball and misses or when the batter does not swing at a ball that passes through the strike zone.",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-09-12T22:22:11.354015+00:00",
+          "updated_at": "2025-09-14T13:23:25.444164+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "true_false_not_given",
+              "header": "Questions 27–32",
+              "instruction": "Do the following statements agree with the claims of the writer in Reading Passage 3?\nIn boxes 27-32 on your answer sheet, write:",
+              "image_url": null,
+              "question_text": "TRUE              \tif the statement agrees with the claims of the writer\nFALSE               \tif the statement contradicts the claims of the writer\nNOT GIVEN \tif it is impossible to say what the writer thinks about this",
+              "points": 1.0,
+              "correct_answers": [
+                "False",
+                "True",
+                "Not Given",
+                "False",
+                "Not Given",
+                "True"
+              ],
+              "extra_data": {
+                "answers": [
+                  "False",
+                  "True",
+                  "Not Given",
+                  "False",
+                  "Not Given",
+                  "True"
+                ],
+                "statements": [
+                  "When DeJesus first used ABS, he shared decision-making about strikes with it.",
+                  "MLB considered it necessary to amend the size of the strike zone when criticisms were received from players.",
+                  "MLB is keen to justify the money spent on improving the accuracy of ABS’s calculations.",
+                  "The hundred-mile-an-hour fastball led to a more exciting style of play.",
+                  "The differing proposals for alterations to the baseball bat led to fierce debate on Sword’s team.",
+                  "ABS makes changes to the shape of the strike zone feasible."
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.357105+00:00",
+              "updated_at": "2025-09-14T13:23:25.447199+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 2,
+              "question_type": "gap_fill",
+              "header": "Questions 33–37",
+              "instruction": "Complete the summary using the list of phrases, A–H, below.\nWrite the correct letter, A–H, in boxes 33-37 on your answer sheet.",
+              "image_url": null,
+              "question_text": "Calls by the umpire\n\nEven after ABS was developed, MLB still wanted human umpires to shout out decisions as they had in their [[33]].\n\nThe umpire’s job had, at one time, required a [[34]] about whether a ball was a strike.\n\nA ball is considered a strike when the batter does not hit it and it crosses through a [[35]] extending approximately from the batter’s knee to his chest.\n\nIn the past, [[36]] over strike calls were not uncommon, but today everyone accepts the complete ban on pushing or shoving the umpire.\n\nOne difference, however, is that during the first game DeJesus used ABS, strike calls were met with [[37]].\n\nA   pitch boundary\nD   subjective assessment\nG   total silence\nB   numerous disputes\nE   widespread approval\nH   perceived area",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "",
+                  "number": "1"
+                },
+                {
+                  "answer": "F",
+                  "number": "33"
+                },
+                {
+                  "answer": "D",
+                  "number": "34"
+                },
+                {
+                  "answer": "H",
+                  "number": "35"
+                },
+                {
+                  "answer": "B",
+                  "number": "36"
+                },
+                {
+                  "answer": "G",
+                  "number": "37"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "",
+                  "33": "F",
+                  "34": "D",
+                  "35": "H",
+                  "36": "B",
+                  "37": "G"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.360209+00:00",
+              "updated_at": "2025-09-14T13:23:25.449778+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 3,
+              "question_type": "multiple_choice",
+              "header": "Questions 38–40",
+              "instruction": "Choose the correct letter, A, B, C or D.\nWrite the correct letter in boxes 38–40 on your answer sheet.",
+              "image_url": null,
+              "question_text": "What does the writer suggest about ABS in the fifth paragraph?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "lt is bound to make key decisions that are wrong.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "It may reduce some of the appeal of the game.",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "It will lead to the disappearance of human umpires.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "It may increase calls for the rules of baseball to be changed.",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.363028+00:00",
+              "updated_at": "2025-09-14T13:23:25.452210+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "lt is bound to make key decisions that are wrong.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "It may reduce some of the appeal of the game.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "It will lead to the disappearance of human umpires.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "It may increase calls for the rules of baseball to be changed.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 4,
+              "question_type": "multiple_choice",
+              "header": "Question 39",
+              "instruction": "",
+              "image_url": null,
+              "question_text": "Morgan Sword says that the introduction of ABS",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "was regarded as an experiment without a guaranteed outcome.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "was intended to keep up with developments in other sports.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "was a response to changing attitudes about the role of sport.",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "was an attempt to ensure baseball retained a young audience.",
+                    "is_correct": true
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.372810+00:00",
+              "updated_at": "2025-09-14T13:23:25.459738+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "was regarded as an experiment without a guaranteed outcome.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "was intended to keep up with developments in other sports.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "was a response to changing attitudes about the role of sport.",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "was an attempt to ensure baseball retained a young audience.",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                }
+              ]
+            },
+            {
+              "order": 5,
+              "question_type": "multiple_choice",
+              "header": "Question 40",
+              "instruction": "",
+              "image_url": null,
+              "question_text": "Why does the writer include the views of Noe and Russo?",
+              "points": 1.0,
+              "correct_answers": [],
+              "extra_data": {
+                "options": [
+                  {
+                    "text": "to show that attitudes to technology vary widely",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "to argue that people have unrealistic expectations of sport",
+                    "is_correct": false
+                  },
+                  {
+                    "text": "to indicate that accuracy is not the same thing as enjoyment",
+                    "is_correct": true
+                  },
+                  {
+                    "text": "to suggest that the number of baseball fans needs to increase",
+                    "is_correct": false
+                  }
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:22:11.382878+00:00",
+              "updated_at": "2025-09-14T13:23:25.467193+00:00",
+              "answer_options": [
+                {
+                  "label": "A",
+                  "text": "to show that attitudes to technology vary widely",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "B",
+                  "text": "to argue that people have unrealistic expectations of sport",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                },
+                {
+                  "label": "C",
+                  "text": "to indicate that accuracy is not the same thing as enjoyment",
+                  "image_url": null,
+                  "is_correct": true,
+                  "reading_points": 1
+                },
+                {
+                  "label": "D",
+                  "text": "to suggest that the number of baseball fans needs to increase",
+                  "image_url": null,
+                  "is_correct": false,
+                  "reading_points": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "part_number": 1,
+          "title": "Part 1",
+          "instructions": "",
+          "passage_text": "Manatees\n\nManatees, also known as sea cows, are aquatic mammals that belong to a group of animals called Sirenia. This group also contains dugongs. Dugongs and manatees look quite alike – they are similar in size, colour and shape, and both have flexible flippers for forelimbs. However, the manatee has a broad, rounded tail, whereas the dugongs is fluked, like that of a whale. There are three species of manatees: the West Indian manatee (Trichechus manatus), the African manatee (Trichechus senegalensis) and the Amazonian manatee (Trichechus inunguis).\nUnlike most mammals, manatees have only six bones in their neck – most others, including humans and giraffes, have seven. This short neck allows a manatee to move its head up and down, but not side to side. To see something on its left or its right, a manatee must turn its entire body, steering with its flippers. Manatees have pectoral flippers but no back limbs, only a tail for propulsion. They do have pelvic bones, however – a leftover from their evolution from a four-legged to a fully aquatic animal. Manatees share some visual similarities to elephants. Like elephants, manatees have thick, wrinkled skin. They also have some hairs covering their bodies which help them sense vibrations in the water around them.\nSeagrasses and other marine plants make up most of a manatee’s diet. Manatees spend about eight hours each day grazing and uprooting plants. They eat up to 15% of their weight in food each day. African manatees are omnivorous – studies have shown that molluscs and fish make up a small part of their diets. West Indian and Amazonian manatees are both herbivores.\nManatees’ teeth are all molars – flat, rounded teeth for grinding food. Due to manatees’ abrasive aquatic plant diet, these teeth get worn down and they eventually fall out, so they continually grow new teeth that get pushed forward to replace the ones they lose. Instead of having incisors to grasp their food, manatees have lips which function like a pair of hands to help tear food away from the seafloor.\nManatees are fully aquatic, but as mammals, they need to come up to the surface to breathe. When awake, they typically surface every two to four minutes, but they can hold their breath for much longer. Adult manatees sleep underwater for 10-12 hours a day, but they come up for air every 15-20 minutes. Active manatees need to breathe more frequently. It’s thought that manatees use their muscular diaphragm and breathing to adjust their buoyancy. They may use diaphragm contractions to compress and store gas in folds in their large intestine to help them float.\nThe West Indian manatee reaches about 3.5 metres long and weighs on average around 500 kilogrammes. It moves between fresh water and salt water, taking advantage of coastal mangroves and coral reefs, rivers, lakes and inland lagoons. There are two subspecies of West Indian manatee: the Antillean manatee is found in waters from the Bahamas to Brazil, whereas the Florida manatee is found in US waters, although some individuals have been recorded in the Bahamas. In winter, the Florida manatee is typically restricted to Florida. When the ambient water temperature drops below 20°C, it takes refuge in naturally and artificially warmed water, such as at the warm-water outfalls from powerplants.\nThe African manatee is also about 3.5 metres long and found in the sea along the west coast of Africa, from Mauritania down to Angola. The species also makes use of rivers, with the mammals seen in landlocked countries such as Mali and Niger. The Amazonian manatee is the smallest species, though it is still a big animal. It grows to about 2.5 metres long and 350 kilogrammes. Amazonian manatees favour calm, shallow waters that are above 23°C. This species is found in fresh water in the Amazon Basin in Brazil, as well as in Colombia, Ecuador and Peru.\nAll three manatee species are endangered or at a heightened risk of extinction. The African manatee and Amazonian manatee are both listed as Vulnerable by the International Union for Conservation of Nature (IUCN). It is estimated that 140,000. Amazonian manatees were killed between 1935 and 1954 for their meat, fat and skin with the latter used to make leather. In more recent years, African manatee decline has been tied to incidental capture in fishing nets and hunting. Manatee hunting is now illegal in every country the African species is found in.\nThe two subspecies of West Indian manatee are listed as Endangered by the IUCN. Both are also expected to undergo a decline of 20% over the next 40 years. A review of almost 1,800 cases of entanglement in fishing nets and of plastic consumption among marine mammals in US waters from 2009 to 2020 found that at least 700 cases involved manatees. The chief cause of death in Florida manatees is boat strikes. However, laws in certain parts of Florida now limit boat speeds during winter, allowing slow-moving manatees more time to respond.",
+          "passage_image_url": null,
+          "order": 1,
+          "created_at": "2025-09-12T22:04:52.458359+00:00",
+          "updated_at": "2025-09-14T13:23:25.409221+00:00",
+          "questions": [
+            {
+              "order": 1,
+              "question_type": "gap_fill",
+              "header": "Questions 1-6",
+              "instruction": "Complete the notes below.\nChoose ONE WORD AND/OR A NUMBER from the passage for each answer.",
+              "image_url": null,
+              "question_text": "Appearance\n– look similar to dugongs, but with a differently shaped [[1]]\n\nMovement\n– have fewer neck bones than most mammals\n– need to use their [[2]] to help to turn their bodies around in order to look sideways\n– sense vibrations in the water by means of [[3]] on their skin\n\nFeeding\n– eat mainly aquatic vegetation, such as [[4]]\n– grasp and pull up plants with their [[5]]\n\nBreathing\n– come to the surface for air every 2–4 minutes when awake and every 15–20 while sleeping\n– may regulate the [[6]] of their bodies by using muscles of diaphragm to store air internally",
+              "points": 1.0,
+              "correct_answers": [
+                {
+                  "answer": "tail",
+                  "number": "1"
+                },
+                {
+                  "answer": "flippers",
+                  "number": "2"
+                },
+                {
+                  "answer": "hair",
+                  "number": "3"
+                },
+                {
+                  "answer": "seagrasses",
+                  "number": "4"
+                },
+                {
+                  "answer": "lips",
+                  "number": "5"
+                },
+                {
+                  "answer": "buoyancy",
+                  "number": "6"
+                }
+              ],
+              "extra_data": {
+                "answers": {
+                  "1": "tail",
+                  "2": "flippers",
+                  "3": "hair",
+                  "4": "seagrasses",
+                  "5": "lips",
+                  "6": "buoyancy"
+                }
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:04:52.461842+00:00",
+              "updated_at": "2025-09-14T13:23:25.412672+00:00",
+              "answer_options": []
+            },
+            {
+              "order": 2,
+              "question_type": "true_false_not_given",
+              "header": "Questions 7–13",
+              "instruction": "Do the following statements agree with the information given in Reading Passage 1?\nIn boxes 7–13 on your answer sheet, write:",
+              "image_url": null,
+              "question_text": "TRUE           \tif the statement agrees with the information\nFALSE          \tif the statement contradicts the information\nNOT GIVEN \tif there is no information on this",
+              "points": 1.0,
+              "correct_answers": [
+                "True",
+                "Not Given",
+                "False",
+                "Not Given",
+                "True",
+                "Not Given",
+                "True"
+              ],
+              "extra_data": {
+                "answers": [
+                  "True",
+                  "Not Given",
+                  "False",
+                  "Not Given",
+                  "True",
+                  "Not Given",
+                  "True"
+                ],
+                "statements": [
+                  "West Indian manatees can be found in a variety of different aquatic habitats.",
+                  "The Florida manatee lives in warmer waters than the Antillean manatee.",
+                  "The African manatee’s range is limited to coastal waters between the West African countries of Mauritania and Angola.",
+                  "The extent of the loss of Amazonian manatees in the mid-twentieth century was only revealed many years later.",
+                  "It is predicted that West Indian manatee populations will fall in the coming decades.",
+                  "The risk to manatees from entanglement and plastic consumption increased significantly in the period 2009-2020.",
+                  "There is some legislation in place which aims to reduce the likelihood of boat strikes on manatees in Florida."
+                ]
+              },
+              "reading_scoring_type": "all_or_nothing",
+              "created_at": "2025-09-12T22:04:52.467457+00:00",
+              "updated_at": "2025-09-14T13:23:25.415599+00:00",
+              "answer_options": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "media_files": [
+    "secure_audio/6495b1e15eb8ef6f6e2121044f48ce88.mp3",
+    "secure_audio/ec62175c99d8549232520e40a294be2b.mp3",
+    "secure_audio/fa200eae2f34015d20de5ab33fa3403a.mp3",
+    "secure_audio/782f8d5d122136b64f87c9fa08f9e224.mp3",
+    "secure_audio/b770c4e367255f9cbd9baf8c4cc26f43.mp3",
+    "secure_audio/00419029c45203d43c64c166f0148da8.mp3",
+    "secure_audio/e6ab9a47e754f84c97774a1943bb3ccd.mp3",
+    "secure_audio/512b2ad93dc3965e5f935749bdd42dc8.mp3"
+  ]
+}
