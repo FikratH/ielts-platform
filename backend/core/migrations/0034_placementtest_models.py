@@ -1,12 +1,33 @@
 # Generated manually for Placement Test models
 
 from django.db import migrations, models
+from django.contrib.contenttypes.models import ContentType
+
+
+def create_content_types(apps, schema_editor):
+    ContentType = apps.get_model('contenttypes', 'ContentType')
+    db_alias = schema_editor.connection.alias
+    
+    PlacementTestQuestion = apps.get_model('core', 'PlacementTestQuestion')
+    PlacementTestSubmission = apps.get_model('core', 'PlacementTestSubmission')
+    
+    for Model in [PlacementTestQuestion, PlacementTestSubmission]:
+        model_name = Model._meta.model_name
+        ContentType.objects.using(db_alias).get_or_create(
+            app_label='core',
+            model=model_name
+        )
+
+
+def reverse_create_content_types(apps, schema_editor):
+    pass
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0033_writing_session_drafts'),
+        ('contenttypes', '0002_remove_content_type_name'),
     ]
 
     operations = [
@@ -44,5 +65,6 @@ class Migration(migrations.Migration):
                 'ordering': ['-submitted_at'],
             },
         ),
+        migrations.RunPython(create_content_types, reverse_create_content_types),
     ]
 

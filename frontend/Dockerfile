@@ -6,6 +6,7 @@ RUN npm ci --legacy-peer-deps && \
 
 FROM node:20-alpine AS build
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
 ARG REACT_APP_API_BASE_URL

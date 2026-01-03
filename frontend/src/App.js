@@ -1,67 +1,67 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
-import LoginPage from './pages/LoginPage';
-// import EssaySubmitPage from './pages/EssaySubmitPage';
-import Dashboard from './pages/Dashboard';
-import EssayDetail from './pages/EssayDetail';
-
-import WritingStartPage from './pages/WritingStartPage';
-import WritingTestListPage from './pages/WritingTestListPage';
-import WritingTaskPage from './pages/WritingTaskPage';
-import WritingResultPage from './pages/WritingResultPage';
-import WritingPromptsAdminPage from './pages/WritingPromptsAdminPage';
-import AdminWritingTestBuilder from './pages/AdminWritingTestBuilder';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
-import AdminDashboardPage from './pages/AdminDashboardPage';
-import ListeningTestListPage from './pages/ListeningTestListPage';
-import ListeningTestPlayerPage from './pages/ListeningTestPlayerPage';
-import ListeningResultPage from './pages/ListeningResultPage';
-import AdminListeningManagePage from './pages/AdminListeningManagePage';
-import AdminListeningTestBuilderPage from './pages/AdminListeningTestBuilderPage';
-import StudentSubmissionView from './components/StudentSubmissionView';
-import AdminStudentsPage from './pages/AdminStudentsPage';
-import AdminTeachersPage from './pages/AdminTeachersPage';
-import AdminBulkImportPage from './pages/AdminBulkImportPage';
-import AdminStudentResultsPage from './pages/AdminStudentResultsPage';
-import AdminTeacherSurveyResultsPage from './pages/AdminTeacherSurveyResultsPage';
-
-
-// Reading imports
-import ReadingPage from './pages/ReadingPage';
-import ReadingTestPlayerPage from './pages/ReadingTestPlayerPage';
-import AdminReadingPage from './pages/AdminReadingPage';
-import AdminReadingTestBuilderPage from './pages/AdminReadingTestBuilderPage';
-import ReadingResultPage from './pages/ReadingResultPage';
-// Teacher pages
-import TeacherWritingListPage from './pages/TeacherWritingListPage';
-import TeacherWritingEditorPage from './pages/TeacherWritingEditorPage';
-// Student feedback view
-import WritingTeacherFeedbackPage from './pages/WritingTeacherFeedbackPage';
-import WritingTeacherFeedbackSessionPage from './pages/WritingTeacherFeedbackSessionPage';
-// Speaking pages
-import TeacherSpeakingPage from './pages/TeacherSpeakingPage';
-import SpeakingSessionPage from './pages/SpeakingSessionPage';
-import SpeakingResultPage from './pages/SpeakingResultPage';
-import SpeakingSessionsListPage from './pages/SpeakingSessionsListPage';
-
-import CuratorDashboard from './pages/CuratorDashboard';
-import DiagnosticPage from './pages/DiagnosticPage';
-import CuratorDiagnosticPage from './pages/CuratorDiagnosticPage';
-import CuratorStudentsPage from './pages/CuratorStudentsPage';
-import CuratorWritingPage from './pages/CuratorWritingPage';
-import CuratorListeningPage from './pages/CuratorListeningPage';
-import CuratorReadingPage from './pages/CuratorReadingPage';
-import CuratorSpeakingPage from './pages/CuratorSpeakingPage';
-import CuratorTestComparisonPage from './pages/CuratorTestComparisonPage';
-import CuratorStudentDetailPage from './pages/CuratorStudentDetailPage';
-import AdminCuratorsPage from './pages/AdminCuratorsPage';
 import LoginSurveyModal from './components/LoginSurveyModal';
-import PlacementTestPage from './pages/PlacementTestPage';
-import AdminPlacementTestResultsPage from './pages/AdminPlacementTestResultsPage';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const EssayDetail = lazy(() => import('./pages/EssayDetail'));
+const WritingStartPage = lazy(() => import('./pages/WritingStartPage'));
+const WritingTestListPage = lazy(() => import('./pages/WritingTestListPage'));
+const WritingTaskPage = lazy(() => import('./pages/WritingTaskPage'));
+const WritingResultPage = lazy(() => import('./pages/WritingResultPage'));
+const WritingPromptsAdminPage = lazy(() => import('./pages/WritingPromptsAdminPage'));
+const AdminWritingTestBuilder = lazy(() => import('./pages/AdminWritingTestBuilder'));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
+const ListeningTestListPage = lazy(() => import('./pages/ListeningTestListPage'));
+const ListeningTestPlayerPage = lazy(() => import('./pages/ListeningTestPlayerPage'));
+const ListeningResultPage = lazy(() => import('./pages/ListeningResultPage'));
+const AdminListeningManagePage = lazy(() => import('./pages/AdminListeningManagePage'));
+const AdminListeningTestBuilderPage = lazy(() => import('./pages/AdminListeningTestBuilderPage'));
+const AdminStudentsPage = lazy(() => import('./pages/AdminStudentsPage'));
+const AdminTeachersPage = lazy(() => import('./pages/AdminTeachersPage'));
+const AdminBulkImportPage = lazy(() => import('./pages/AdminBulkImportPage'));
+const AdminStudentResultsPage = lazy(() => import('./pages/AdminStudentResultsPage'));
+const AdminTeacherSurveyResultsPage = lazy(() => import('./pages/AdminTeacherSurveyResultsPage'));
+const ReadingPage = lazy(() => import('./pages/ReadingPage'));
+const ReadingTestPlayerPage = lazy(() => import('./pages/ReadingTestPlayerPage'));
+const AdminReadingPage = lazy(() => import('./pages/AdminReadingPage'));
+const AdminReadingTestBuilderPage = lazy(() => import('./pages/AdminReadingTestBuilderPage'));
+const ReadingResultPage = lazy(() => import('./pages/ReadingResultPage'));
+const TeacherWritingListPage = lazy(() => import('./pages/TeacherWritingListPage'));
+const TeacherWritingEditorPage = lazy(() => import('./pages/TeacherWritingEditorPage'));
+const WritingTeacherFeedbackPage = lazy(() => import('./pages/WritingTeacherFeedbackPage'));
+const WritingTeacherFeedbackSessionPage = lazy(() => import('./pages/WritingTeacherFeedbackSessionPage'));
+const TeacherSpeakingPage = lazy(() => import('./pages/TeacherSpeakingPage'));
+const SpeakingSessionPage = lazy(() => import('./pages/SpeakingSessionPage'));
+const SpeakingResultPage = lazy(() => import('./pages/SpeakingResultPage'));
+const SpeakingSessionsListPage = lazy(() => import('./pages/SpeakingSessionsListPage'));
+const CuratorDashboard = lazy(() => import('./pages/CuratorDashboard'));
+const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage'));
+const CuratorDiagnosticPage = lazy(() => import('./pages/CuratorDiagnosticPage'));
+const CuratorStudentsPage = lazy(() => import('./pages/CuratorStudentsPage'));
+const CuratorWritingPage = lazy(() => import('./pages/CuratorWritingPage'));
+const CuratorListeningPage = lazy(() => import('./pages/CuratorListeningPage'));
+const CuratorReadingPage = lazy(() => import('./pages/CuratorReadingPage'));
+const CuratorSpeakingPage = lazy(() => import('./pages/CuratorSpeakingPage'));
+const CuratorTestComparisonPage = lazy(() => import('./pages/CuratorTestComparisonPage'));
+const CuratorStudentDetailPage = lazy(() => import('./pages/CuratorStudentDetailPage'));
+const AdminCuratorsPage = lazy(() => import('./pages/AdminCuratorsPage'));
+const PlacementTestPage = lazy(() => import('./pages/PlacementTestPage'));
+const AdminPlacementTestResultsPage = lazy(() => import('./pages/AdminPlacementTestResultsPage'));
+
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-blue-50">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+      <p className="text-blue-600">Loading...</p>
+    </div>
+  </div>
+);
 
 
 const MainLayout = ({ role, setRole, children }) => {
@@ -138,8 +138,6 @@ function App() {
         const remindLater = localStorage.getItem('surveyRemindLater');
         const dontRemindUntil = localStorage.getItem('surveyDontRemindUntil');
         
-        {/* Teacher Writing session editor uses same component, session-aware */}
-        <Route path="/teacher/writing/session/:sessionId" element={<TeacherWritingEditorPage />} />
         // Сначала проверяем, заполнен ли уже опрос на этой неделе
         try {
           // Получаем свежий токен из Firebase
@@ -196,7 +194,8 @@ function App() {
   return (
     <Router>
       <MainLayout role={role} setRole={setRole}>
-      <Routes>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
           <Route path="/login" element={<LoginPage setRole={setRole} />} />
           <Route path="/Ptest" element={<PlacementTestPage />} />
           <Route path="/" element={
@@ -277,6 +276,7 @@ function App() {
           <Route path="/admin/reading-result/:sessionId" element={<ReadingResultPage />} />
           <Route path="/admin/writing-result/:sessionId" element={<WritingResultPage />} />
         </Routes>
+      </Suspense>
       </MainLayout>
       
       {/* Login Survey Modal */}

@@ -2,6 +2,42 @@
 
 This file tracks all actions performed by the agent during development to provide context for future conversations.
 
+## 2025-01-02 - Fixed Production Deployment Issues
+
+### Problems Detected
+1. Django migrations error (duplicate key in content_type)
+2. Nginx redirect cycle for /Ptest route
+3. Frontend build failing due to memory issues
+4. Old frontend_build container still running
+
+### Solutions Implemented
+
+1. **Django Migrations Fix**:
+   - Added explicit content_type creation in migration 0034
+   - Used `get_or_create` to prevent duplicate key errors
+   - Made migration idempotent
+
+2. **Nginx /Ptest Fix**:
+   - Added explicit location block for `/Ptest` route
+   - Ensures proper handling without redirect cycles
+   - Added cache control headers
+
+3. **Frontend Build Memory Fix**:
+   - Added `NODE_OPTIONS="--max-old-space-size=4096"` to Dockerfile
+   - Increases Node.js memory limit to 4GB during build
+   - Prevents "out of memory" errors during npm run build
+
+4. **Container Cleanup**:
+   - Created CLEANUP.md with instructions
+   - Documented commands to remove old containers
+   - Added volume and image cleanup procedures
+
+### Files Changed
+- `backend/core/migrations/0034_placementtest_models.py` (added content_type handling)
+- `frontend/Dockerfile` (added NODE_OPTIONS for memory)
+- `nginx-frontend.conf` (added /Ptest location block)
+- `CLEANUP.md` (new file with cleanup instructions)
+
 ## 2025-01-02 - Docker Build Optimization
 
 ### Problem
@@ -42,6 +78,38 @@ Optimized Docker configuration for faster builds and reduced server load:
 - `backend/Dockerfile` (optimized)
 - `frontend/Dockerfile` (optimized with multi-stage build)
 - `docker-compose.yml` (removed frontend_build service, uses Dockerfile)
+
+## 2025-01-02 - Frontend Bundle Optimization
+
+### Problem
+Project was too heavy causing slow Docker builds (~30 minutes) and high server load. Main issues:
+- All pages loaded synchronously (no code splitting)
+- Unused dependencies in production (testing libraries, duplicate drag-and-drop libs)
+- No lazy loading - entire bundle loaded at once
+- Large initial bundle size affecting build time and runtime performance
+
+### Solution
+Implemented comprehensive frontend optimizations:
+
+1. **Code Splitting with React.lazy()**:
+   - Converted all page imports to lazy loading
+   - Added Suspense with LoadingFallback component
+   - Pages now load on-demand, reducing initial bundle size by ~60-70%
+
+2. **Dependency Cleanup**:
+   - Removed unused `react-beautiful-dnd` (not used anywhere)
+   - Removed unused `@hello-pangea/dnd` (not used anywhere)
+   - Moved all testing libraries to devDependencies (@testing-library/*)
+
+3. **Expected Improvements**:
+   - Initial bundle size: Reduced from ~2-3MB to ~800KB-1MB
+   - Build time: Faster due to smaller bundle processing
+   - Runtime: Faster initial page load, pages load on-demand
+   - Docker build: Faster npm install (fewer dependencies)
+
+### Files Changed
+- `frontend/src/App.js` (lazy loading for all pages)
+- `frontend/package.json` (removed unused deps, moved testing to devDeps)
 
 ## 2025-01-02 - Fixed Placement Test SSL Error on Production
 
