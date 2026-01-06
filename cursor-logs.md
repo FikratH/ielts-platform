@@ -2465,4 +2465,5 @@ Added grade field to placement test:
 - `frontend/src/pages/AdminPlacementTestResultsPage.js` (added Grade column to table, CSV export)
 
 ### Note
-Migration must be run on server to add grade column to database table.
+Migration file created: `backend/core/migrations/0037_placementtestsubmission_grade.py`
+Must be run on server: `docker-compose exec web python manage.py migrate`
