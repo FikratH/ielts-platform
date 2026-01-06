@@ -7106,8 +7106,8 @@ class AdminPlacementTestResultsView(APIView):
         uid = decoded.get('uid')
         try:
             user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            if user.role not in ['admin', 'placement_viewer']:
+                return Response({'error': 'Admin or Placement Viewer access required'}, status=status.HTTP_403_FORBIDDEN)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_401_UNAUTHORIZED)
         
@@ -7148,6 +7148,7 @@ class AdminPlacementTestResultsView(APIView):
             data.append({
                 'id': submission.id,
                 'full_name': submission.full_name,
+                'grade': getattr(submission, 'grade', '') or '',
                 'email': submission.email,
                 'planned_exam_date': submission.planned_exam_date,
                 'score': submission.score,

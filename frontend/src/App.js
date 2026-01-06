@@ -208,6 +208,7 @@ function App() {
              role === 'teacher' ? <Navigate to="/curator/dashboard" /> :
              role === 'speaking_mentor' ? <Navigate to="/teacher/speaking" /> :
              role === 'curator' ? <Navigate to="/curator/dashboard" /> :
+             role === 'placement_viewer' ? <Navigate to="/admin/placement-test-results" /> :
              <Navigate to="/dashboard" />)
           } />
           

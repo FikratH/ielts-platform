@@ -2467,3 +2467,50 @@ Added grade field to placement test:
 ### Note
 Migration file created: `backend/core/migrations/0037_placementtestsubmission_grade.py`
 Must be run on server: `docker-compose exec web python manage.py migrate`
+
+## 2025-01-06: Placement Viewer Role Implementation
+
+### Problem
+Need to create a separate account that can only view `/admin/placement-test-results` page, nothing else.
+
+### Solution
+Implemented new role `placement_viewer` with restricted access:
+
+**Backend Changes:**
+- Added `'placement_viewer'` role to User model choices
+- Updated `AdminPlacementTestResultsView` to allow access for both `admin` and `placement_viewer` roles
+- Added `grade` field to API response in placement test results
+
+**Frontend Changes:**
+- Created `placementViewerLinks` in Navbar (only Placement Test Results link)
+- Created `placementViewerLinks` in Sidebar (only Placement Test Results link)
+- Updated routing in App.js to redirect `placement_viewer` to `/admin/placement-test-results`
+- Updated logo link to redirect to placement test results for this role
+
+**Account Creation:**
+- Created script `backend/create_placement_viewer_account.py` for easy account creation
+- Script prompts for email, UID (optional), first name, last name
+- Creates user with role `placement_viewer` in Django
+- User must also be created in Firebase Console with same UID
+
+### Files Changed
+- `backend/core/models.py` - Added placement_viewer role
+- `backend/core/views.py` - Updated AdminPlacementTestResultsView access check and added grade to response
+- `frontend/src/components/Navbar.js` - Added placementViewerLinks
+- `frontend/src/components/Sidebar.jsx` - Added placementViewerLinks
+- `frontend/src/App.js` - Updated routing for placement_viewer role
+- `backend/create_placement_viewer_account.py` - New script for account creation
+
+### Usage
+To change a user's role to placement_viewer on server:
+```bash
+docker-compose exec web python manage.py shell
+```
+Then in Django shell:
+```python
+from core.models import User
+user = User.objects.get(email='student@example.com')  # или по uid
+user.role = 'placement_viewer'
+user.save()
+print(f"Role changed to: {user.role}")
+```

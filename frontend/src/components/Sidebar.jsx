@@ -141,12 +141,17 @@ export default function Sidebar({ role, setRole }) {
     { to: '/curator/diagnostic', label: 'Diagnostic', icon: () => <Target className="w-6 h-6" /> }
   ];
 
+  const placementViewerLinks = [
+    { to: '/admin/placement-test-results', label: 'Placement Test', icon: () => <Target className="w-6 h-6" /> }
+  ];
+
   const isTeacherRole = role === 'teacher' || role === 'speaking_mentor';
 
   const getCurrentLinks = () => {
     if (role === 'admin') return adminLinks;
     if (isTeacherRole) return teacherLinks;
     if (role === 'curator') return curatorLinks;
+    if (role === 'placement_viewer') return placementViewerLinks;
     return studentLinks;
   };
 

@@ -68,6 +68,8 @@ const LoginPage = () => {
         navigate('/teacher/writing');
       } else if (response.data.role === 'speaking_mentor') {
         navigate('/teacher/speaking');
+      } else if (response.data.role === 'placement_viewer') {
+        navigate('/admin/placement-test-results');
       } else {
         navigate('/dashboard');
       }

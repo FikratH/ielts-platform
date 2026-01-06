@@ -26,6 +26,7 @@ class User(AbstractBaseUser):
             ('speaking_mentor', 'Speaking Mentor'),
             ('admin', 'Admin'),
             ('curator', 'Curator'),
+            ('placement_viewer', 'Placement Viewer'),
         ]
     )
     student_id = models.CharField(max_length=64, null=True, blank=True)

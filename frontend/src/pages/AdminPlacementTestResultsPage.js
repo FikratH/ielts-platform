@@ -108,7 +108,7 @@ export default function AdminPlacementTestResultsPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
