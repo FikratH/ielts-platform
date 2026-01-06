@@ -43,7 +43,9 @@ onIdTokenChanged(auth, async (user) => {
       localStorage.removeItem('first_name');
       localStorage.removeItem('last_name');
       localStorage.removeItem('group');
-      if (window.location.pathname !== '/login') {
+      // Публичные страницы не требуют авторизации
+      const publicPaths = ['/login', '/Ptest'];
+      if (!publicPaths.includes(window.location.pathname)) {
         window.location.href = '/login';
       }
     }, 1500);

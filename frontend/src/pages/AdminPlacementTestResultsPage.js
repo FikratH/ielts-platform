@@ -64,10 +64,11 @@ export default function AdminPlacementTestResultsPage() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Name', 'Email', 'Planned Exam', 'Score', 'Total', 'Recommendation'];
+    const headers = ['Date', 'Name', 'Grade', 'Email', 'Planned Exam', 'Score', 'Total', 'Recommendation'];
     const rows = filteredSubmissions.map(s => [
       new Date(s.submitted_at).toLocaleString(),
       s.full_name,
+      s.grade || '',
       s.email,
       s.planned_exam_date,
       s.score,
@@ -191,6 +192,7 @@ export default function AdminPlacementTestResultsPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-blue-700">Date</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-blue-700">Name</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-blue-700">Grade</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-blue-700">Email</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-blue-700">Planned Exam</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-blue-700">Score</th>
@@ -216,6 +218,9 @@ export default function AdminPlacementTestResultsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-800">
                       {submission.full_name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {submission.grade || '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {submission.email}

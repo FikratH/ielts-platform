@@ -470,6 +470,7 @@ class PlacementTestQuestion(models.Model):
 
 class PlacementTestSubmission(models.Model):
     full_name = models.CharField(max_length=255)  # Имя Фамилия
+    grade = models.CharField(max_length=20, blank=True)
     email = models.EmailField()
     planned_exam_date = models.CharField(max_length=50)  # "Ближайшие 3 месяца", "Ближайшие полгода", и т.д.
     answers = models.JSONField(default=dict)  # {1: 'A', 2: 'B', ...}

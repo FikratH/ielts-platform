@@ -133,6 +133,10 @@ function App() {
 
   useEffect(() => {
     const checkLoginSurvey = async () => {
+      if (window.location.pathname === '/Ptest') {
+        return;
+      }
+      
       const userRole = localStorage.getItem('role');
       if (userRole === 'student') {
         const remindLater = localStorage.getItem('surveyRemindLater');

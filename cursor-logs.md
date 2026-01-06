@@ -2365,3 +2365,104 @@ The main issue was auto-submit race condition (#1) combined with race condition 
 - `frontend/src/components/ReadingTestPlayer.jsx`: All 7 frontend issues fixed
 - `frontend/src/components/ListeningTestPlayer.jsx`: All 7 frontend issues fixed  
 - `backend/core/views.py`: Backend merge issues fixed for Reading sync, Listening sync, and Listening submit
+
+## 2025-01-XX - Provided Commands for Deleting Reading Session Diagnostics
+
+### Context
+User requested SQL/Django commands to delete diagnostics for reading session with ID 1152.
+
+### Solution Provided
+Provided three options for deleting reading session diagnostics:
+
+1. **SQL Commands (PostgreSQL)** - Explicit deletion:
+   - Delete `ReadingTestResult` first: `DELETE FROM core_readingtestresult WHERE session_id = 1152;`
+   - Delete `ReadingTestSession`: `DELETE FROM core_readingtestsession WHERE id = 1152;`
+
+2. **Django Shell Commands** - Using ORM:
+   - Get session, delete result if exists, then delete session
+
+3. **Single SQL Command** - Using CASCADE:
+   - `DELETE FROM core_readingtestsession WHERE id = 1152;` (CASCADE will auto-delete result)
+
+### Database Structure
+- `ReadingTestSession` model has `is_diagnostic` boolean field
+- `ReadingTestResult` has OneToOne relationship with `ReadingTestSession` with CASCADE delete
+- Table names: `core_readingtestsession`, `core_readingtestresult`
+
+### Updated for Docker Production Environment
+Project uses Docker Compose with:
+- `web` service for Django backend
+- `db` service for PostgreSQL database
+
+Commands provided for Docker execution:
+1. Django shell via `docker-compose exec web python manage.py shell`
+2. Direct PostgreSQL access via `docker-compose exec db psql`
+3. One-liner commands for both Django and PostgreSQL
+
+## 2025-01-06: Placement Test Login Redirect Fix
+
+### Problem
+Placement Test page (`/Ptest`) was automatically redirecting to login page in Telegram's in-app browser and Safari, even though it's a public page.
+
+### Root Cause
+Found aggressive redirect in `firebase.js` (lines 46-48). Global `onIdTokenChanged` listener checks if user is not authenticated, and after 1.5 second delay redirects to `/login` if current path is not `/login`. This didn't account for other public pages like `/Ptest`.
+
+### Solution
+Modified `firebase.js` to use array of public paths instead of single path check:
+- Added `publicPaths` array: `['/login', '/Ptest']`
+- Changed condition from `window.location.pathname !== '/login'` to `!publicPaths.includes(window.location.pathname)`
+- This allows easy addition of future public pages
+
+### Files Changed
+- `frontend/src/firebase.js` (lines 46-50)
+
+### UI Improvement
+Also implemented collapsible "Detailed Results" section on Placement Test results page:
+- Added `showBreakdown` state (default: false)
+- Score and recommendation shown by default
+- Button with ChevronDown icon to expand/collapse detailed breakdown
+- Imported `ChevronDown` from `lucide-react`
+
+### Files Changed for UI
+- `frontend/src/pages/PlacementTestPage.js`
+
+## 2025-01-06: Placement Test Enhancements
+
+### Problem 1: Weekly Survey Appearing During Placement Test
+LoginSurveyModal was showing up for unauthenticated users on `/Ptest` page if they previously had 'student' role in localStorage.
+
+### Solution 1
+Added path check to exclude `/Ptest` from survey trigger:
+- Modified `checkLoginSurvey` function in `App.js` to return early if `window.location.pathname === '/Ptest'`
+- Survey now only triggers for authenticated student pages
+
+### Files Changed
+- `frontend/src/App.js` (lines 134-140)
+
+### Problem 2: Missing Grade Field
+Need to collect student's grade (6th-12th) in placement test form.
+
+### Solution 2
+Added grade field to placement test:
+
+**Backend Changes:**
+- Added `grade` field to `PlacementTestSubmission` model (CharField, max_length=20, blank=True)
+- Updated `PlacementTestSubmitView` to accept and save grade from request data
+- Added grade to admin panel: list_display, list_filter, search_fields, and fieldsets
+- Migration needed (to be run on server): `python manage.py makemigrations && python manage.py migrate`
+
+**Frontend Changes:**
+- Added grade state variable in PlacementTestPage component
+- Added grade select field between Full Name and Email with options: 6th Grade - 12th Grade
+- Added validation in handleFormSubmit to ensure grade is selected
+- Updated POST request to include grade in submission data
+
+### Files Changed
+- `backend/core/models.py` (line 473)
+- `backend/core/views.py` (lines 7020, 7070)
+- `backend/core/admin.py` (lines 70-78)
+- `frontend/src/pages/PlacementTestPage.js` (state, validation, form field, submission)
+- `frontend/src/pages/AdminPlacementTestResultsPage.js` (added Grade column to table, CSV export)
+
+### Note
+Migration must be run on server to add grade column to database table.

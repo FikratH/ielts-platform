@@ -12,6 +12,7 @@ const PlacementTestPage = () => {
   
   // Form data
   const [fullName, setFullName] = useState('');
+  const [grade, setGrade] = useState('');
   const [email, setEmail] = useState('');
   const [plannedExamDate, setPlannedExamDate] = useState('');
   
@@ -48,6 +49,10 @@ const PlacementTestPage = () => {
     e.preventDefault();
     if (!fullName.trim()) {
       alert('Please enter your full name');
+      return;
+    }
+    if (!grade) {
+      alert('Please select your grade');
       return;
     }
     if (!email.trim()) {
@@ -93,6 +98,7 @@ const PlacementTestPage = () => {
     try {
       const response = await publicApi.post('/placement-test/submit/', {
         full_name: fullName,
+        grade: grade,
         email: email,
         planned_exam_date: plannedExamDate,
         answers: answers
@@ -134,6 +140,30 @@ const PlacementTestPage = () => {
                 autoComplete="off"
                 required
               />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label htmlFor="grade" className="font-semibold text-blue-700 text-sm md:text-base">
+                What grade are you in? <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="grade"
+                name="placement-grade"
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-base transition"
+                autoComplete="off"
+                required
+              >
+                <option value="">Select your grade</option>
+                <option value="6th Grade">6th Grade</option>
+                <option value="7th Grade">7th Grade</option>
+                <option value="8th Grade">8th Grade</option>
+                <option value="9th Grade">9th Grade</option>
+                <option value="10th Grade">10th Grade</option>
+                <option value="11th Grade">11th Grade</option>
+                <option value="12th Grade">12th Grade</option>
+              </select>
             </div>
 
             <div className="flex flex-col gap-1">
