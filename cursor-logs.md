@@ -2514,3 +2514,74 @@ user.role = 'placement_viewer'
 user.save()
 print(f"Role changed to: {user.role}")
 ```
+
+---
+
+## 2026-01-07: Add Phone Number Field to Placement Test
+
+### Task
+Add phone number field to Placement Test form, save it to database, display in custom admin and placement_viewer role.
+
+### Changes Made
+
+#### Backend Changes
+
+**1. Model Update** - `backend/core/models.py`
+- Added `phone_number = models.CharField(max_length=20, blank=True)` to `PlacementTestSubmission` model
+- Positioned after `grade` field, before `email` field
+
+**2. Migration** - `backend/core/migrations/0038_placementtestsubmission_phone_number.py`
+- Created new migration to add `phone_number` column to `core_placementtestsubmission` table
+- Field is `blank=True` to allow existing records to remain valid
+
+**3. API Views** - `backend/core/views.py`
+- `PlacementTestSubmitView.post`: Added `phone_number` retrieval from request data and included in `PlacementTestSubmission.objects.create()`
+- `AdminPlacementTestResultsView.get`: Added `'phone_number': getattr(submission, 'phone_number', '') or ''` to returned data
+
+**4. Django Admin** - `backend/core/admin.py`
+- Added `phone_number` to `list_display` in `PlacementTestSubmissionAdmin`
+- Added `phone_number` to `search_fields`
+- Added `phone_number` to `fieldsets` → 'Personal Info' section
+
+#### Frontend Changes
+
+**1. Placement Test Form** - `frontend/src/pages/PlacementTestPage.js`
+- Added `phoneNumber` state: `const [phoneNumber, setPhoneNumber] = useState('')`
+- Added phone number input field between grade and email fields:
+  - Type: `tel`
+  - Label: "Phone Number"
+  - Required field with validation
+  - `autoComplete="off"` and `name="placement-phone"`
+- Added validation in `handleFormSubmit` to check phone number is not empty
+- Included `phone_number: phoneNumber` in POST request to `/api/placement-test/submit/`
+
+**2. Admin Results Page** - `frontend/src/pages/AdminPlacementTestResultsPage.js`
+- Added "Phone" column to results table (after "Grade", before "Email")
+- Displays `submission.phone_number || '-'`
+- Added `phone_number` to CSV export headers and rows
+
+### Docker Migration Strategy
+
+**How Docker handles migrations:**
+The `backend/entrypoint.sh` script automatically runs `python manage.py migrate --noinput` on container startup.
+
+**Deployment procedure:**
+1. Local: `cd backend && python manage.py makemigrations` (or create migration manually)
+2. Commit: `git add backend/core/migrations/0038_*.py backend/core/models.py && git commit -m "Add phone_number field"`
+3. Server: `cd ~/projects/ielts-platform && git pull && docker compose down && docker compose up -d --build`
+
+**Avoiding DuplicateColumn errors:**
+- Never manually add columns via SQL
+- Always use Django migrations
+- If column already exists and migration fails, mark migration as applied:
+```bash
+docker compose exec db psql -U ielts_user -d ielts_platform -c "INSERT INTO django_migrations (app, name, applied) VALUES ('core', '0038_placementtestsubmission_phone_number', NOW());"
+```
+
+### Files Modified
+- `backend/core/models.py` - Added phone_number field
+- `backend/core/migrations/0038_placementtestsubmission_phone_number.py` - New migration
+- `backend/core/views.py` - Updated PlacementTestSubmitView and AdminPlacementTestResultsView
+- `backend/core/admin.py` - Updated PlacementTestSubmissionAdmin
+- `frontend/src/pages/PlacementTestPage.js` - Added phone number input and validation
+- `frontend/src/pages/AdminPlacementTestResultsPage.js` - Added Phone column and CSV export

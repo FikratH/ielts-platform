@@ -7019,6 +7019,7 @@ class PlacementTestSubmitView(APIView):
     def post(self, request):
         full_name = request.data.get('full_name', '').strip()
         grade = request.data.get('grade', '').strip()
+        phone_number = request.data.get('phone_number', '').strip()
         email = request.data.get('email', '').strip()
         planned_exam_date = request.data.get('planned_exam_date', '').strip()
         answers = request.data.get('answers', {})
@@ -7069,6 +7070,7 @@ class PlacementTestSubmitView(APIView):
         submission = PlacementTestSubmission.objects.create(
             full_name=full_name,
             grade=grade,
+            phone_number=phone_number,
             email=email,
             planned_exam_date=planned_exam_date,
             answers=answers,
@@ -7149,6 +7151,7 @@ class AdminPlacementTestResultsView(APIView):
                 'id': submission.id,
                 'full_name': submission.full_name,
                 'grade': getattr(submission, 'grade', '') or '',
+                'phone_number': getattr(submission, 'phone_number', '') or '',
                 'email': submission.email,
                 'planned_exam_date': submission.planned_exam_date,
                 'score': submission.score,

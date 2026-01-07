@@ -67,15 +67,15 @@ class PlacementTestQuestionAdmin(admin.ModelAdmin):
 
 @admin.register(PlacementTestSubmission)
 class PlacementTestSubmissionAdmin(admin.ModelAdmin):
-    list_display = ['submitted_at_local', 'full_name', 'grade', 'email', 'score', 'recommendation', 'planned_exam_date']
+    list_display = ['submitted_at_local', 'full_name', 'grade', 'phone_number', 'email', 'score', 'recommendation', 'planned_exam_date']
     list_filter = ['recommendation', 'grade', 'planned_exam_date', 'submitted_at']
-    search_fields = ['full_name', 'email', 'grade']
+    search_fields = ['full_name', 'email', 'grade', 'phone_number']
     readonly_fields = ['submitted_at', 'answers', 'score', 'recommendation']
     ordering = ['-submitted_at']
     
     fieldsets = (
         ('Personal Info', {
-            'fields': ('full_name', 'grade', 'email', 'planned_exam_date')
+            'fields': ('full_name', 'grade', 'phone_number', 'email', 'planned_exam_date')
         }),
         ('Test Results', {
             'fields': ('score', 'recommendation', 'submitted_at')

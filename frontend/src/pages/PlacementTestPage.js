@@ -13,6 +13,7 @@ const PlacementTestPage = () => {
   // Form data
   const [fullName, setFullName] = useState('');
   const [grade, setGrade] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [plannedExamDate, setPlannedExamDate] = useState('');
   
@@ -53,6 +54,10 @@ const PlacementTestPage = () => {
     }
     if (!grade) {
       alert('Please select your grade');
+      return;
+    }
+    if (!phoneNumber.trim()) {
+      alert('Please enter your phone number');
       return;
     }
     if (!email.trim()) {
@@ -99,6 +104,7 @@ const PlacementTestPage = () => {
       const response = await publicApi.post('/placement-test/submit/', {
         full_name: fullName,
         grade: grade,
+        phone_number: phoneNumber,
         email: email,
         planned_exam_date: plannedExamDate,
         answers: answers
@@ -164,6 +170,23 @@ const PlacementTestPage = () => {
                 <option value="11th Grade">11th Grade</option>
                 <option value="12th Grade">12th Grade</option>
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label htmlFor="phone" className="font-semibold text-blue-700 text-sm md:text-base">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="phone"
+                name="placement-phone"
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Enter your phone number"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-base transition"
+                autoComplete="off"
+                required
+              />
             </div>
 
             <div className="flex flex-col gap-1">
