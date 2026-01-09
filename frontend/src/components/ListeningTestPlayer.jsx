@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -220,20 +220,45 @@ const ListeningTestPlayer = () => {
     }
   };
 
+  const persistLocalCache = (payloadAnswers, payloadFlagged, remaining) => {
+    if (!localCacheKeyRef.current) return;
+    try {
+      localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: payloadAnswers, flagged: payloadFlagged, time_left: remaining }));
+    } catch (e) {
+    }
+  };
 
+  const syncAnswers = useCallback(async () => {
+    if (!session) return;
+    try {
+      const currentAnswers = answersRef.current || answers || {};
+      const currentFlagged = flaggedRef.current || flagged || {};
+      const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
+      
+      if (Object.keys(currentAnswers).length === 0) {
+        console.warn('⚠️ syncAnswers: No answers to sync');
+      }
+      
+      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
+      
+      answersRef.current = currentAnswers;
+      flaggedRef.current = currentFlagged;
+      
+      persistLocalCache(currentAnswers, currentFlagged, remaining);
+    } catch (err) {
+      console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
+    }
+  }, [session, answers, flagged]);
 
   // Принудительная синхронизация при потере фокуса
   useEffect(() => {
     if (!session || isSubmitted) return;
 
     const handleVisibilityChange = () => {
-      // Синхронизируем при потере фокуса (переключение вкладок, минимизация)
-      // Это особенно важно для браузеров с проблемами производительности (Opera)
       if (document.hidden) {
         if (syncTimerRef.current) {
           clearTimeout(syncTimerRef.current);
         }
-        // Принудительно синхронизируем сразу, без задержки
         syncAnswers();
       }
     };
@@ -437,40 +462,6 @@ const ListeningTestPlayer = () => {
     scheduleSync();
   };
 
-  const syncAnswers = async () => {
-    if (!session) return;
-    try {
-      // Используем актуальное состояние answers, а не только ref
-      const currentAnswers = answersRef.current || answers || {};
-      const currentFlagged = flaggedRef.current || flagged || {};
-      const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
-      
-      // Логируем для отладки
-      if (Object.keys(currentAnswers).length === 0) {
-        console.warn('⚠️ syncAnswers: No answers to sync');
-      }
-      
-      await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
-      
-      // Обновляем refs после успешной синхронизации
-      answersRef.current = currentAnswers;
-      flaggedRef.current = currentFlagged;
-      
-      persistLocalCache(currentAnswers, currentFlagged, remaining);
-    } catch (err) {
-      // Логируем ошибки синхронизации для диагностики
-      console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
-    }
-  };
-
-  const persistLocalCache = (payloadAnswers, payloadFlagged, remaining) => {
-    if (!localCacheKeyRef.current) return;
-    try {
-      localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: payloadAnswers, flagged: payloadFlagged, time_left: remaining }));
-    } catch (e) {
-      // ignore cache errors
-    }
-  };
 
   const scheduleSync = () => {
     if (!session) return;

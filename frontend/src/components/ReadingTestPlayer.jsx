@@ -151,18 +151,41 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         };
     }, []);
 
+    const syncAnswers = useCallback(async () => {
+        if (!session) return;
+        try {
+            const currentAnswers = answersRef.current || answers || {};
+            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
+            
+            if (Object.keys(currentAnswers).length === 0) {
+                console.warn('⚠️ syncAnswers: No answers to sync');
+            }
+            
+            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
+            
+            answersRef.current = currentAnswers;
+            
+            if (localCacheKeyRef.current) {
+                try {
+                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: currentAnswers }));
+                } catch (e) {
+                    console.warn('⚠️ Failed to save to localStorage:', e);
+                }
+            }
+        } catch (err) {
+            console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
+        }
+    }, [session, answers]);
+
     // Принудительная синхронизация при потере фокуса
     useEffect(() => {
         if (!session || session.completed) return;
 
         const handleVisibilityChange = () => {
-            // Синхронизируем при потере фокуса (переключение вкладок, минимизация)
-            // Это особенно важно для браузеров с проблемами производительности (Opera)
             if (document.hidden) {
                 if (syncTimerRef.current) {
                     clearTimeout(syncTimerRef.current);
                 }
-                // Принудительно синхронизируем сразу, без задержки
                 syncAnswers();
             }
         };
@@ -287,38 +310,6 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
         }
     };
 
-    const syncAnswers = useCallback(async () => {
-        if (!session) return;
-        try {
-            // Используем актуальное состояние answers, а не только ref
-            // Это гарантирует, что мы отправляем все ответы, даже если ref не обновлен
-            const currentAnswers = answersRef.current || answers || {};
-            const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
-            
-            // Логируем для отладки (можно убрать в продакшене)
-            if (Object.keys(currentAnswers).length === 0) {
-                console.warn('⚠️ syncAnswers: No answers to sync');
-            }
-            
-            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
-            
-            // Обновляем ref после успешной синхронизации
-            answersRef.current = currentAnswers;
-            
-            if (localCacheKeyRef.current) {
-                try {
-                    localStorage.setItem(localCacheKeyRef.current, JSON.stringify({ answers: currentAnswers }));
-                } catch (e) {
-                    console.warn('⚠️ Failed to save to localStorage:', e);
-                    // ignore cache errors
-                }
-            }
-        } catch (err) {
-            // Логируем ошибки синхронизации для диагностики
-            console.error('❌ Error syncing answers:', err.response?.data || err.message || err);
-            // Не прерываем выполнение, но логируем для диагностики
-        }
-    }, [session, answers]);
 
     const scheduleSync = useCallback(() => {
         if (!session) return;

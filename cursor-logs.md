@@ -2585,3 +2585,35 @@ docker compose exec db psql -U ielts_user -d ielts_platform -c "INSERT INTO djan
 - `backend/core/admin.py` - Updated PlacementTestSubmissionAdmin
 - `frontend/src/pages/PlacementTestPage.js` - Added phone number input and validation
 - `frontend/src/pages/AdminPlacementTestResultsPage.js` - Added Phone column and CSV export
+
+## 2025-01-09 - Fixed Diagnostic Test Initialization Errors
+
+### Context
+User reported that Reading and Listening diagnostic tests could not be started for students, while Writing worked fine. Console errors showed:
+- `ReadingTestPlayer.jsx:175` - `Cannot access 'ee' before initialization`
+- `ListeningTestPlayer.jsx:246` - `Cannot access 'ge' before initialization`
+
+These were Temporal Dead Zone (TDZ) errors caused by using `syncAnswers` function in `useEffect` dependencies before it was declared.
+
+### Solution Implemented
+
+1. **ReadingTestPlayer.jsx**:
+   - Moved `syncAnswers` function declaration (wrapped in `useCallback`) above the `useEffect` that uses it
+   - This ensures `syncAnswers` is available when the `useEffect` hook is evaluated
+   - Function dependencies remain the same: `[session, answers]`
+
+2. **ListeningTestPlayer.jsx**:
+   - Moved `persistLocalCache` function declaration above `syncAnswers` (since `syncAnswers` depends on it)
+   - Moved `syncAnswers` function declaration above the `useEffect` that uses it
+   - Wrapped `syncAnswers` in `useCallback` with dependencies `[session, answers, flagged]` to prevent unnecessary re-creations
+   - Added `useCallback` import to React imports
+
+### Technical Details
+- The issue occurred because JavaScript `const` and `let` declarations are hoisted but not initialized until the declaration line
+- Using a function in `useEffect` dependencies before it's declared causes a ReferenceError
+- Moving function declarations above their usage points resolves the TDZ error
+- Using `useCallback` ensures stable function references and prevents infinite re-render loops
+
+### Files Modified
+- `frontend/src/components/ReadingTestPlayer.jsx` - Moved `syncAnswers` declaration above `useEffect`
+- `frontend/src/components/ListeningTestPlayer.jsx` - Moved `persistLocalCache` and `syncAnswers` declarations, wrapped `syncAnswers` in `useCallback`, added `useCallback` import
