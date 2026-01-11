@@ -10,12 +10,13 @@ const ReadingTimer = ({ timeLeft, color = 'text-green-600' }) => {
     const secs = (timeLeft % 60).toString().padStart(2, '0');
     return (
         <div className="flex flex-col items-center">
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-sm">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-sm hidden md:block">
                 <div className="text-center">
                     <div className="text-3xl font-bold text-green-700 font-mono tracking-wider">{mins}:{secs}</div>
                     <div className="text-xs text-green-600 font-medium mt-1">Time Remaining</div>
                 </div>
             </div>
+            <div className="md:hidden text-gray-700 font-mono font-bold text-base">{mins}:{secs}</div>
         </div>
     );
 };
@@ -1115,27 +1116,26 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
     return (
         <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
             {/* Elegant Header with Logo and Timer */}
-            <div className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+                    <div className="flex flex-row justify-between items-center gap-2 md:gap-4">
                         {/* Left Side - Logo and Test Info */}
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <img src="/logo.png" alt="Master Education" className="w-8 h-8 rounded-full" />
-                                <div className="text-gray-900">
+                        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <img src="/logo.png" alt="Master Education" className="w-5 h-5 md:w-8 md:h-8 rounded-full flex-shrink-0" />
+                                <div className="hidden md:block text-gray-900">
                                     <h2 className="text-sm font-medium">Master Education</h2>
-                                    
                                 </div>
                             </div>
-                            <div className="hidden sm:block w-px h-8 bg-gray-300"></div>
-                            <div>
-                                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{test?.title || 'Reading Test'}</h1>
-                                <p className="text-sm text-gray-600">Part {currentPartIndex + 1} of {sortedParts.length || 0}</p>
+                            <div className="hidden sm:block w-px h-8 bg-gray-300 flex-shrink-0"></div>
+                            <div className="min-w-0 flex-1">
+                                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-900 truncate">{test?.title || 'Reading Test'}</h1>
+                                <p className="text-xs md:text-sm text-gray-600">Part {currentPartIndex + 1} of {sortedParts.length || 0}</p>
                             </div>
                         </div>
                         
                         {/* Right Side - Timer */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                             <ReadingTimer timeLeft={timeLeft} />
                         </div>
                     </div>

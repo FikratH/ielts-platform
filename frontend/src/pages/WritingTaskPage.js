@@ -327,26 +327,25 @@ const WritingTaskPage = () => {
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-purple-50 to-white">
       {/* Elegant Header with Logo and Timer */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+          <div className="flex flex-row justify-between items-center gap-2 md:gap-4">
             {/* Left Side - Logo and Test Info */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="Master Education" className="w-8 h-8 rounded-full" />
-                <div className="text-gray-900">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+              <div className="flex items-center gap-2 md:gap-3">
+                <img src="/logo.png" alt="Master Education" className="w-5 h-5 md:w-8 md:h-8 rounded-full flex-shrink-0" />
+                <div className="hidden md:block text-gray-900">
                   <h2 className="text-sm font-medium">Master Education</h2>
                   <p className="text-xs text-gray-500">IELTS Testing Platform</p>
                 </div>
               </div>
-              <div className="hidden sm:block w-px h-8 bg-gray-300"></div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">IELTS Writing</h1>
-                
+              <div className="hidden sm:block w-px h-8 bg-gray-300 flex-shrink-0"></div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-900 truncate">IELTS Writing</h1>
               </div>
             </div>
             
             {/* Right Side - Timer */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
               <WritingTimer
                 key={`${sessionId || ''}-${timerSeed}`}
                 onTimeUp={handleTimeUp}
@@ -360,11 +359,11 @@ const WritingTaskPage = () => {
         </div>
       </header>
 
-      <div className="flex justify-center mb-6 sm:mb-10 px-2">
-        <div className="flex bg-gray-100 rounded-2xl shadow-lg p-1 sm:p-2 gap-2 sm:gap-6 w-full max-w-xl">
+      <div className="flex justify-center mt-4 sm:mt-6 md:mt-8 mb-4 sm:mb-6 md:mb-10 px-2">
+        <div className="flex bg-gray-100 rounded-xl md:rounded-2xl shadow-lg p-1 sm:p-2 gap-1.5 sm:gap-2 md:gap-6 w-full max-w-xl">
           <button
             onClick={() => setActiveTask('task1')}
-            className={`flex-1 px-4 sm:px-10 py-3 sm:py-5 rounded-xl font-bold text-base sm:text-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+            className={`flex-1 px-3 sm:px-4 md:px-10 py-2 sm:py-3 md:py-5 rounded-lg md:rounded-xl font-bold text-sm sm:text-base md:text-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
               activeTask === 'task1'
                 ? 'bg-purple-600 text-white shadow-lg'
                 : 'text-gray-700 hover:text-gray-900'
@@ -374,7 +373,7 @@ const WritingTaskPage = () => {
           </button>
           <button
             onClick={() => setActiveTask('task2')}
-            className={`flex-1 px-4 sm:px-10 py-3 sm:py-5 rounded-xl font-bold text-base sm:text-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+            className={`flex-1 px-3 sm:px-4 md:px-10 py-2 sm:py-3 md:py-5 rounded-lg md:rounded-xl font-bold text-sm sm:text-base md:text-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
               activeTask === 'task2'
                 ? 'bg-purple-600 text-white shadow-lg'
                 : 'text-gray-700 hover:text-gray-900'
@@ -385,13 +384,13 @@ const WritingTaskPage = () => {
         </div>
       </div>
 
-      <main className="flex-grow flex flex-col md:flex-row gap-4 sm:gap-10 px-2 sm:px-4 md:px-8 lg:px-16 pb-8 sm:pb-16 max-w-full md:max-w-[1600px] mx-auto w-full items-start justify-center">
-        <div className="w-full md:w-[38%] flex items-start justify-center mb-4 md:mb-0">
-          <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl p-4 sm:p-8 flex flex-col items-center min-h-[12rem] sm:min-h-[20rem]">
-            <h2 className="text-lg sm:text-2xl font-bold mb-2 sm:mb-4 text-gray-900 text-center">IELTS Writing Task {activeTask === 'task1' ? '1' : '2'}</h2>
+      <main className="flex-grow flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-10 px-2 sm:px-4 md:px-8 lg:px-16 pb-8 sm:pb-16 max-w-full md:max-w-[1600px] mx-auto w-full items-start justify-center">
+        <div className="w-full md:w-[38%] flex items-start justify-center mb-3 md:mb-0">
+          <div className="w-full max-w-xl bg-white rounded-xl md:rounded-2xl shadow-xl p-3 sm:p-4 md:p-8 flex flex-col items-center min-h-[10rem] sm:min-h-[16rem] md:min-h-[20rem]">
+            <h2 className="text-base sm:text-lg md:text-2xl font-bold mb-2 sm:mb-3 md:mb-4 text-gray-900 text-center">IELTS Writing Task {activeTask === 'task1' ? '1' : '2'}</h2>
             {getCurrentImage() && (
               <div 
-                className="mb-3 sm:mb-4 flex justify-center w-full relative"
+                className="mb-2 sm:mb-3 md:mb-4 flex justify-center w-full relative"
                 onCopy={handleTaskCopy}
                 onSelectStart={handleTaskSelectStart}
                 onDragStart={handleTaskDragStart}
@@ -407,14 +406,14 @@ const WritingTaskPage = () => {
                 <img 
                   src={getCurrentImage()} 
                   alt="Task illustration" 
-                  className="w-full max-w-xs sm:max-w-lg rounded-lg border shadow-sm no-copy"
+                  className="w-full max-w-[280px] sm:max-w-sm md:max-w-lg rounded-lg border shadow-sm no-copy"
                   draggable={false}
                 />
               </div>
             )}
             <div className="w-full">
               <div 
-                className="bg-purple-50 border-l-4 border-purple-500 p-3 sm:p-6 rounded-r-lg relative no-copy"
+                className="bg-purple-50 border-l-4 border-purple-500 p-2.5 sm:p-3 md:p-6 rounded-r-lg relative no-copy text-sm sm:text-base"
                 onCopy={handleTaskCopy}
                 onSelectStart={handleTaskSelectStart}
                 onDragStart={handleTaskDragStart}
@@ -433,9 +432,9 @@ const WritingTaskPage = () => {
           </div>
         </div>
         <div className="w-full md:w-[62%] flex items-center justify-center">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-4 sm:p-12 flex flex-col items-center min-h-[16rem] sm:min-h-[28rem]">
-            <div className="flex items-center mb-4 sm:mb-8 w-full">
-              <h3 className="text-xl sm:text-3xl font-bold text-gray-900">Your Essay</h3>
+          <div className="w-full max-w-4xl bg-white rounded-xl md:rounded-2xl shadow-xl p-3 sm:p-4 md:p-12 flex flex-col items-center min-h-[14rem] sm:min-h-[20rem] md:min-h-[28rem]">
+            <div className="flex items-center mb-3 sm:mb-4 md:mb-8 w-full">
+              <h3 className="text-lg sm:text-xl md:text-3xl font-bold text-gray-900">Your Essay</h3>
             </div>
             <textarea
               value={getCurrentText()}
@@ -443,10 +442,10 @@ const WritingTaskPage = () => {
               onPaste={handleEssayPaste}
               onCut={handleEssayCut}
               onCopy={handleEssayCopy}
-              className="w-full border rounded-xl p-4 sm:p-10 h-[12rem] sm:h-[36rem] min-h-[8rem] sm:min-h-[28rem] max-h-[24rem] sm:max-h-[48rem] mb-4 sm:mb-6 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50 text-gray-800 transition-all shadow-inner text-base sm:text-2xl"
+              className="w-full border rounded-lg md:rounded-xl p-3 sm:p-4 md:p-10 h-[14rem] sm:h-[24rem] md:h-[36rem] min-h-[10rem] sm:min-h-[18rem] md:min-h-[28rem] max-h-[20rem] sm:max-h-[32rem] md:max-h-[48rem] mb-3 sm:mb-4 md:mb-6 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50 text-gray-800 transition-all shadow-inner text-sm sm:text-base md:text-2xl"
               placeholder="Write your essay here..."
             />
-            <div className="text-right mb-2 sm:mb-3 text-sm sm:text-lg text-gray-500 w-full">
+            <div className="text-right mb-2 sm:mb-2 md:mb-3 text-xs sm:text-sm md:text-lg text-gray-600 font-medium w-full">
               Words: {getCurrentText().trim().split(/\s+/).filter(Boolean).length}
             </div>
             {submitError && (
@@ -471,19 +470,19 @@ const WritingTaskPage = () => {
       </main>
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-purple-100">
-            <h3 className="text-xl font-bold text-purple-800 mb-3">Submit Writing essays?</h3>
-            <p className="text-sm text-gray-700 mb-6">Make sure both tasks are complete. You won’t be able to edit after submit.</p>
-            <div className="flex gap-3">
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-5 md:p-6 border border-purple-100">
+            <h3 className="text-lg sm:text-xl font-bold text-purple-800 mb-2 sm:mb-3">Submit Writing essays?</h3>
+            <p className="text-xs sm:text-sm text-gray-700 mb-4 sm:mb-5 md:mb-6">Make sure both tasks are complete. You won't be able to edit after submit.</p>
+            <div className="flex gap-2 sm:gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                className="flex-1 py-2.5 sm:py-3 rounded-lg md:rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm sm:text-base hover:bg-gray-50 transition"
               >
                 Continue editing
               </button>
               <button
                 onClick={() => { setShowConfirm(false); handleSubmit(); }}
-                className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition shadow"
+                className="flex-1 py-2.5 sm:py-3 rounded-lg md:rounded-xl bg-purple-600 text-white font-bold text-sm sm:text-base hover:bg-purple-700 transition shadow"
               >
                 Submit now
               </button>

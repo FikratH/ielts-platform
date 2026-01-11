@@ -66,7 +66,7 @@ function TestCardsCarousel({ children }) {
       )}
       <div 
         ref={scrollContainerRef}
-        className="flex gap-4 md:grid md:grid-cols-2 md:max-w-5xl md:mx-auto overflow-x-auto scrollbar-hide snap-x snap-mandatory scroll-smooth test-cards-carousel"
+        className="flex gap-4 md:grid md:grid-cols-2 md:max-w-5xl md:mx-auto overflow-x-auto md:overflow-visible scrollbar-hide snap-x snap-mandatory scroll-smooth test-cards-carousel md:py-8 md:px-8"
         onScroll={checkScroll}
         style={{ 
           scrollbarWidth: 'none', 

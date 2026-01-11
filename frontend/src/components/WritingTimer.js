@@ -45,12 +45,13 @@ const WritingTimer = ({ onTimeUp, onTick, initialSeconds = 60, sessionId, seed }
 
   return (
     <div className="flex flex-col items-center">
-      <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-2xl p-4 border border-purple-200 shadow-sm">
+      <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-2xl p-4 border border-purple-200 shadow-sm hidden md:block">
         <div className="text-center">
           <div className="text-3xl font-bold text-purple-700 font-mono tracking-wider">{formatted}</div>
           <div className="text-xs text-purple-600 font-medium mt-1">Time Remaining</div>
         </div>
       </div>
+      <div className="md:hidden text-gray-700 font-mono font-bold text-base">{formatted}</div>
     </div>
   );
 };

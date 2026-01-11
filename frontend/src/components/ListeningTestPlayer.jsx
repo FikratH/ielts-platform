@@ -9,12 +9,13 @@ const ListeningTimer = ({ timeLeft, color = 'text-blue-600' }) => {
   const secs = (timeLeft % 60).toString().padStart(2, '0');
   return (
     <div className="flex flex-col items-center">
-      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200 shadow-sm">
+      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200 shadow-sm hidden md:block">
         <div className="text-center">
           <div className="text-3xl font-bold text-blue-700 font-mono tracking-wider">{mins}:{secs}</div>
           <div className="text-xs text-blue-600 font-medium mt-1">Time Remaining</div>
         </div>
       </div>
+      <div className="md:hidden text-gray-700 font-mono font-bold text-base">{mins}:{secs}</div>
     </div>
   );
 };
@@ -1045,38 +1046,37 @@ const ListeningTestPlayer = () => {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Elegant Header with Logo and Timer */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+          <div className="flex flex-row justify-between items-center gap-2 md:gap-4">
             {/* Left Side - Logo and Test Info */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="Master Education" className="w-8 h-8 rounded-full" />
-                <div className="text-gray-900">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+              <div className="flex items-center gap-2 md:gap-3">
+                <img src="/logo.png" alt="Master Education" className="w-5 h-5 md:w-8 md:h-8 rounded-full flex-shrink-0" />
+                <div className="hidden md:block text-gray-900">
                   <h2 className="text-sm font-medium">Master Education</h2>
-                
                 </div>
               </div>
-              <div className="hidden sm:block w-px h-8 bg-gray-300"></div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{test.title}</h1>
-                <p className="text-sm text-gray-600">Part {currentPart + 1} of {test.parts?.length || 0}</p>
+              <div className="hidden sm:block w-px h-8 bg-gray-300 flex-shrink-0"></div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-900 truncate">{test.title}</h1>
+                <p className="text-xs md:text-sm text-gray-600">Part {currentPart + 1} of {test.parts?.length || 0}</p>
               </div>
             </div>
             
             {/* Right Side - Timer */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
               <ListeningTimer timeLeft={timeLeft} />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="w-full px-1 sm:px-2 py-4 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8 justify-center items-start">
+      <div className="w-full px-1 sm:px-2 py-3 sm:py-4 md:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8 justify-center items-start">
           {/* Audio Player */}
-          <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
-              <h2 className="text-base sm:text-lg font-bold text-blue-700 mb-3 sm:mb-4">Audio Player</h2>
+          <div className="lg:col-span-1 order-1 lg:order-1">
+            <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl p-3 sm:p-4 md:p-6 lg:p-8 lg:sticky lg:top-24 border border-blue-100">
+              <h2 className="text-sm sm:text-base md:text-lg font-bold text-blue-700 mb-2 sm:mb-3 md:mb-4">Audio Player</h2>
                               <audio
                   ref={audioRef}
                   onLoadedMetadata={() => setDuration(audioRef.current.duration)}
@@ -1103,25 +1103,21 @@ const ListeningTestPlayer = () => {
                   className="w-full mb-4 rounded-lg border border-blue-100"
                   preload="auto"
                 />
-                              <div className="space-y-4">
+                              <div className="space-y-3 md:space-y-4">
                   {currentPartData?.audio ? (
                   <>
-                    <div className="flex flex-col items-center gap-3 w-full">
+                    <div className="flex flex-col items-center gap-2 md:gap-3 w-full">
                   <button
                     onClick={async () => {
                       try {
-                        // Stop any currently playing audio
                         if (audioRef.current) {
                           audioRef.current.pause();
                           audioRef.current.currentTime = 0;
                         }
-                        
-                        // Set new source and play
                         audioRef.current.src = currentPartData?.audio;
                         setCurrentPlayingPart(currentPart);
                         setIsPlaying(true);
                         setError(null);
-                        
                         await audioRef.current.play();
                       } catch (err) {
                         console.error('Audio play error:', err);
@@ -1131,26 +1127,25 @@ const ListeningTestPlayer = () => {
                       }
                     }}
                     disabled={!currentPartData?.audio || (isPlaying && currentPlayingPart === currentPart)}
-                    className="bg-blue-100 text-blue-700 font-semibold px-6 lg:px-8 py-3 rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-base lg:text-lg"
+                    className="bg-blue-100 text-blue-700 font-semibold px-4 md:px-6 lg:px-8 py-2 md:py-3 rounded-lg md:rounded-xl shadow hover:bg-blue-200 transition disabled:opacity-50 text-sm md:text-base lg:text-lg w-full"
                   >
                     {isPlaying && currentPlayingPart === currentPart ? 'Playing...' : 
                      currentPlayingPart !== null && currentPlayingPart !== currentPart ? '▶ Play New Audio' : 
                      '▶ Play Audio'}
                   </button>
-                      {/* Глобальный контрол громкости */}
                       <div className="flex flex-row items-center gap-2 justify-center w-full">
                         <button
                           onClick={() => setVolume(volume === 0 ? 1 : 0)}
-                          className="p-2 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-100 transition"
+                          className="p-1.5 md:p-2 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-100 transition"
                           title={volume === 0 ? 'Unmute' : 'Mute'}
                           type="button"
                         >
                           {volume === 0 ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 lg:w-6 lg:h-6 text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-blue-700">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l6 6m0-6l-6 6M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
                             </svg>
                           ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 lg:w-6 lg:h-6 text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-blue-700">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5a.75.75 0 01-1.28.53l-4.72-4.72H5.25A.75.75 0 014.5 14.25v-4.5a.75.75 0 01.75-.75h4.5l4.72-4.72a.75.75 0 011.28.53z" />
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.386-.564-2.636-1.464-3.536m0 7.072A4.978 4.978 0 0019.5 12z" />
                             </svg>
@@ -1163,39 +1158,39 @@ const ListeningTestPlayer = () => {
                           step={0.01}
                           value={volume}
                           onChange={e => setVolume(parseFloat(e.target.value))}
-                          className="w-20 lg:w-24 accent-blue-600"
+                          className="w-16 md:w-20 lg:w-24 accent-blue-600"
                           aria-label="Volume"
                         />
-                        <span className="text-xs lg:text-sm text-gray-500 font-mono w-8 text-right">{Math.round(volume * 100)}</span>
+                        <span className="text-[10px] md:text-xs lg:text-sm text-gray-500 font-mono w-6 md:w-8 text-right">{Math.round(volume * 100)}</span>
                       </div>
-                      <div className="flex flex-row items-center gap-3 justify-center w-full text-xs text-gray-600">
+                      <div className="hidden md:flex flex-row items-center gap-3 justify-center w-full text-xs text-gray-600">
                         <span>Current: <span className="font-mono">{formatTime(Math.floor(currentTime))}</span></span>
                         <span>Duration: <span className="font-mono">{formatTime(Math.floor(duration))}</span></span>
-                </div>
+                      </div>
                   {audioEnded && currentPlayingPart === currentPart && (
-                    <div className="text-green-600 font-medium mt-1 text-sm lg:text-base">✓ Audio completed</div>
+                    <div className="text-green-600 font-medium mt-1 text-xs md:text-sm lg:text-base">✓ Audio completed</div>
                   )}
                 {isPlaying && currentPlayingPart === currentPart && (
-                  <div className="text-orange-600 text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
+                  <div className="text-orange-600 text-[10px] md:text-xs text-center">⚠️ Audio can only be played once. Do not pause or refresh.</div>
                 )}
                 {currentPlayingPart !== null && currentPlayingPart !== currentPart && (
-                  <div className="text-blue-600 text-xs text-center">🎵 Audio from Part {currentPlayingPart + 1} is currently playing</div>
+                  <div className="text-blue-600 text-[10px] md:text-xs text-center">🎵 Audio from Part {currentPlayingPart + 1} is currently playing</div>
                 )}
                     </div>
                   </>
                 ) : (
-                  <div className="text-gray-400 text-center">No audio for this part</div>
+                  <div className="text-gray-400 text-center text-sm">No audio for this part</div>
                 )}
               </div>
               {/* Part Navigation */}
-              <div className="mt-4 sm:mt-6 lg:mt-8">
-                <h3 className="font-medium text-blue-700 mb-2 sm:mb-3">Parts</h3>
-                <div className="flex flex-wrap lg:flex-col lg:space-y-2 gap-2 lg:gap-0">
+              <div className="mt-3 md:mt-4 sm:mt-6 lg:mt-8">
+                <h3 className="font-medium text-blue-700 mb-1.5 md:mb-2 sm:mb-3 text-sm md:text-base">Parts</h3>
+                <div className="flex flex-wrap lg:flex-col lg:space-y-2 gap-1.5 md:gap-2 lg:gap-0">
                   {test?.parts?.map((part, index) => (
                     <button
                       key={part.id}
                       onClick={() => setCurrentPart(index)}
-                      className={`text-left p-2 sm:p-3 rounded-xl font-semibold transition text-xs sm:text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
+                      className={`text-left p-1.5 md:p-2 sm:p-3 rounded-lg md:rounded-xl font-semibold transition text-[11px] md:text-xs sm:text-sm lg:text-base flex-1 lg:flex-none lg:w-full ${
                         currentPart === index
                           ? 'bg-blue-100 text-blue-700 shadow'
                           : currentPlayingPart === index
