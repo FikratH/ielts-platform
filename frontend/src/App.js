@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import Sidebar from './components/Sidebar';
-import Navbar from './components/Navbar';
+import BottomNavigation from './components/BottomNavigation';
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
 import LoginSurveyModal from './components/LoginSurveyModal';
 
@@ -74,11 +74,6 @@ const MainLayout = ({ role, setRole, children }) => {
 
   return (
     <>
-      {/* Mobile Navbar */}
-      <div className="lg:hidden">
-        <Navbar role={role} setRole={setRole} />
-      </div>
-      
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <SidebarProvider>
@@ -89,11 +84,12 @@ const MainLayout = ({ role, setRole, children }) => {
         </SidebarProvider>
       </div>
       
-      {/* Mobile Content */}
+      {/* Mobile Content with Bottom Navigation */}
       <div className="lg:hidden">
-        <main className="pt-20 px-4">
+        <main className="pb-20">
           {children}
         </main>
+        <BottomNavigation role={role} setRole={setRole} />
       </div>
     </>
   );

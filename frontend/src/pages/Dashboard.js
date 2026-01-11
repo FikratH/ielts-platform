@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { QuestionReview } from '../components/QuestionForm';
@@ -21,7 +21,8 @@ import {
   Award,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
 
 // Modern Lucide icons for professional look
@@ -66,6 +67,56 @@ const roundToIELTSBand = (score) => {
     return rounded;
   }
 };
+
+function KPICardsScrollContainer({ children }) {
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    const checkScroll = () => {
+      if (scrollContainerRef.current) {
+        const { scrollWidth, clientWidth } = scrollContainerRef.current;
+        setShowScrollIndicator(scrollWidth > clientWidth);
+      }
+    };
+
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    
+    const observer = new ResizeObserver(checkScroll);
+    if (scrollContainerRef.current) {
+      observer.observe(scrollContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkScroll);
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className="relative mb-4 sm:mb-6 md:mb-8">
+      <div 
+        ref={scrollContainerRef}
+        className="flex gap-2 sm:gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8"
+        onScroll={(e) => {
+          const { scrollLeft, scrollWidth, clientWidth } = e.target;
+          const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 10;
+          setShowScrollIndicator(!isAtEnd && scrollWidth > clientWidth);
+        }}
+      >
+        {children}
+      </div>
+      {showScrollIndicator && (
+        <div className="absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+          <div className="bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg border border-gray-200">
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 opacity-70" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [essays, setEssays] = useState([]);
@@ -384,32 +435,171 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-white to-blue-50 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-blue-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-blue-600 bg-clip-text text-transparent">
                 Welcome Back!
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">
+              <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base md:text-lg">
                 Ready for new achievements?
               </p>
             </div>
         <button
           onClick={() => navigate('/writing/start')}
-              className="mt-6 sm:mt-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-105"
+              className="mt-4 sm:mt-0 w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
-              <Icons.edit />
-              <span className="font-semibold">Start New Test</span>
+              <Icons.edit className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              <span className="font-semibold text-sm sm:text-base">Start New Test</span>
         </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
 
-        {/* Section KPI Cards (Listening / Reading / Writing) */}
+        {/* Diagnostic Test Block */}
+        {diagnosticSummary && !diagnosticSummary.locked && diagnosticSummary.completed_count < 3 && (
+          <div className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 md:mb-8 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute top-0 right-0 w-20 h-20 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full opacity-20 transform translate-x-8 -translate-y-8 sm:translate-x-16 sm:-translate-y-16"></div>
+            <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-tr from-indigo-100 to-blue-100 rounded-full opacity-20 transform -translate-x-6 translate-y-6 sm:-translate-x-12 sm:translate-y-12"></div>
+            
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                 
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent">
+                    Diagnostic Test
+                  </h3>
+                </div>
+                <p className="text-blue-700 text-sm sm:text-base mb-3 sm:mb-4 leading-relaxed">
+                  Take a comprehensive diagnostic test to establish your baseline skills across all IELTS modules.
+                </p>
+                <div className="flex flex-wrap gap-2 sm:gap-3">
+                  <span className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-all duration-200 ${diagnosticSummary.listening?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                    <Icons.listening className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Listening {diagnosticSummary.listening?.band ? <Icons.check className="w-3 h-3 sm:w-4 sm:h-4" /> : <Icons.clock className="w-3 h-3 sm:w-4 sm:h-4" />}
+                  </span>
+                  <span className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-all duration-200 ${diagnosticSummary.reading?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                    <Icons.reading className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Reading {diagnosticSummary.reading?.band ? <Icons.check className="w-3 h-3 sm:w-4 sm:h-4" /> : <Icons.clock className="w-3 h-3 sm:w-4 sm:h-4" />}
+                  </span>
+                  <span className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-all duration-200 ${diagnosticSummary.writing?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                    <Icons.writing className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Writing {diagnosticSummary.writing?.band ? <Icons.check className="w-3 h-3 sm:w-4 sm:h-4" /> : <Icons.clock className="w-3 h-3 sm:w-4 sm:h-4" />}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 sm:mt-6 md:mt-0 w-full sm:w-auto">
+                <button
+                  onClick={() => navigate('/diagnostic')}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 md:py-4 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center justify-center gap-2 sm:gap-3 transform hover:scale-105"
+                >
+                 
+                  {diagnosticSummary.completed_count === 0 ? 'Start Diagnostic' : 'Continue Diagnostic'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Diagnostic Results Block */}
+        {diagnosticSummary && diagnosticSummary.completed_count === 3 && (
+          <div className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border border-green-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 md:mb-8 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute top-0 right-0 w-20 h-20 sm:w-32 sm:h-32 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-20 transform translate-x-8 -translate-y-8 sm:translate-x-16 sm:-translate-y-16"></div>
+            <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-24 sm:h-24 bg-gradient-to-tr from-teal-100 to-green-100 rounded-full opacity-20 transform -translate-x-6 translate-y-6 sm:-translate-x-12 sm:translate-y-12"></div>
+            
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Icons.award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-green-800 to-emerald-800 bg-clip-text text-transparent">
+                    Diagnostic Complete
+                  </h3>
+                </div>
+                <p className="text-green-700 text-sm sm:text-base mb-3 sm:mb-4">
+                  Overall Band Score: <span className="font-bold text-xl sm:text-2xl text-green-800">{diagnosticSummary.overall_band || 'N/A'}</span>
+                </p>
+                <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm font-medium">
+                  <span className="px-2 sm:px-3 py-1.5 sm:py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
+                    L: {diagnosticSummary.listening?.band || 'N/A'}
+                  </span>
+                  <span className="px-2 sm:px-3 py-1.5 sm:py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
+                    R: {diagnosticSummary.reading?.band || 'N/A'}
+                  </span>
+                  <span className="px-2 sm:px-3 py-1.5 sm:py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
+                    W: {diagnosticSummary.writing?.band || 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 sm:mt-6 md:mt-0 flex flex-wrap gap-2">
+                {diagnosticSummary.listening?.session_id && (
+                  <button
+                    onClick={() => navigate(`/listening-result/${diagnosticSummary.listening.session_id}`)}
+                    className="px-3 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
+                  >
+                    <Icons.listening className="w-3 h-3 sm:w-4 sm:h-4" />
+                    View L
+                  </button>
+                )}
+                {diagnosticSummary.reading?.session_id && (
+                  <button
+                    onClick={() => navigate(`/reading-result/${diagnosticSummary.reading.session_id}`)}
+                    className="px-3 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
+                  >
+                    <Icons.reading className="w-3 h-3 sm:w-4 sm:h-4" />
+                    View R
+                  </button>
+                )}
+                {diagnosticSummary.writing?.session_id && (
+                  <button
+                    onClick={() => navigate(`/writing-result/${diagnosticSummary.writing.session_id}`)}
+                    className="px-3 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
+                  >
+                    <Icons.writing className="w-3 h-3 sm:w-4 sm:h-4" />
+                    View W
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Teacher Survey Block (moved between KPI rows) */}
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 md:mb-8 shadow-md">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm sm:text-base font-semibold text-orange-800 truncate">
+                Weekly Teacher Survey
+              </h3>
+              <p className="text-orange-700 text-[10px] sm:text-xs truncate">
+                Tell us if you're satisfied with your teacher. It only takes 20 seconds.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              {surveyStatus?.submittedThisWeek ? (
+                <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                  Submitted
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSurveyModal(true)}
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors shadow-sm hover:shadow-md bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
+                >
+                  Complete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* All KPI Cards - Combined Inline */}
         {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <KPICardsScrollContainer>
             <StatCard 
               title="Listening (30d)" 
               value={
@@ -431,11 +621,7 @@ export default function Dashboard() {
                   : (summary?.listening?.accuracy?.last_test_percent != null ? `${Math.round(summary.listening.accuracy.last_test_percent)}% last` : null)
               }
               color="blue"
-              extra={summary?.listening?.accuracy?.last_test_percent != null ? (
-                <div className="mt-3">
-                  <AccuracyRing percent={summary.listening.accuracy.last_test_percent} color="blue" label="Accuracy" />
-                </div>
-              ) : null}
+              compact
             />
             <StatCard 
               title="Reading Avg (30d)" 
@@ -452,11 +638,7 @@ export default function Dashboard() {
                   : (summary?.reading?.last_result?.score != null ? `${Math.round(summary.reading.last_result.score * 10) / 10} last` : null)
               }
               color="emerald"
-              extra={summary?.reading?.accuracy?.last_test_percent != null ? (
-                <div className="mt-3">
-                  <AccuracyRing percent={summary.reading.accuracy.last_test_percent} color="emerald" label="Accuracy" />
-                </div>
-              ) : null}
+              compact
             />
             <StatCard 
               title="Writing Avg (30d)" 
@@ -465,182 +647,43 @@ export default function Dashboard() {
               description={`Essays: ${summary?.writing?.totals?.essays_30d ?? 0}`}
               trend={summary?.writing?.last_feedback?.teacher_overall_score != null ? `${summary.writing.last_feedback.teacher_overall_score} feedback` : null}
               color="purple"
+              compact
             />
-          </div>
+            <StatCard 
+              title="Tests Completed" 
+              value={count} 
+              icon={<Icons.stats />}
+              description="Total completed"
+              trend={null}
+              color="slate"
+              compact
+            />
+            <StatCard 
+              title="Average Score" 
+              value={avg} 
+              icon={<Icons.chart />}
+              description="Your progress"
+              trend={null}
+              color="indigo"
+              compact
+            />
+            <StatCard 
+              title="Best Result" 
+              value={max} 
+              icon={<Icons.trophy />}
+              description="Maximum score"
+              trend={null}
+              color="emerald"
+              compact
+            />
+          </KPICardsScrollContainer>
         )}
-
-        {/* Diagnostic Test Block */}
-        {diagnosticSummary && !diagnosticSummary.locked && diagnosticSummary.completed_count < 3 && (
-          <div className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-2xl p-8 mb-8 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden">
-            {/* Background Pattern */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full opacity-20 transform translate-x-16 -translate-y-16"></div>
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-indigo-100 to-blue-100 rounded-full opacity-20 transform -translate-x-12 translate-y-12"></div>
-            
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                 
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-800 to-indigo-800 bg-clip-text text-transparent">
-                    Diagnostic Test
-                  </h3>
-                </div>
-                <p className="text-blue-700 text-base mb-4 leading-relaxed">
-                  Take a comprehensive diagnostic test to establish your baseline skills across all IELTS modules.
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <span className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all duration-200 ${diagnosticSummary.listening?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                    <Icons.listening className="w-4 h-4" />
-                    Listening {diagnosticSummary.listening?.band ? <Icons.check className="w-4 h-4" /> : <Icons.clock className="w-4 h-4" />}
-                  </span>
-                  <span className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all duration-200 ${diagnosticSummary.reading?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                    <Icons.reading className="w-4 h-4" />
-                    Reading {diagnosticSummary.reading?.band ? <Icons.check className="w-4 h-4" /> : <Icons.clock className="w-4 h-4" />}
-                  </span>
-                  <span className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all duration-200 ${diagnosticSummary.writing?.band ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                    <Icons.writing className="w-4 h-4" />
-                    Writing {diagnosticSummary.writing?.band ? <Icons.check className="w-4 h-4" /> : <Icons.clock className="w-4 h-4" />}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-6 sm:mt-0">
-                <button
-                  onClick={() => navigate('/diagnostic')}
-                  className="px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center gap-3 transform hover:scale-105"
-                >
-                 
-                  {diagnosticSummary.completed_count === 0 ? 'Start Diagnostic' : 'Continue Diagnostic'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Diagnostic Results Block */}
-        {diagnosticSummary && diagnosticSummary.completed_count === 3 && (
-          <div className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border border-green-200 rounded-2xl p-8 mb-8 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden">
-            {/* Background Pattern */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-20 transform translate-x-16 -translate-y-16"></div>
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-teal-100 to-green-100 rounded-full opacity-20 transform -translate-x-12 translate-y-12"></div>
-            
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Icons.award className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-green-800 to-emerald-800 bg-clip-text text-transparent">
-                    Diagnostic Complete
-                  </h3>
-                </div>
-                <p className="text-green-700 text-base mb-4">
-                  Overall Band Score: <span className="font-bold text-2xl text-green-800">{diagnosticSummary.overall_band || 'N/A'}</span>
-                </p>
-                <div className="flex flex-wrap gap-4 text-sm font-medium">
-                  <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
-                    L: {diagnosticSummary.listening?.band || 'N/A'}
-                  </span>
-                  <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
-                    R: {diagnosticSummary.reading?.band || 'N/A'}
-                  </span>
-                  <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg border border-green-200">
-                    W: {diagnosticSummary.writing?.band || 'N/A'}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-6 sm:mt-0 flex flex-wrap gap-2">
-                {diagnosticSummary.listening?.session_id && (
-                  <button
-                    onClick={() => navigate(`/listening-result/${diagnosticSummary.listening.session_id}`)}
-                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    <Icons.listening className="w-4 h-4" />
-                    View L
-                  </button>
-                )}
-                {diagnosticSummary.reading?.session_id && (
-                  <button
-                    onClick={() => navigate(`/reading-result/${diagnosticSummary.reading.session_id}`)}
-                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    <Icons.reading className="w-4 h-4" />
-                    View R
-                  </button>
-                )}
-                {diagnosticSummary.writing?.session_id && (
-                  <button
-                    onClick={() => navigate(`/writing-result/${diagnosticSummary.writing.session_id}`)}
-                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    <Icons.writing className="w-4 h-4" />
-                    View W
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Teacher Survey Block (moved between KPI rows) */}
-        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-xl p-6 mb-8 shadow-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-orange-800 mb-2">
-                Weekly Teacher Survey
-              </h3>
-              <p className="text-orange-700 text-sm">
-                Tell us if you're satisfied with your teacher. It only takes 20 seconds.
-              </p>
-            </div>
-            <div className="mt-4 sm:mt-0">
-              {surveyStatus?.submittedThisWeek ? (
-                <div className="px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700">
-                  Submitted this week
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowSurveyModal(true)}
-                  className="px-6 py-2 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  Complete Survey
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Statistical Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard 
-            title="Tests Completed" 
-            value={count} 
-            icon={<Icons.stats />}
-            description="Total completed"
-            trend={null}
-            color="slate"
-          />
-          <StatCard 
-            title="Average Score" 
-            value={avg} 
-            icon={<Icons.chart />}
-            description="Your progress"
-            trend={null}
-            color="indigo"
-          />
-          <StatCard 
-            title="Best Result" 
-            value={max} 
-            icon={<Icons.trophy />}
-            description="Maximum score"
-            trend={null}
-            color="emerald"
-          />
-        </div>
 
 
         {/* Main content in two columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
           {/* Left column - Progress and analytics */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-5 md:space-y-6">
             {/* Score History Chart */}
             {userRole === 'student' && (
               <ScoreHistoryChart data={prepareScoreHistory()} />
@@ -648,16 +691,16 @@ export default function Dashboard() {
 
             {/* Test History */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <div className="w-2 h-6 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full mr-3"></div>
+              <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center">
+                  <div className="w-2 h-5 sm:h-6 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full mr-2 sm:mr-3"></div>
                   Recent Tests
                 </h3>
               </div>
-              <div className="p-6">
+              <div className="p-3 sm:p-4 md:p-6">
         
                 {allSessions.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {(showAllTests ? allSessions : allSessions.slice(0, 5)).map((item, idx) => {
                       const stableKey = item.session_id
                         ? `${item.type}-${item.session_id}`
@@ -667,65 +710,65 @@ export default function Dashboard() {
                         ? `${item.type}-${item.essays.map(e => e.id).join('-')}`
                         : `${item.type}-${idx}`;
                       return (
-                        <div key={stableKey} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border border-gray-200 hover:border-blue-200 hover:shadow-md">
-                          <div className="flex items-center space-x-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${
+                        <div key={stableKey} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border border-gray-200 hover:border-blue-200 hover:shadow-md gap-3 sm:gap-0">
+                          <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 ${
                               item.type === 'Listening' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
                               item.type === 'Reading' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white' :
                               item.type === 'Speaking' ? 'bg-gradient-to-br from-orange-500 to-red-600 text-white' :
                               'bg-gradient-to-br from-purple-500 to-purple-600 text-white'
                             }`}>
                               {item.type === 'Listening' ? (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 9H4a1 1 0 00-1 1v4a1 1 0 001 1h1.586l4.707 4.707C10.923 20.337 12 19.907 12 19V5c0-.907-1.077-1.337-1.707-.707L5.586 9z" />
                                 </svg>
                               ) : item.type === 'Reading' ? (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
                               ) : item.type === 'Speaking' ? (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                                 </svg>
                               ) : (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               )}
                             </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900">{item.test_title || 'Practice'}</h4>
-                              <p className="text-sm text-gray-500">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-medium text-sm sm:text-base text-gray-900 truncate">{item.test_title || 'Practice'}</h4>
+                              <p className="text-xs sm:text-sm text-gray-500">
                                 {item.date ? new Date(item.date).toLocaleDateString() : 'No date'}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
+                          <div className="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-4">
                             <div className="text-right">
                               <>
-                                <div className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                                <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
                                   {item.band_score || 'N/A'}
                                 </div>
                                 <div className="text-xs text-gray-500 font-medium">score</div>
                               </>
                             </div>
                             {item.type === 'Reading' && item.item.id && (
-                              <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                              <button onClick={() => navigate(`/reading-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 whitespace-nowrap">
                                 Details
                               </button>
                             )}
                             {item.type === 'Listening' && item.item.id && (
-                              <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                              <button onClick={() => navigate(`/listening-result/${item.item.id}`)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 whitespace-nowrap">
                                 Details
                               </button>
                             )}
                             {item.type === 'Speaking' && item.item.id && (
-                              <button onClick={() => navigate(`/speaking/result/${item.item.id}`)} className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                              <button onClick={() => navigate(`/speaking/result/${item.item.id}`)} className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-orange-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 whitespace-nowrap">
                                 Details
                               </button>
                             )}
                             {item.type === 'Writing' && (
-                              <button onClick={() => handleOpenDetails(item)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                              <button onClick={() => handleOpenDetails(item)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 whitespace-nowrap">
                                 Details
                               </button>
                             )}
@@ -759,61 +802,61 @@ export default function Dashboard() {
           </div>
 
           {/* Right column - Quick Actions */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5 md:space-y-6">
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                <div className="w-2 h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full mr-3"></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-5 md:mb-6 flex items-center">
+                <div className="w-2 h-5 sm:h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full mr-2 sm:mr-3"></div>
                                   Quick Actions
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <button
                   onClick={() => navigate('/listening')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl transition-all duration-200 group border border-blue-200 hover:border-blue-300 hover:shadow-lg transform hover:scale-105"
+                  className="w-full flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl transition-all duration-200 group border border-blue-200 hover:border-blue-300 hover:shadow-lg transform hover:scale-105"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 9H4a1 1 0 00-1 1v4a1 1 0 001 1h1.586l4.707 4.707C10.923 20.337 12 19.907 12 19V5c0-.907-1.077-1.337-1.707-.707L5.586 9z" />
                       </svg>
                     </div>
-                    <span className="font-semibold text-blue-900">Listening Test</span>
+                    <span className="font-semibold text-sm sm:text-base text-blue-900">Listening Test</span>
                   </div>
-                  <svg className="w-5 h-5 text-blue-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 group-hover:text-blue-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
                 
                 <button
                   onClick={() => navigate('/reading')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 rounded-xl transition-all duration-200 group border border-emerald-200 hover:border-emerald-300 hover:shadow-lg transform hover:scale-105"
+                  className="w-full flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 rounded-xl transition-all duration-200 group border border-emerald-200 hover:border-emerald-300 hover:shadow-lg transform hover:scale-105"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                     </div>
-                    <span className="font-semibold text-emerald-900">Reading Test</span>
+                    <span className="font-semibold text-sm sm:text-base text-emerald-900">Reading Test</span>
                   </div>
-                  <svg className="w-5 h-5 text-emerald-400 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 group-hover:text-emerald-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
                 
                 <button
                   onClick={() => navigate('/writing/start')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl transition-all duration-200 group border border-purple-200 hover:border-purple-300 hover:shadow-lg transform hover:scale-105"
+                  className="w-full flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl transition-all duration-200 group border border-purple-200 hover:border-purple-300 hover:shadow-lg transform hover:scale-105"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl flex items-center justify-center shadow-lg">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl flex items-center justify-center shadow-lg">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
                     </div>
-                    <span className="font-semibold text-purple-900">Writing Test</span>
+                    <span className="font-semibold text-sm sm:text-base text-purple-900">Writing Test</span>
                   </div>
-                  <svg className="w-5 h-5 text-purple-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 group-hover:text-purple-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
@@ -821,12 +864,12 @@ export default function Dashboard() {
             </div>
 
             {/* Useful links or tips */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                <div className="w-2 h-6 bg-gradient-to-b from-orange-500 to-red-600 rounded-full mr-3"></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-5 md:mb-6 flex items-center">
+                <div className="w-2 h-5 sm:h-6 bg-gradient-to-b from-orange-500 to-red-600 rounded-full mr-2 sm:mr-3"></div>
                                   Recommendations
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-start space-x-3 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
                   <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-500 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1010,7 +1053,7 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, icon, description, trend, color = 'gray', extra = null }) {
+function StatCard({ title, value, icon, description, trend, color = 'gray', extra = null, compact = false }) {
   const colorMap = {
     blue: { gradient: 'from-blue-500 to-blue-600', accent: 'bg-blue-500' },
     emerald: { gradient: 'from-emerald-500 to-emerald-600', accent: 'bg-emerald-500' },
@@ -1022,6 +1065,30 @@ function StatCard({ title, value, icon, description, trend, color = 'gray', extr
   const style = colorMap[color] || colorMap.gray;
 
   const trendPositive = typeof trend === 'string' && trend.startsWith('+');
+
+  if (compact) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 hover:shadow-lg transition-all duration-300 relative overflow-hidden flex-shrink-0 min-w-[140px] sm:min-w-[160px]">
+        <div className={`absolute top-0 left-0 w-full h-0.5 sm:h-1 ${style.accent}`}></div>
+        <div className="flex items-center gap-2 sm:gap-3 w-full">
+          <div className={`w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br ${style.gradient} rounded-lg flex items-center justify-center text-white shadow-md flex-shrink-0 [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-5 sm:[&>svg]:h-5`}>
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{value}</div>
+            <div className="text-xs sm:text-sm font-semibold text-gray-700 truncate">{title}</div>
+            <div className="text-[10px] sm:text-xs text-gray-500 truncate">{description}</div>
+          </div>
+          {trend && (
+            <div className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${trendPositive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
+              {trend}
+            </div>
+          )}
+        </div>
+        {extra}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 relative overflow-hidden">

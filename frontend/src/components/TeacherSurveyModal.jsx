@@ -139,11 +139,11 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
           }
         `}
       </style>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-50 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-10">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-semibold text-gray-700 mb-3">Weekly teacher survey</h2>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-gray-50 rounded-2xl shadow-2xl max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 md:p-8 lg:p-10">
+          <div className="text-center mb-4 sm:mb-6 md:mb-8">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-700 mb-2 sm:mb-3">Weekly teacher survey</h2>
            
           </div>
 
@@ -175,31 +175,31 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
 
               {!readOnly && (
                 <>
-                  <div className="mb-12 text-center">
-                    <h3 className="text-4xl font-bold text-gray-900 mb-8">
+                  <div className="mb-6 sm:mb-8 md:mb-12 text-center">
+                    <h3 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-4 sm:mb-6 md:mb-8 px-2">
                       Are you satisfied with your teacher?
                     </h3>
                     
-                    <div className="flex gap-8 justify-center">
+                    <div className="flex gap-3 sm:gap-5 md:gap-8 justify-center px-2">
                       <button
                         type="button"
                         onClick={handleYesClick}
                         disabled={saving}
-                        className={`group relative p-8 rounded-2xl border-4 transition-all transform hover:scale-105 hover:shadow-xl ${
+                        className={`group relative p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl border-2 sm:border-4 transition-all transform hover:scale-105 hover:shadow-xl ${
                           isSatisfied 
                             ? 'border-green-400 bg-green-100 shadow-lg' 
                             : 'border-gray-200 bg-white hover:border-green-300 hover:bg-green-50'
                         } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <div className="text-6xl mb-3"></div>
-                        <div className={`text-2xl font-bold ${
+                        <div className="text-4xl sm:text-5xl md:text-6xl mb-2 sm:mb-3">👍</div>
+                        <div className={`text-lg sm:text-xl md:text-2xl font-bold ${
                           isSatisfied ? 'text-green-700' : 'text-gray-600 group-hover:text-green-600'
                         }`}>
                           {saving ? 'Sending...' : 'Yes'}
                         </div>
                         {isSatisfied && (
-                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 bg-green-500 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -210,21 +210,21 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
                         type="button"
                         onClick={handleNoClick}
                         disabled={saving}
-                        className={`group relative p-8 rounded-2xl border-4 transition-all transform hover:scale-105 hover:shadow-xl ${
+                        className={`group relative p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl border-2 sm:border-4 transition-all transform hover:scale-105 hover:shadow-xl ${
                           !isSatisfied 
                             ? 'border-red-400 bg-red-100 shadow-lg' 
                             : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50'
                         } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <div className="text-6xl mb-3"></div>
-                        <div className={`text-2xl font-bold ${
+                        <div className="text-4xl sm:text-5xl md:text-6xl mb-2 sm:mb-3">👎</div>
+                        <div className={`text-lg sm:text-xl md:text-2xl font-bold ${
                           !isSatisfied ? 'text-red-700' : 'text-gray-600 group-hover:text-red-600'
                         }`}>
                           {saving ? 'Sending...' : 'No'}
                         </div>
                         {!isSatisfied && (
-                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 bg-red-500 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -234,7 +234,7 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
                   </div>
 
                   {!isSatisfied && (
-                    <div className="mb-8" style={{
+                    <div className="mb-4 sm:mb-6 md:mb-8 px-2" style={{
                       animation: 'fadeIn 0.5s ease-in-out',
                       opacity: 0,
                       animationFillMode: 'forwards'
@@ -245,19 +245,19 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
                         onChange={(e) => setReason(e.target.value)}
                         
                         rows={4}
-                        className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-400 focus:border-red-400 text-lg resize-none transition-all duration-300"
+                        className="w-full px-3 sm:px-4 md:px-6 py-3 sm:py-4 border border-gray-300 sm:border-2 rounded-xl focus:ring-2 focus:ring-red-400 focus:border-red-400 text-sm sm:text-base md:text-lg resize-none transition-all duration-300"
                         disabled={saving}
                       />
                     </div>
                   )}
 
                   {isSatisfied && hasMadeChoice && (
-                    <div className="text-center mb-8">
+                    <div className="text-center mb-4 sm:mb-6 md:mb-8 px-2">
                       <button
                         type="button"
                         onClick={handleSubmitYes}
                         disabled={saving}
-                        className={`inline-flex items-center justify-center px-8 py-3 rounded-xl text-white text-lg font-semibold transition-colors shadow ${
+                        className={`inline-flex items-center justify-center px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl text-white text-sm sm:text-base md:text-lg font-semibold transition-colors shadow ${
                           saving ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
                         }`}
                       >
@@ -267,12 +267,12 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
                   )}
 
                   {!isSatisfied && hasMadeChoice && (
-                    <div className="text-center mb-8">
+                    <div className="text-center mb-4 sm:mb-6 md:mb-8 px-2">
                       <button
                         type="button"
                         onClick={handleSubmitNo}
                         disabled={saving}
-                        className={`inline-flex items-center justify-center px-8 py-3 rounded-xl text-white text-lg font-semibold transition-colors shadow ${
+                        className={`inline-flex items-center justify-center px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl text-white text-sm sm:text-base md:text-lg font-semibold transition-colors shadow ${
                           saving ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
                         }`}
                       >
@@ -294,11 +294,11 @@ const TeacherSurveyModal = ({ isOpen, onClose, onSurveySubmitted }) => {
                     </div>
                   )}
 
-                  <div className="text-center">
+                  <div className="text-center px-2">
                     <button
                       type="button"
                       onClick={onClose}
-                      className="text-gray-500 hover:text-gray-700 font-medium text-lg transition-colors underline decoration-dotted underline-offset-4"
+                      className="text-gray-500 hover:text-gray-700 font-medium text-sm sm:text-base md:text-lg transition-colors underline decoration-dotted underline-offset-4"
                     >
                       Maybe later
                     </button>

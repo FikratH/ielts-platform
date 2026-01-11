@@ -2617,3 +2617,612 @@ These were Temporal Dead Zone (TDZ) errors caused by using `syncAnswers` functio
 ### Files Modified
 - `frontend/src/components/ReadingTestPlayer.jsx` - Moved `syncAnswers` declaration above `useEffect`
 - `frontend/src/components/ListeningTestPlayer.jsx` - Moved `persistLocalCache` and `syncAnswers` declarations, wrapped `syncAnswers` in `useCallback`, added `useCallback` import
+
+## 2025-01-11 - Mobile Bottom Navigation Implementation
+
+### Context
+The mobile experience used a traditional hamburger menu (Navbar component) which was not optimal for mobile UX. Implemented a modern bottom navigation bar that provides quick access to all main sections with icons.
+
+### Solution Implemented
+
+**1. Created BottomNavigation Component** - `frontend/src/components/BottomNavigation.jsx`
+
+A new component providing:
+- Fixed bottom navigation bar visible only on mobile devices (hidden on lg+ breakpoints)
+- Role-based navigation items:
+  - **Students**: Home (Dashboard), Listening, Reading, Writing, Speaking, Profile
+  - **Teachers/Speaking Mentors**: Dashboard, Writing Tasks, Speaking Assessment, Students, Profile
+  - **Curators**: Dashboard, Speaking, Test Comparison, Diagnostic, Profile
+  - **Admins**: Dashboard, Students, Teachers, Tests, Profile
+- Modern UI with lucide-react icons (Home, Headphones, BookOpen, PenTool, Mic, User, etc.)
+- Active state highlighting with blue accent color
+- Profile modal with slide-up animation containing:
+  - User avatar with initials
+  - Full name, role, and group (for students)
+  - Email display
+  - Logout button with gradient styling
+- Smooth animations (fade-in for backdrop, slide-up for modal)
+
+**Design Features**:
+- White background with top shadow for depth
+- Icons: 24x24px for active, 20x20px for inactive
+- Active tabs: Blue color (#2563EB) with larger icon
+- Inactive tabs: Gray with hover effects
+- Profile modal: Gradient backgrounds, rounded corners, smooth transitions
+- Responsive text sizing (10px labels)
+
+**2. Updated App.js Layout** - `frontend/src/App.js`
+
+Modified `MainLayout` component:
+- Removed old mobile Navbar component
+- Added BottomNavigation for mobile devices (lg:hidden)
+- Updated mobile content wrapper: removed `pt-20` (top navbar padding), added `pb-20` (bottom navigation clearance)
+- Desktop Sidebar remains unchanged (hidden lg:block)
+- Import changed from `Navbar` to `BottomNavigation`
+
+**3. Mobile Padding Strategy**
+
+All student-facing pages already had proper responsive padding:
+- Dashboard: `min-h-screen` with responsive padding
+- ListeningTestListPage: `min-h-screen bg-gradient-to-br p-3 sm:p-6`
+- ReadingPage: `min-h-screen bg-gradient-to-br p-3 sm:p-6`
+- WritingTestListPage: `min-h-screen bg-gradient-to-br p-3 sm:p-6`
+
+The `pb-20` added to mobile content wrapper in App.js provides sufficient clearance for bottom navigation (80px / 5rem).
+
+### Technical Details
+
+**Breakpoint**: `lg:` (1024px) separates mobile and desktop views
+
+**Z-index hierarchy**:
+- Bottom navigation: `z-50`
+- Profile modal backdrop: `z-[60]`
+- Profile modal content: appears above backdrop
+
+**Navigation logic**:
+- `isActivePage()` function handles route matching with special cases for nested routes
+- Supports both exact matches and prefix matches (e.g., `/listening` matches `/listening/test/123`)
+- Dashboard special case: matches both `/` and `/dashboard`
+
+**User info fetching**:
+- Fetches user profile from `/user/profile/` API endpoint on mount
+- Displays first name, role, group, and email
+- Generates initials for avatar (handles "Student N" format specially)
+
+**Animations**:
+- CSS keyframe animations for modal (fade-in backdrop, slide-up content)
+- Smooth transitions on all interactive elements
+- Transform effects on hover (scale, translate)
+
+### Files Modified
+- `frontend/src/components/BottomNavigation.jsx` - New component created
+- `frontend/src/App.js` - Updated MainLayout to use BottomNavigation, removed mobile Navbar, adjusted padding
+
+### Files Not Modified
+- `frontend/src/components/Sidebar.jsx` - Desktop sidebar unchanged as requested
+- `frontend/src/components/Navbar.js` - Kept for potential backward compatibility
+- All student pages - Already had proper responsive padding, no changes needed
+
+### Benefits
+- Modern mobile-first UX following industry standards (iOS/Android bottom nav pattern)
+- Quick access to all main sections without opening menus
+- Profile access with user info at a glance
+- Consistent experience across all user roles
+- Smooth animations and transitions
+- No changes to desktop experience
+
+### 2025-01-11 Update - Replaced Profile with Logout Button
+
+**Change**: Replaced Profile modal button with direct Logout button in bottom navigation
+
+**Implementation**:
+- Removed profile modal functionality (no longer needed)
+- Removed unused imports (User, X icons and useState/useEffect for modal)
+- Removed user info fetching logic
+- Added LogOut icon from lucide-react
+- Direct logout button with red color scheme (text-red-500, hover:text-red-600, hover:bg-red-50)
+- Simplified component - removed modal state management and animation styles
+- Logout button styled distinctly with red accent to indicate action importance
+
+**Result**: Cleaner, more direct UX - users can logout with one tap instead of opening a modal first
+
+## 2025-01-11 - Improved Mobile Responsiveness for Weekly Teacher Survey
+
+### Context
+Weekly Teacher Survey modals (LoginSurveyModal and TeacherSurveyModal) were not properly optimized for mobile devices - fixed padding, font sizes, and button layouts made the UI cramped and difficult to use on smaller screens.
+
+### Solution Implemented
+
+**1. Modal Container Responsiveness** - Both components updated:
+- Changed padding: `p-10` → `p-4 sm:p-6 md:p-8 lg:p-10` (4→6→8→10 progression)
+- Reduced outer padding: `p-4` → `p-2 sm:p-4` (more space on mobile)
+- Adjusted max-width: `max-w-4xl` → `max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-3xl`
+- Title font size: `text-2xl` → `text-lg sm:text-xl md:text-2xl`
+- Margins: `mb-8` → `mb-4 sm:mb-6 md:mb-8`
+
+**2. LoginSurveyModal Button Layout**:
+- Changed three-button layout from horizontal to vertical on mobile: `flex gap-4` → `flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4`
+- Responsive button sizing: `px-6 py-3` → `px-4 sm:px-5 md:px-6 py-2.5 sm:py-3`
+- Font sizes: `text-base` → `text-xs sm:text-sm md:text-base`
+- Added `whitespace-nowrap` to "DON'T REMIND THIS WEEK" button to prevent wrapping
+
+**3. Yes/No Buttons (Both Modals)**:
+- Reduced padding on mobile: `p-8` → `p-4 sm:p-6 md:p-8`
+- Emoji sizing: `text-6xl` → `text-4xl sm:text-5xl md:text-6xl`
+- Text sizing: `text-2xl` → `text-lg sm:text-xl md:text-2xl`
+- Border width: `border-4` → `border-2 sm:border-4`
+- Border radius: `rounded-2xl` → `rounded-xl sm:rounded-2xl`
+- Gap between buttons: `gap-8` → `gap-3 sm:gap-5 md:gap-8`
+- Checkmark badge: `w-6 h-6` → `w-5 h-5 sm:w-6 sm:h-6`
+- Added `px-2` horizontal padding for mobile spacing
+
+**4. Text and Headers**:
+- Main question: `text-4xl mb-8` → `text-xl sm:text-2xl md:text-3xl lg:text-4xl mb-4 sm:mb-6 md:mb-8 px-2`
+- Description text: `text-lg mb-6` → `text-sm sm:text-base md:text-lg mb-4 sm:mb-6 px-2`
+- Labels: `text-lg` → `text-sm sm:text-base md:text-lg`
+
+**5. Form Elements**:
+- Textarea padding: `px-6 py-4` → `px-3 sm:px-4 md:px-6 py-3 sm:py-4`
+- Text size: `text-lg` → `text-sm sm:text-base md:text-lg`
+- Submit button: `px-8 py-3 text-lg` → `px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base md:text-lg`
+
+### Responsive Breakpoints Used
+- **Default (< 640px)**: Mobile-optimized sizing
+- **sm (≥ 640px)**: Small tablets
+- **md (≥ 768px)**: Tablets
+- **lg (≥ 1024px)**: Desktop
+
+### Files Modified
+- `frontend/src/components/LoginSurveyModal.jsx` - Full responsive redesign
+- `frontend/src/components/TeacherSurveyModal.jsx` - Full responsive redesign
+
+### Benefits
+- Much better mobile UX with appropriately sized elements
+- Vertical button layout on mobile prevents cramping
+- Progressive scaling from mobile to desktop
+- Maintained visual hierarchy across all screen sizes
+- Better touch targets for mobile users
+
+## 2025-01-11 - Mobile Dashboard UI/UX Improvements
+
+### Context
+Dashboard page needed significant mobile optimization - fixed padding, font sizes, and layouts made the interface cramped and difficult to use on small screens. Elements were not properly responsive.
+
+### Solution Implemented
+
+**1. Header Section** - `frontend/src/pages/Dashboard.js`:
+- Reduced padding: `px-4 py-8` → `px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8`
+- Title font size: `text-3xl` → `text-2xl sm:text-3xl`
+- Subtitle: `text-lg` → `text-sm sm:text-base md:text-lg`
+- "Start New Test" button:
+  - Full width on mobile: `w-full sm:w-auto`
+  - Reduced padding: `px-8 py-4` → `px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4`
+  - Icon sizing: `w-6 h-6` → `w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6`
+  - Text size: `text-base` → `text-sm sm:text-base`
+
+**2. KPI Cards Grid**:
+- Gap reduction: `gap-6 mb-8` → `gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8`
+- Better spacing on mobile devices
+
+**3. Diagnostic Test Blocks** (both incomplete and complete):
+- Padding: `p-8` → `p-4 sm:p-6 md:p-8`
+- Border radius: `rounded-2xl` → `rounded-xl sm:rounded-2xl`
+- Background pattern sizes: `w-32 h-32` → `w-20 h-20 sm:w-32 sm:h-32`
+- Title: `text-2xl` → `text-lg sm:text-xl md:text-2xl`
+- Description: `text-base` → `text-sm sm:text-base`
+- Badge sizing: `px-3 py-2 text-sm` → `px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm`
+- Icon sizes in badges: `w-4 h-4` → `w-3 h-3 sm:w-4 sm:h-4`
+- Button: Full width on mobile `w-full sm:w-auto`, reduced padding
+- Award icon: `w-12 h-12` → `w-10 h-10 sm:w-12 sm:h-12`
+- Overall band score: `text-2xl` → `text-xl sm:text-2xl`
+- View buttons: `px-4 py-2 text-sm` → `px-3 sm:px-4 py-2 text-xs sm:text-sm`
+
+**4. Weekly Teacher Survey Block**:
+- Padding: `p-6` → `p-4 sm:p-5 md:p-6`
+- Title: `text-xl` → `text-lg sm:text-xl`
+- Description: `text-sm` → `text-xs sm:text-sm`
+- Button: Full width on mobile `w-full sm:w-auto`
+- Status badge: Centered text on mobile `text-center sm:text-left`
+
+**5. Statistical Cards**:
+- Gap: `gap-6 mb-8` → `gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8`
+
+**6. Main Content Grid**:
+- Gap: `gap-8` → `gap-4 sm:gap-6 md:gap-8`
+- Column spacing: `space-y-6` → `space-y-4 sm:space-y-5 md:space-y-6`
+
+**7. Recent Tests Section**:
+- Header padding: `px-6 py-4` → `px-3 sm:px-4 md:px-6 py-3 sm:py-4`
+- Title: `text-lg` → `text-base sm:text-lg`
+- Content padding: `p-6` → `p-3 sm:p-4 md:p-6`
+- Card spacing: `space-y-4` → `space-y-3 sm:space-y-4`
+- Card layout: Changed to `flex-col sm:flex-row` for mobile stacking
+- Card padding: `p-4` → `p-3 sm:p-4`
+- Test icon: `w-12 h-12` → `w-10 h-10 sm:w-12 sm:h-12`
+- Icon SVG: `w-6 h-6` → `w-5 h-5 sm:w-6 sm:h-6`
+- Test title: `text-base` → `text-sm sm:text-base` with `truncate` for overflow
+- Date: `text-sm` → `text-xs sm:text-sm`
+- Score: `text-2xl` → `text-xl sm:text-2xl`
+- Details button: `px-4 py-2 text-sm` → `px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm` with `whitespace-nowrap`
+- Added `min-w-0 flex-1` to prevent text overflow
+
+**8. Quick Actions Section**:
+- Padding: `p-6` → `p-4 sm:p-5 md:p-6`
+- Title: `text-lg mb-6` → `text-base sm:text-lg mb-4 sm:mb-5 md:mb-6`
+- Button spacing: `space-y-3` → `space-y-2 sm:space-y-3`
+- Button padding: `p-4` → `p-3 sm:p-4`
+- Icon container: `w-10 h-10` → `w-8 h-8 sm:w-10 sm:h-10`
+- Icon SVG: `w-5 h-5` → `w-4 h-4 sm:w-5 sm:h-5`
+- Text: `text-base` → `text-sm sm:text-base`
+- Arrow icon: Added `flex-shrink-0` to prevent compression
+
+**9. Recommendations Section**:
+- Padding: `p-6` → `p-4 sm:p-5 md:p-6`
+- Title: `text-lg mb-6` → `text-base sm:text-lg mb-4 sm:mb-5 md:mb-6`
+- Item spacing: `space-y-4` → `space-y-3 sm:space-y-4`
+
+### Responsive Breakpoints Strategy
+- **Default (< 640px)**: Mobile-first, compact sizing
+- **sm (≥ 640px)**: Small tablets, slightly larger
+- **md (≥ 768px)**: Tablets, medium sizing
+- **lg (≥ 1024px)**: Desktop, full sizing
+
+### Key Mobile UX Improvements
+1. **Vertical stacking** on mobile for Recent Tests cards (icon + info on top, score + button below)
+2. **Full-width buttons** on mobile for better touch targets
+3. **Truncated text** with `min-w-0` to prevent overflow
+4. **Progressive font scaling** from mobile to desktop
+5. **Reduced padding** throughout for more content visibility
+6. **Smaller icons** on mobile to save space
+7. **Better spacing** between elements
+
+### Files Modified
+- `frontend/src/pages/Dashboard.js` - Comprehensive mobile responsive improvements
+
+### Benefits
+- Much better mobile experience with properly sized elements
+- No horizontal scrolling or cramped layouts
+- Better touch targets for mobile users
+- More content visible without excessive scrolling
+- Maintained visual hierarchy across all screen sizes
+- Professional appearance on all devices
+
+## 2025-01-11 - Compact Inline Statistical Cards
+
+### Context
+Statistical Cards (Tests Completed, Average Score, Best Result) were taking up too much vertical space on Dashboard. User wanted to make them more compact and inline instead of a full-width grid layout.
+
+### Solution Implemented
+
+**1. Changed Layout from Grid to Flex** - `frontend/src/pages/Dashboard.js`:
+- Replaced `grid grid-cols-1 md:grid-cols-3` with `flex` layout
+- Added horizontal scroll on mobile: `overflow-x-auto pb-2 scrollbar-hide`
+- Progressive gap sizing: `gap-2 sm:gap-3 md:gap-4`
+- Cards now flow horizontally instead of stacking vertically
+
+**2. Added Compact Mode to StatCard Component**:
+- Added `compact` prop to StatCard function
+- When `compact={true}`, renders inline horizontal layout:
+  - **Container**: `rounded-lg` (smaller than `rounded-xl`), `p-3 sm:p-4` (reduced padding)
+  - **Layout**: `flex items-center gap-2 sm:gap-3` (horizontal inline)
+  - **Min width**: `min-w-[140px] sm:min-w-[160px]` (prevents too narrow cards)
+  - **Flex shrink**: `flex-shrink-0` (prevents cards from compressing)
+  - **Top accent bar**: `h-0.5 sm:h-1` (thinner than normal `h-1`)
+
+**3. Compact Card Elements**:
+- **Icon container**: `w-8 h-8 sm:w-10 sm:h-10` (smaller than normal `w-12 h-12`)
+- **Icon size**: Uses Tailwind arbitrary values `[&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-5 sm:[&>svg]:h-5`
+- **Value text**: `text-xl sm:text-2xl` (smaller than normal `text-3xl`)
+- **Title**: `text-xs sm:text-sm` with `truncate` (smaller than normal `text-sm`)
+- **Description**: `text-[10px] sm:text-xs` with `truncate` (smaller than normal `text-xs`)
+- **Content area**: `flex-1 min-w-0` with truncation to prevent overflow
+
+**4. Responsive Behavior**:
+- **Mobile (< 640px)**: Horizontal scrollable row, very compact cards
+- **Tablet (≥ 640px)**: Slightly larger cards, still inline
+- **Desktop (≥ 768px)**: Comfortable inline layout, all cards visible
+- Scrollbar hidden using existing `scrollbar-hide` utility class
+
+### Benefits
+- **Space efficient**: Takes up ~60% less vertical space
+- **Better mobile UX**: Horizontal scroll is more natural than vertical stacking
+- **Cleaner design**: Less visual weight, more focus on main content
+- **All stats visible**: No need to scroll down to see all statistics
+- **Maintains functionality**: All information still clearly visible
+- **Responsive**: Works well on all screen sizes
+
+### Files Modified
+- `frontend/src/pages/Dashboard.js` - Added compact mode to StatCard, changed grid to flex layout
+
+### Design Notes
+- Cards maintain color-coded top accent bars for visual distinction
+- Icons remain visible but smaller
+- Text is still readable with proper truncation
+- Smooth horizontal scroll on mobile devices
+- Cards don't compress thanks to `flex-shrink-0` and `min-w-*`
+
+## 2025-01-11 - KPI Cards Compact Inline and Weekly Survey Optimization
+
+### Context
+User wanted KPI cards (Listening, Reading, Writing) to be compact inline like statistical cards, and Weekly Teacher Survey block to take less space.
+
+### Solution Implemented
+
+**1. KPI Cards (Listening/Reading/Writing) - Made Compact Inline** - `frontend/src/pages/Dashboard.js`:
+- Changed layout from `grid grid-cols-1 md:grid-cols-3` to `flex` with horizontal scroll
+- Added `overflow-x-auto pb-2 scrollbar-hide` for smooth mobile scrolling
+- Progressive gap: `gap-2 sm:gap-3 md:gap-4`
+- Added `compact` prop to all three KPI StatCards
+- **Removed `extra` prop with AccuracyRing**: In compact mode, AccuracyRing doesn't fit, so removed it from KPI cards (it was only shown when accuracy data was available)
+- Cards now flow horizontally instead of stacking vertically
+
+**2. Weekly Teacher Survey Block - Compact Redesign**:
+- Reduced padding: `p-4 sm:p-5 md:p-6` → `p-3 sm:p-4`
+- Changed border radius: `rounded-xl` → `rounded-lg sm:rounded-xl` (smaller on mobile)
+- Reduced shadow: `shadow-lg` → `shadow-md`
+- **Title**: `text-lg sm:text-xl` → `text-sm sm:text-base` with `truncate`
+- **Description**: `text-xs sm:text-sm` → `text-[10px] sm:text-xs` with `truncate`
+- **Layout**: Changed from `flex-col sm:flex-row` to `flex items-center` (always horizontal)
+- **Button/Status**: 
+  - Button text: "Complete Survey" → "Complete" (shorter)
+  - Status text: "Submitted this week" → "Submitted" (shorter)
+  - Reduced padding: `px-4 sm:px-6 py-2` → `px-3 sm:px-4 py-1.5 sm:py-2`
+  - Text size: `text-sm sm:text-base` → `text-xs sm:text-sm`
+  - Added `whitespace-nowrap` to prevent text wrapping
+- **Gap**: `gap-2 sm:gap-3` for better spacing
+- Added `min-w-0` and `flex-1` to text container for proper truncation
+- Added `flex-shrink-0` to button/status container
+
+### Benefits
+- **KPI Cards**:
+  - Same compact inline style as statistical cards
+  - Takes ~60% less vertical space
+  - All three KPIs visible in one row on desktop
+  - Horizontal scroll on mobile devices
+  - Removed AccuracyRing as it doesn't fit in compact mode (information still available in description)
+
+- **Weekly Survey Block**:
+  - Takes ~40% less vertical space
+  - More compact text and buttons
+  - Always horizontal layout (no vertical stacking on mobile)
+  - Shorter button text saves space
+  - Still fully functional and readable
+
+### Files Modified
+- `frontend/src/pages/Dashboard.js` - Made KPI cards compact inline, optimized Weekly Teacher Survey block
+
+### Design Decisions
+- AccuracyRing removed from compact KPI cards as it doesn't fit the horizontal layout
+- Weekly Survey uses shorter text to save space while maintaining clarity
+- Both sections now use consistent compact styling approach
+
+## 2025-01-11 - Combined All KPI Cards in Single Row with Scroll Indicator
+
+### Context
+User wanted all 6 KPI cards (Listening, Reading, Writing + Tests Completed, Average Score, Best Result) combined in one row on both desktop and mobile, with scroll indicator on mobile to show that scrolling is available.
+
+### Solution Implemented
+
+**1. Combined KPI Cards Sections** - `frontend/src/pages/Dashboard.js`:
+- **Removed** separate "Section KPI Cards" block (Listening/Reading/Writing)
+- **Removed** separate "Statistical Cards" block (Tests Completed/Average Score/Best Result)
+- **Created** single "All KPI Cards - Combined Inline" block with all 6 cards
+- Cards now flow in one continuous row: Listening → Reading → Writing → Tests Completed → Average Score → Best Result
+
+**2. Layout Improvements**:
+- Used relative positioning on container for scroll indicator overlay
+- Added negative margins `-mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8` to extend scroll area to edges
+- Added corresponding padding `px-3 sm:px-4 md:px-6 lg:px-8` to maintain content alignment
+- Horizontal scroll with hidden scrollbar: `overflow-x-auto scrollbar-hide`
+
+**3. Scroll Indicator for Mobile**:
+- Added gradient overlay on the right side: `absolute right-0 top-0 bottom-2 w-12 sm:w-16`
+- Gradient: `bg-gradient-to-l from-gray-50 to-transparent`
+- Visible only on mobile/tablet: `lg:hidden` (hidden on desktop where all cards fit)
+- `pointer-events-none` to allow clicks through the gradient
+- Positioned absolutely to overlay the scrollable area
+
+### Benefits
+- **Unified layout**: All KPI cards in one continuous row
+- **Better space usage**: No gap between different card groups
+- **Mobile UX**: Gradient indicator clearly shows that scrolling is possible
+- **Desktop**: All 6 cards visible without scrolling (on large screens)
+- **Consistent styling**: All cards use same compact inline style
+
+### Files Modified
+- `frontend/src/pages/Dashboard.js` - Combined KPI cards sections, added scroll indicator
+
+### Design Notes
+- Gradient indicator fades from gray-50 to transparent, matching page background
+- Indicator width scales with screen size (12 units on mobile, 16 on small tablets)
+- Cards maintain their min-width to prevent compression
+- Scroll area extends to screen edges for better mobile experience
+
+## 2025-01-11 - Scroll Arrow Indicator and Chart Mobile Adaptation
+
+### Context
+User wanted to replace gradient scroll indicator with a more visible arrow indicator for KPI cards, and improve mobile responsiveness of Score Progress Over Time chart.
+
+### Solution Implemented
+
+**1. Created KPICardsScrollContainer Component** - `frontend/src/pages/Dashboard.js`:
+- New wrapper component that manages scroll state and shows arrow indicator
+- Uses `useRef` to track scroll container
+- Uses `ResizeObserver` and `useEffect` to detect if scrolling is needed
+- Shows arrow indicator only when `scrollWidth > clientWidth`
+- Updates indicator visibility on scroll (hides when scrolled to end)
+- Arrow indicator:
+  - Position: `absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2`
+  - Style: White background with 80% opacity, backdrop blur, rounded full, shadow, border
+  - Icon: `ChevronRight` from lucide-react, `w-5 h-5 sm:w-6 sm:h-6`, gray color with 70% opacity
+  - `pointer-events-none` to allow clicks through
+  - Visible on all screen sizes when scrolling is available
+
+**2. Score History Chart Mobile Adaptation** - `frontend/src/components/ScoreHistoryChart.jsx`:
+- **Padding**: `p-4` → `p-3 sm:p-4 md:p-6` (reduced on mobile)
+- **Border radius**: `rounded-xl` → `rounded-lg sm:rounded-xl`
+- **Title**: `text-lg` → `text-base sm:text-lg`
+- **Title margin**: `mb-4` → `mb-3 sm:mb-4` with `gap-3` for flex gap
+- **Filter checkboxes**:
+  - Gap: `gap-3` → `gap-2 sm:gap-3`
+  - Padding: `px-3 py-1.5` → `px-2 sm:px-3 py-1 sm:py-1.5`
+  - Icon gap: `gap-2` → `gap-1.5 sm:gap-2`
+  - Checkbox size: `w-4 h-4` → `w-3 h-3 sm:w-4 sm:h-4`
+  - Icon size: `w-4 h-4` → `w-3 h-3 sm:w-4 sm:h-4`
+  - Text size: `text-sm` → `text-xs sm:text-sm`
+- **Chart height**: `height={280}` → `height={200} className="sm:h-[240px] md:h-[280px]"` (responsive)
+- **XAxis**: Added `interval="preserveStartEnd"` to show first and last labels on mobile
+- **YAxis**: 
+  - Font size: `fontSize: 12` → `fontSize: 10`
+  - Label font size: `fontSize: 12` → `fontSize: 10`
+  - Width: Added `width={40}` for better mobile fit
+- **Info text**: `text-xs` → `text-[10px] sm:text-xs`, margin `mt-3` → `mt-2 sm:mt-3`
+- **Empty state**: Padding `p-4` → `p-3 sm:p-4 md:p-6`, text sizes adjusted
+
+**3. Added ChevronRight Import**:
+- Added `ChevronRight` to lucide-react imports in Dashboard.js
+
+### Benefits
+- **Arrow indicator**: Much more visible and intuitive than gradient
+- **Smart visibility**: Only shows when scrolling is actually needed
+- **Works on all devices**: Shows on mobile, tablet, and desktop when needed
+- **Chart mobile UX**: Better readability and fit on small screens
+- **Responsive chart**: Adapts height and font sizes for mobile
+- **Better axis labels**: Preserves important labels on mobile
+
+### Files Modified
+- `frontend/src/pages/Dashboard.js` - Created KPICardsScrollContainer component, added ChevronRight import
+- `frontend/src/components/ScoreHistoryChart.jsx` - Full mobile responsive improvements
+
+### Technical Details
+- Uses ResizeObserver for efficient scroll detection
+- Updates indicator on scroll events to hide when at end
+- Arrow has semi-transparent background with backdrop blur for modern look
+- Chart uses responsive height classes for better mobile fit
+
+## 2025-01-XX - Test Cards Carousel with Navigation Buttons (Listening, Reading, Writing)
+
+### Context
+User reported that hover animations on test cards (listening, reading, writing) were broken and buggy on mobile devices. User requested to create a carousel with navigation buttons (left/right) instead of simple scroll, because the current implementation didn't look good.
+
+### Solution Implemented
+
+**1. Created TestCardsCarousel Component** (replaced TestCardsScrollContainer):
+- Navigation buttons (ChevronLeft and ChevronRight) for scrolling
+- Buttons appear/disappear dynamically based on scroll position
+- Smooth scroll animation when clicking buttons
+- Buttons positioned absolutely on left and right sides
+- Only visible on mobile (`md:hidden`)
+- Desktop uses grid layout (`md:grid md:grid-cols-2`)
+- Uses `snap-x snap-mandatory` for better scroll experience
+- Scroll amount calculated based on card width + gap
+
+**2. Removed Hover Effects on Mobile**:
+- **Card hover effects**: `hover:shadow-2xl hover:-translate-y-2 hover:scale-105` → `md:hover:shadow-2xl md:transform md:hover:-translate-y-2 md:hover:scale-105`
+- **Title hover color**: `group-hover:text-{color}` → `md:group-hover:text-{color}`
+- **Button hover scale**: `hover:shadow-xl transform hover:scale-105` → `md:hover:shadow-xl md:transform md:hover:scale-105`
+- **Overlay hover opacity**: `group-hover:opacity-100` → `md:group-hover:opacity-100`
+- **Button active state**: Added `active:scale-95` for better mobile touch feedback
+
+**3. Navigation Buttons**:
+- Position: `absolute left-2 sm:left-4` and `right-2 sm:right-4`
+- Style: White background with 90% opacity, backdrop blur, rounded full, shadow, border
+- Icons: ChevronLeft and ChevronRight from lucide-react
+- Visibility: Only shown when scrolling is possible in that direction
+- Hover effect: `hover:scale-110 active:scale-95` for better UX
+- z-index: `z-20` to appear above cards
+
+**4. Scroll Behavior**:
+- Smooth scrolling with `behavior: 'smooth'`
+- Scroll amount: card width + gap (16px)
+- Updates button visibility after scroll animation (300ms delay)
+- Uses ResizeObserver for responsive scroll detection
+
+### Benefits
+- **No more hover bugs on mobile**: Hover effects only on desktop
+- **Better mobile UX**: Clear navigation buttons instead of unclear scroll
+- **Visual feedback**: Buttons appear/disappear based on scroll position
+- **Smooth animations**: Smooth scroll with snap points
+- **Touch-friendly**: Active states for better mobile interaction
+- **Desktop unchanged**: Grid layout and hover effects preserved on desktop
+
+### Files Modified
+- `frontend/src/pages/ListeningTestListPage.js` - Replaced TestCardsScrollContainer with TestCardsCarousel, removed hover on mobile
+- `frontend/src/pages/ReadingPage.js` - Replaced TestCardsScrollContainer with TestCardsCarousel, removed hover on mobile
+- `frontend/src/pages/WritingTestListPage.js` - Replaced TestCardsScrollContainer with TestCardsCarousel, removed hover on mobile
+
+### Technical Details
+- Each page has its own TestCardsCarousel component (not shared to keep pages independent)
+- Uses `data-card` attribute to identify card elements for width calculation
+- Scroll detection uses `scrollLeft`, `scrollWidth`, and `clientWidth`
+- Buttons only visible when `canScrollLeft` or `canScrollRight` is true
+- Hover effects use `md:` prefix to only apply on medium screens and above
+- Snap scrolling provides better UX when manually scrolling
+
+## 2025-01-XX - Improved Test Cards Mobile UX (Listening, Reading, Writing)
+
+### Context
+User reported that test cards on Listening, Reading, and Writing pages still had "infinite scroll effect" on mobile. Typically there are 4 tests, and the vertical scrolling was not optimal for mobile UX. User wanted to improve the mobile display of these test cards.
+
+### Solution Implemented
+
+**1. Created TestCardsScrollContainer Component**:
+- Similar to KPICardsScrollContainer but adapted for test cards
+- Horizontal scrolling on mobile (`flex` layout)
+- Grid layout on desktop (`md:grid md:grid-cols-2`)
+- Scroll indicator (ChevronRight arrow) that appears only when scrolling is needed
+- Uses `ResizeObserver` and scroll events to detect scrollability
+- Fixed width cards on mobile: `w-[280px] sm:w-[320px]` with `flex-shrink-0`
+- Negative margins for edge-to-edge scrolling: `-mx-3 sm:-mx-4` with corresponding padding
+
+**2. Made Test Cards Compact on Mobile**:
+- **Padding**: Reduced from `p-6 sm:p-8` to `p-4 sm:p-6 md:p-8`
+- **Border radius**: `rounded-2xl` → `rounded-xl md:rounded-2xl`
+- **Title**: `text-xl sm:text-2xl` → `text-base sm:text-xl md:text-2xl`
+- **Title margin**: `mb-4` → `mb-3 md:mb-4`, gap `gap-3` → `gap-2 md:gap-3`
+- **Available badge**: 
+  - Padding: `px-3 py-1.5` → `px-2 md:px-3 py-1 md:py-1.5`
+  - Text: `text-sm` → `text-xs md:text-sm`
+  - Icon: `w-4 h-4` → `w-3 h-3 md:w-4 md:h-4`
+- **Description**: `text-sm sm:text-base` → `text-xs sm:text-sm md:text-base`, margin `mb-6` → `mb-4 md:mb-6`
+- **Stats section**:
+  - Padding: `p-4` → `p-3 md:p-4`
+  - Border radius: `rounded-xl` → `rounded-lg md:rounded-xl`
+  - Icon containers: `w-12 h-12` → `w-10 h-10 md:w-12 md:h-12`
+  - Icons: `w-6 h-6` → `w-5 h-5 md:w-6 md:h-6`
+  - Values: `text-lg` → `text-base md:text-lg`
+  - Labels: `text-xs` → `text-[10px] md:text-xs`
+  - Margin: `mb-6` → `mb-4 md:mb-6`
+- **Start button**:
+  - Padding: `py-4` → `py-3 md:py-4`
+  - Border radius: `rounded-xl` → `rounded-lg md:rounded-xl`
+  - Text: `text-lg` → `text-sm md:text-lg`
+- **Explanation link**: 
+  - Padding: `py-3` → `py-2 md:py-3`
+  - Text: `text-sm` → `text-xs md:text-sm`
+  - Margin: `mt-3` → `mt-2 md:mt-3`
+
+**3. Applied to All Three Pages**:
+- `frontend/src/pages/ListeningTestListPage.js`
+- `frontend/src/pages/ReadingPage.js`
+- `frontend/src/pages/WritingTestListPage.js`
+
+### Benefits
+- **No more infinite vertical scroll**: Cards scroll horizontally on mobile
+- **Better space utilization**: Compact cards fit better on mobile screens
+- **Consistent UX**: Same pattern as KPI cards on dashboard
+- **Visual scroll indicator**: Arrow shows when more cards are available
+- **Desktop unchanged**: Grid layout preserved on desktop (md and above)
+- **Smooth scrolling**: Native horizontal scroll with scrollbar hidden
+
+### Files Modified
+- `frontend/src/pages/ListeningTestListPage.js` - Added TestCardsScrollContainer, compact mobile cards
+- `frontend/src/pages/ReadingPage.js` - Added TestCardsScrollContainer, compact mobile cards
+- `frontend/src/pages/WritingTestListPage.js` - Added TestCardsScrollContainer, compact mobile cards
+
+### Technical Details
+- Each page has its own TestCardsScrollContainer component (not shared to keep pages independent)
+- Uses `flex-shrink-0` to prevent cards from shrinking
+- Fixed width on mobile ensures consistent card sizes
+- Scroll indicator only visible on mobile (`md:hidden`)
+- Desktop uses grid layout (`md:grid md:grid-cols-2`) with `md:max-w-5xl md:mx-auto`
