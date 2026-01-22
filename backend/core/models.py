@@ -254,6 +254,7 @@ class ListeningTestSession(models.Model):
     # TODO: Enforce one sitting, no pause, etc.
     # Diagnostic marker for this session
     is_diagnostic = models.BooleanField(default=False)
+    last_updated = models.DateTimeField(auto_now=True)
 
 class ListeningStudentAnswer(models.Model):
     session = models.ForeignKey(ListeningTestSession, related_name='student_answers', on_delete=models.CASCADE)
@@ -352,6 +353,7 @@ class ReadingTestSession(models.Model):
     time_left_seconds = models.IntegerField(default=3600)  # 60 минут
     # Diagnostic marker for this session
     is_diagnostic = models.BooleanField(default=False)
+    last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Reading Session for {self.user.email} on {self.test.title}"

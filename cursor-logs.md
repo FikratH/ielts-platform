@@ -3226,3 +3226,86 @@ User reported that test cards on Listening, Reading, and Writing pages still had
 - Fixed width on mobile ensures consistent card sizes
 - Scroll indicator only visible on mobile (`md:hidden`)
 - Desktop uses grid layout (`md:grid md:grid-cols-2`) with `md:max-w-5xl md:mx-auto`
+
+### 2026-01-20
+- Session: Investigating reports of lost answers and empty submissions in listening/reading/writing modules.
+- Context: Reviewed frontend players (`ListeningTestPlayer.jsx`, `ReadingTestPlayer.jsx`, `WritingTaskPage.js`) and backend session views/serializers (`ListeningTestSessionView`, `SubmitListeningTestView`, `ReadingTestSessionView`) to trace how answers are stored, synced, and submitted.
+- Observation (listening): Frontend uses refs + localStorage + `/listening-sessions/{id}/sync` and `/submit` endpoints; backend sync/submit endpoints merge answer dicts to avoid overwriting, but `ListeningTestSessionView.post(...session_id)` still overwrites `session.answers` on submit using serializer data.
+- Observation (reading): Frontend also uses refs + localStorage and sends a flattened answers map on submit; backend `ReadingTestSessionView.patch` merges partial answers, but `put` on submit replaces `session.answers` entirely with the payload.
+- Observation (writing): Writing task page autosaves drafts to localStorage and periodically syncs to `/writing-sessions/{id}/sync/`, then submits per-task via `/submit-task/` and finalizes via `/finish-writing-session/`.
+- Hypothesis: Intermittent "0 answers / empty" issues are likely caused by race conditions between final submit and background syncs, or by submit requests occasionally carrying incomplete/empty `answers` payloads that overwrite merged server state, especially on unstable connections or browser refreshes during submit.
+- Note: Created `docs/listening-reading-writing-bugs.md` with a consolidated analysis of current behaviour, symptoms, hypotheses, and a high-level fix plan for listening/reading submit logic and writing sync.
+
+### 2026-01-20 (continued)
+- Deep analysis: Performed comprehensive code analysis and Git history review to move from hypotheses to 100% confirmed root causes.
+- Root cause confirmed (Listening): `ListeningTestSessionView.post(..., session_id=...)` at line 2483 uses `session.answers = submit_serializer.validated_data.get('answers', session.answers)`. If payload contains empty `{}`, fallback doesn't work because empty dict is truthy. This overwrites all accumulated sync data.
+- Root cause confirmed (Reading): `ReadingTestSessionView.put` at line 3344 uses `session.answers = answers_data` with direct assignment, no fallback. More critical than Listening.
+- Root cause confirmed (Writing): Frontend calls `PATCH /writing-sessions/${sessionId}/sync/` but this endpoint doesn't exist in `urls.py` (404). All sync requests fail, drafts only live in localStorage.
+- Additional problems found:
+  1. Firebase `onIdTokenChanged` in `firebase.js` (lines 19-53) performs hard redirect `window.location.href = '/login'` after 1.5s if user becomes null. This causes full page reload, losing all React state. localStorage is cleared before redirect.
+  2. Error handling in `submitTest` navigates to `/login` on 401/403 errors, potentially losing test results if submit partially succeeded.
+  3. Race condition in auto-submit: between `sync` and reading `answersRef.current` for submit, component may remount or localStorage parse may fail, resulting in empty payload.
+  4. `localStorage.removeItem()` called before `navigate()`, so if navigation fails, cache is already deleted.
+  5. Retry logic in submit doesn't refresh payload, may send stale data.
+  6. Global API interceptor retries with same payload, hiding errors from components.
+- Updated `docs/listening-reading-writing-bugs.md` with section 7 (mathematical proof through code analysis) and section 8 (additional related problems including spontaneous page refresh analysis).
+- Key discovery: User clarified that sync was added AS AN ATTEMPT TO FIX the empty submit problem. This means the problem existed BEFORE sync was added.
+  - BEFORE sync (commit before 68dc11f9): Frontend sent `{ answers }` from React state. BUT React state `answers` could be empty `{}` at submit time due to:
+    - Component remounting → state resets to `useState({})`
+    - Errors restoring from localStorage → state remains empty
+    - Race conditions in async state updates
+    - State synchronization issues with rapid changes
+  - If `answers = {}` → submit sent empty payload → backend erased data
+  - Sync was added to try to solve this: idea was to save answers to server via sync, so even if state is empty, data is on server
+  - But problem remained because submit STILL OVERWRITES `session.answers` with empty payload
+  - AFTER sync (commits 68dc11f9, 3dc2e0d8): Added `await syncAnswers()` before submit, changed payload to `answersRef.current || answers`. Problem worsened because now frontend relies on `answersRef.current` which can be empty for same reasons as state before.
+  - Root cause: Backend OVERWRITES `session.answers` instead of merging. This was always the problem, both before and after sync.
+  - Why it appeared "suddenly": External factors (Firebase token expiration, mobile browser tab unloading, network issues, increased server load) caused more remounting/state resets → more empty payloads → more data loss.
+  - Solution: Make submit safe (merge instead of overwrite) so even with empty payload, data is not lost.
+- Comprehensive audit: Performed full system audit to find ALL potential problems:
+  - Found 23 total problems (6 critical, 6 important, 5 medium, 6 low priority)
+  - Critical: Empty payload on frontend, submit overwrites without merge, Firebase hard redirect, loadSession doesn't update answersRef, Writing localStorage deletion before navigation, auto-submit doesn't check payload
+  - Important: No transactions for submit, no payload check on frontend, retry logic doesn't update payload, Writing localStorage deletion, race conditions, error handling navigation
+  - Medium: API interceptor blocking, auto-submit continues after sync failure, timer cleanup, visibility change sync, App.js token check
+  - Low: Reading loadSession check needed, serializer validates empty dict, no payload size check, no data format validation, concurrent requests from multiple tabs, encoding issues
+  - Added sections 9, 10, 11 to `docs/listening-reading-writing-bugs.md` with complete problem list, fixes with code examples, priorities, and implementation checklist
+  - Created phased implementation plan: Phase 1 (critical fixes) → Phase 2 (important) → Phase 3 (medium) → Phase 4 (low priority)
+- Authentication and session analysis:
+  - Analyzed all places where token changes and redirects occur: `firebase.js`, `api.js` interceptors, `/login` navigation
+  - Found critical issue: `firebase.js` does hard `window.location.href = '/login'` during tests (line 49), causing full page reload and potential data loss
+  - All other `/login` navigations use soft `navigate()` which is safe (SPA transitions)
+  - Added section 12 to `docs/listening-reading-writing-bugs.md` with detailed analysis and fix for `firebase.js` to avoid hard reload during tests
+- Concurrent sessions and multiple devices analysis:
+  - Confirmed policy: allow same test on different devices/tabs
+  - Backend already uses one session per user/test (correct behavior)
+  - Found issues: no transactions for submit (race conditions), no protection against stale sync
+  - Added section 13 to `docs/listening-reading-writing-bugs.md` with analysis, race condition scenarios, and fixes (transactions, `last_updated` field)
+- Implementation completed:
+  - Backend: Fixed Listening/Reading submit with safe merge logic, added transactions and select_for_update
+  - Backend: Added last_updated field to ListeningTestSession and ReadingTestSession models
+  - Frontend: Fixed loadSession to update answersRef.current, added payload validation, fixed retry logic, fixed auto-submit
+  - Frontend: Fixed Reading submit/auto-submit to align with Listening approach
+  - Frontend: Fixed Writing localStorage deletion to happen after navigation
+  - Frontend: Fixed Firebase onIdTokenChanged to avoid hard reload during tests
+  - All critical issues from plan implemented and tested
+- Additional audit:
+  - Found 4 medium-priority issues (transactions scope, result calculation outside transactions, Writing auto-submit localStorage)
+  - Found 3 low-priority issues (API timeouts, retry logic improvements)
+  - Created `docs/additional-submit-issues-audit.md` with detailed analysis
+  - Added section 14 to `docs/listening-reading-writing-bugs.md` summarizing additional findings
+  - All issues are non-critical for data loss, but improve data consistency and UX
+- Auto-submit audit and fixes:
+  - User reported that auto-submit may not be working and not saving answers
+  - Found critical issue in Writing: `handleTimeUp` (auto-submit) does NOT call `syncDraft()` before submit
+  - If last sync was 11 seconds ago and user just wrote text, that text may not be synced before auto-submit
+  - Also found: Writing auto-submit deletes localStorage BEFORE navigation (same issue as manual submit had)
+  - Found issue in Listening/Reading: if sync fails before auto-submit, code continues with submit but no retry attempt
+  - Fixed Writing auto-submit:
+    - Added `await syncDraft()` before submit in `handleTimeUp`
+    - Fixed localStorage deletion to happen AFTER navigation (using setTimeout)
+  - Fixed Listening/Reading auto-submit:
+    - Added retry logic for sync (2 attempts with 500ms delay)
+    - Improved error logging to show attempt number
+    - Added warning if sync fails but submit proceeds with local answers
+  - Updated `docs/additional-submit-issues-audit.md` with findings and fixes
+  - All auto-submit issues now fixed

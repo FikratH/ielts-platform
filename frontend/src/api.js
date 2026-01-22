@@ -3,7 +3,8 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL || '/api'
+  baseURL: process.env.REACT_APP_API_BASE_URL || '/api',
+  timeout: 30000
 });
 
 // Флаг для отслеживания готовности Firebase

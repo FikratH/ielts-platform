@@ -81,7 +81,7 @@ from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQu
 from .utils import ai_score_essay
 from .models import TeacherSatisfactionSurvey
 from .serializers import TeacherSatisfactionSurveySerializer
-from django.db import models
+from django.db import models, transaction
 from .permissions import IsCurator, IsTeacherOrCurator
 from django.utils import timezone
 from datetime import timedelta
@@ -1590,10 +1590,11 @@ class FinishWritingSessionView(APIView):
         if not session_id:
             return Response({'error': 'Session ID required'}, status=400)
 
-        try:
-            session = WritingTestSession.objects.get(id=session_id, user=user)
-        except WritingTestSession.DoesNotExist:
-            return Response({'error': 'Session not found'}, status=404)
+        with transaction.atomic():
+            try:
+                session = WritingTestSession.objects.select_for_update().get(id=session_id, user=user)
+            except WritingTestSession.DoesNotExist:
+                return Response({'error': 'Session not found'}, status=404)
 
         essays = Essay.objects.filter(user=user, test_session=session)
         if not essays.exists():
@@ -2471,55 +2472,61 @@ class ListeningTestSessionView(APIView):
 
         # Если session_id есть - это сабмит.
         if session_id:
-            session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
-            if session.submitted:
-                return Response({'detail': 'Session has already been submitted.'}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                session = ListeningTestSession.objects.select_for_update().get(pk=session_id, user=request.user)
+                if session.submitted:
+                    return Response({'detail': 'Session has already been submitted.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Используем сериализатор для валидации и сохранения данных
-            submit_serializer = ListeningTestSessionSubmitSerializer(session, data=request.data, partial=True)
-            submit_serializer.is_valid(raise_exception=True)
-            
-            # Сохраняем ответы и время
-            session.answers = submit_serializer.validated_data.get('answers', session.answers)
-            session.time_left = submit_serializer.validated_data.get('time_left', session.time_left)
-            
-            # Помечаем сессию как завершенную
-            session.submitted = True
-            session.completed_at = timezone.now()
-            if session.started_at:
-                session.time_taken = (session.completed_at - session.started_at).total_seconds()
-            
-            session.save()
+                submit_serializer = ListeningTestSessionSubmitSerializer(session, data=request.data, partial=True)
+                submit_serializer.is_valid(raise_exception=True)
 
-            # Считаем результат детально и сохраняем в БД (чтобы дашборд видел реальные значения)
-            try:
-                results = create_listening_detailed_breakdown(session)
-                raw_score = results.get('raw_score') or 0
-                total_score = results.get('total_score') or 0
-                band_score = results.get('band_score')
-                breakdown = results.get('detailed_breakdown') or []
+                answers_data = submit_serializer.validated_data.get('answers', None)
+                if not isinstance(session.answers, dict):
+                    session.answers = {}
+                if isinstance(answers_data, dict):
+                    for question_id, answer_value in answers_data.items():
+                        if (
+                            isinstance(answer_value, dict)
+                            and question_id in session.answers
+                            and isinstance(session.answers.get(question_id), dict)
+                        ):
+                            session.answers[question_id].update(answer_value)
+                        else:
+                            session.answers[question_id] = answer_value
 
-                # Обновляем счётчики сессии
-                session.correct_answers_count = raw_score
-                session.total_questions_count = total_score
-                session.score = raw_score
-                session.save(update_fields=['correct_answers_count', 'total_questions_count', 'score'])
+                time_left_value = submit_serializer.validated_data.get('time_left', None)
+                if time_left_value is not None:
+                    session.time_left = time_left_value
 
-                # Сохраняем/обновляем ListeningTestResult
-                from .models import ListeningTestResult
-                ListeningTestResult.objects.update_or_create(
-                    session=session,
-                    defaults={
-                        'raw_score': raw_score,
-                        'band_score': band_score if band_score is not None else 0,
-                        'breakdown': breakdown,
-                    }
-                )
-            except Exception:
-                # Не падаем, просто вернем рассчитанное представление
-                pass
+                session.submitted = True
+                session.completed_at = timezone.now()
+                if session.started_at:
+                    session.time_taken = (session.completed_at - session.started_at).total_seconds()
 
-            # Возвращаем вычисленный результат пользователю
+                try:
+                    results = create_listening_detailed_breakdown(session)
+                    raw_score = results.get('raw_score') or 0
+                    total_score = results.get('total_score') or 0
+                    band_score = results.get('band_score')
+                    breakdown = results.get('detailed_breakdown') or []
+
+                    session.correct_answers_count = raw_score
+                    session.total_questions_count = total_score
+                    session.score = raw_score
+                    session.save(update_fields=['answers', 'time_left', 'submitted', 'completed_at', 'time_taken', 'correct_answers_count', 'total_questions_count', 'score', 'last_updated'])
+
+                    from .models import ListeningTestResult
+                    ListeningTestResult.objects.update_or_create(
+                        session=session,
+                        defaults={
+                            'raw_score': raw_score,
+                            'band_score': band_score if band_score is not None else 0,
+                            'breakdown': breakdown,
+                        }
+                    )
+                except Exception:
+                    session.save(update_fields=['answers', 'time_left', 'submitted', 'completed_at', 'time_taken', 'last_updated'])
+
             context = {'request': request}
             result_serializer = ListeningTestSessionResultSerializer(session, context=context)
             return Response(result_serializer.data, status=status.HTTP_200_OK)
@@ -2562,7 +2569,7 @@ class ListeningTestSessionView(APIView):
             except (TypeError, ValueError):
                 pass
         
-        session.save(update_fields=['answers', 'flagged', 'time_left'])
+        session.save(update_fields=['answers', 'flagged', 'time_left', 'last_updated'])
         
         return Response({'detail': 'Progress saved'}, status=status.HTTP_200_OK)
 
@@ -3335,24 +3342,37 @@ class ReadingTestSessionView(APIView):
         """
         Submit answers for a session (finish test).
         """
-        session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
-        if session.completed:
-            return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            session = ReadingTestSession.objects.select_for_update().get(pk=session_id, user=request.user)
+            if session.completed:
+                return Response({'error': 'This session has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        answers_data = request.data.get('answers', {})
-        time_left = request.data.get('time_left')
-        session.answers = answers_data
-        if time_left is not None:
-            try:
-                session.time_left_seconds = max(0, int(time_left))
-            except (TypeError, ValueError):
-                pass
-        session.end_time = timezone.now()
-        session.completed = True
-        session.save(update_fields=['answers', 'time_left_seconds', 'end_time', 'completed'])
+            answers_data = request.data.get('answers', None)
+            time_left = request.data.get('time_left')
+
+            if not isinstance(session.answers, dict):
+                session.answers = {}
+            if isinstance(answers_data, dict):
+                for question_id, answer_value in answers_data.items():
+                    if (
+                        isinstance(answer_value, dict)
+                        and question_id in session.answers
+                        and isinstance(session.answers.get(question_id), dict)
+                    ):
+                        session.answers[question_id].update(answer_value)
+                    else:
+                        session.answers[question_id] = answer_value
+
+            if time_left is not None:
+                try:
+                    session.time_left_seconds = max(0, int(time_left))
+                except (TypeError, ValueError):
+                    pass
+            session.end_time = timezone.now()
+            session.completed = True
+            session.save(update_fields=['answers', 'time_left_seconds', 'end_time', 'completed', 'last_updated'])
         
-        # Trigger result calculation
-        result = self._calculate_and_save_results(session)
+            result = self._calculate_and_save_results(session)
 
         return Response(ReadingTestResultSerializer(result).data, status=status.HTTP_200_OK)
 
@@ -3392,7 +3412,7 @@ class ReadingTestSessionView(APIView):
             except (TypeError, ValueError):
                 pass
 
-        session.save(update_fields=['answers', 'time_left_seconds'])
+        session.save(update_fields=['answers', 'time_left_seconds', 'last_updated'])
 
         return Response({'message': 'Progress saved'}, status=status.HTTP_200_OK)
 

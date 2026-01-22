@@ -87,22 +87,30 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
             setTimeLeft(remaining);
             if (remaining <= 0 && !autoSubmitRef.current) {
                 autoSubmitRef.current = true;
-                // КРИТИЧНО: Принудительно синхронизируем перед автосабмитом
-                // чтобы гарантировать, что все ответы на сервере
                 (async () => {
-                    try {
-                        // Используем актуальные данные из ref
-                        const currentAnswers = answersRef.current || {};
-                        const remaining = 0;
-                        console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
-                        await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
-                    } catch (err) {
-                        console.error('❌ Failed to sync before auto-submit:', err);
+                    let syncSucceeded = false;
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            const currentAnswers = answersRef.current || answers || {};
+                            const remaining = 0;
+                            console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
+                            await api.patch(`/reading-sessions/${session.id}/sync/`, { answers: currentAnswers, time_left: remaining });
+                            syncSucceeded = true;
+                            break;
+                        } catch (err) {
+                            console.error(`❌ Failed to sync before auto-submit (attempt ${attempt + 1}/2):`, err);
+                            if (attempt < 1) {
+                                await new Promise(res => setTimeout(res, 500));
+                            }
+                        }
                     }
-                    // Теперь вызываем submit
-                    // Вызываем напрямую через navigate, чтобы не зависеть от submitTest в dependencies
+                    
+                    if (!syncSucceeded) {
+                        console.warn('⚠️ Sync failed before auto-submit, but proceeding with submit using local answers');
+                    }
+                    
                     try {
-                        const latestAnswers = answersRef.current || {};
+                        const latestAnswers = answersRef.current || answers || {};
                         const cleanedAnswers = { ...latestAnswers };
                         const tableKeyPattern = /^r\d+c\d+(__gap\d+)?$/;
                         
@@ -121,10 +129,18 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                             }
                         }
                         
+                        if (Object.keys(cleanedAnswers).length === 0) {
+                            console.error('Empty payload on reading auto-submit, skipping submit');
+                            alert('Time is up, but no answers were detected to submit.');
+                            return;
+                        }
                         await api.put(`/reading-sessions/${session.id}/submit/`, { answers: cleanedAnswers, time_left: 0 });
                         
                         if (localCacheKeyRef.current) {
-                            localStorage.removeItem(localCacheKeyRef.current);
+                            const key = localCacheKeyRef.current;
+                            setTimeout(() => {
+                                localStorage.removeItem(key);
+                            }, 100);
                         }
                         if (syncTimerRef.current) {
                             clearTimeout(syncTimerRef.current);
@@ -427,6 +443,9 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 }
             }
             payloadAnswers = cleanedAnswers;
+            if (Object.keys(payloadAnswers).length === 0) {
+                console.warn('Empty payload on reading submit, backend will keep existing answers');
+            }
             const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
             let response;
             try {
@@ -436,7 +455,23 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 if (err.response && (err.response.status === 401 || err.response.status === 403) && auth.currentUser) {
                     try {
                         await auth.currentUser.getIdToken(true);
-                        response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: remaining });
+                        const freshAnswers = answersRef.current || answers || {};
+                        const refreshed = { ...freshAnswers };
+                        const tableKeyPatternRetry = /^r\d+c\d+(__gap\d+)?$/;
+                        for (const [questionId, answerValue] of Object.entries(refreshed)) {
+                            if (answerValue && typeof answerValue === 'object' && !Array.isArray(answerValue)) {
+                                const nestedKeys = Object.keys(answerValue);
+                                const allTableKeys = nestedKeys.length > 0 && nestedKeys.every(key => tableKeyPatternRetry.test(key));
+                                if (allTableKeys) {
+                                    for (const [subKey, value] of Object.entries(answerValue)) {
+                                        const flatKey = `${questionId}__${subKey}`;
+                                        refreshed[flatKey] = value;
+                                    }
+                                    delete refreshed[questionId];
+                                }
+                            }
+                        }
+                        response = await api.put(`/reading-sessions/${session.id}/submit/`, { answers: refreshed, time_left: remaining });
                     } catch (retryErr) {
                         throw retryErr;
                     }
@@ -445,7 +480,10 @@ const ReadingTestPlayer = ({ testId: propTestId, onComplete }) => {
                 }
             }
             if (localCacheKeyRef.current) {
-                localStorage.removeItem(localCacheKeyRef.current);
+                const key = localCacheKeyRef.current;
+                setTimeout(() => {
+                    localStorage.removeItem(key);
+                }, 100);
             }
             if (syncTimerRef.current) {
                 clearTimeout(syncTimerRef.current);

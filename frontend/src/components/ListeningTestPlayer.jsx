@@ -215,7 +215,9 @@ const ListeningTestPlayer = () => {
       const initial = response.data.time_left || 2400;
       deadlineRef.current = Date.now() + initial * 1000;
       setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
-      setAnswers(response.data.answers || {});
+      const serverAnswers = response.data.answers || {};
+      setAnswers(serverAnswers);
+      answersRef.current = serverAnswers;
     } catch (err) {
       setError('Failed to load session');
     }
@@ -281,25 +283,43 @@ const ListeningTestPlayer = () => {
       timeLeftRef.current = remaining;
       if (remaining <= 0 && !autoSubmitRef.current) {
         autoSubmitRef.current = true;
-        // КРИТИЧНО: Принудительно синхронизируем перед автосабмитом
         (async () => {
-          try {
-            const currentAnswers = answersRef.current || {};
-            const currentFlagged = flaggedRef.current || {};
-            const remaining = 0;
-            console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
-            await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
-          } catch (err) {
-            console.error('❌ Failed to sync before auto-submit:', err);
+          let syncSucceeded = false;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const currentAnswers = answersRef.current || answers || {};
+              const currentFlagged = flaggedRef.current || {};
+              const remaining = 0;
+              console.log('⏰ Auto-submit triggered by timer, syncing answers first...', Object.keys(currentAnswers).length, 'questions');
+              await api.patch(`/listening-sessions/${session.id}/sync/`, { answers: currentAnswers, flagged: currentFlagged, time_left: remaining });
+              syncSucceeded = true;
+              break;
+            } catch (err) {
+              console.error(`❌ Failed to sync before auto-submit (attempt ${attempt + 1}/2):`, err);
+              if (attempt < 1) {
+                await new Promise(res => setTimeout(res, 500));
+              }
+            }
           }
           
-          // Вызываем submit напрямую, чтобы не зависеть от handleAutoSubmit в dependencies
+          if (!syncSucceeded) {
+            console.warn('⚠️ Sync failed before auto-submit, but proceeding with submit using local answers');
+          }
+          
           try {
-            const payloadAnswers = answersRef.current || {};
+            const payloadAnswers = answersRef.current || answers || {};
+            if (Object.keys(payloadAnswers).length === 0) {
+              console.error('Empty payload on listening auto-submit, skipping submit');
+              alert('Time is up, but no answers were detected to submit.');
+              return;
+            }
             await api.post(`/listening-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: 0 });
             
             if (localCacheKeyRef.current) {
-              localStorage.removeItem(localCacheKeyRef.current);
+              const key = localCacheKeyRef.current;
+              setTimeout(() => {
+                localStorage.removeItem(key);
+              }, 100);
             }
             if (syncTimerRef.current) {
               clearTimeout(syncTimerRef.current);
@@ -486,22 +506,28 @@ const ListeningTestPlayer = () => {
     try {
       // Final sync before submit
       await syncAnswers();
-      const payloadAnswers = answersRef.current || answers;
+      const payloadAnswers = answersRef.current || answers || {};
+      if (Object.keys(payloadAnswers).length === 0) {
+        console.warn('Empty payload on listening submit, backend will keep existing answers');
+      }
       const remaining = deadlineRef.current ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)) : (timeLeftRef.current || 0);
       let response;
       try {
         response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: remaining });
       } catch (err) {
         if (err.response && (err.response.status === 401 || err.response.status === 403) && auth.currentUser) {
-          // Retry once on auth refresh
           await auth.currentUser.getIdToken(true);
-          response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers: payloadAnswers, time_left: remaining });
+          const freshPayload = answersRef.current || answers || {};
+          response = await api.post(`/listening-sessions/${session.id}/submit/`, { answers: freshPayload, time_left: remaining });
         } else {
           throw err;
         }
       }
       if (localCacheKeyRef.current) {
-        localStorage.removeItem(localCacheKeyRef.current);
+        const key = localCacheKeyRef.current;
+        setTimeout(() => {
+          localStorage.removeItem(key);
+        }, 100);
       }
       if (syncTimerRef.current) {
         clearTimeout(syncTimerRef.current);

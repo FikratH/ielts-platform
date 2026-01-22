@@ -172,15 +172,15 @@ const WritingTaskPage = () => {
         task_id: task2Id
       }));
 
-      // Finish session and get AI scoring
       await withRetry(() => api.post('/finish-writing-session/', { session_id: sessionId }));
 
-      // Clear localStorage for this session
-      localStorage.removeItem(`writing_task1_${sessionId}`);
-      localStorage.removeItem(`writing_task2_${sessionId}`);
-      localStorage.removeItem(`writing_deadline_${sessionId}`);
-
       navigate(`/writing/result/${sessionId}`);
+
+      setTimeout(() => {
+        localStorage.removeItem(`writing_task1_${sessionId}`);
+        localStorage.removeItem(`writing_task2_${sessionId}`);
+        localStorage.removeItem(`writing_deadline_${sessionId}`);
+      }, 100);
     } catch (err) {
       console.error('Submit error:', err);
       setSubmitError("Error submitting essays. Please try again.");
@@ -203,7 +203,12 @@ const WritingTaskPage = () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // Auto-submit both tasks if they have content
+      try {
+        await syncDraft();
+      } catch (err) {
+        console.error('Failed to sync before auto-submit:', err);
+      }
+
       if (task1Clean) {
         await withRetry(() => api.post('/submit-task/', {
           session_id: sessionId,
@@ -226,12 +231,13 @@ const WritingTaskPage = () => {
 
       await withRetry(() => api.post('/finish-writing-session/', { session_id: sessionId }));
 
-      // Clear localStorage for this session
-      localStorage.removeItem(`writing_task1_${sessionId}`);
-      localStorage.removeItem(`writing_task2_${sessionId}`);
-      localStorage.removeItem(`writing_deadline_${sessionId}`);
-
       navigate(`/writing/result/${sessionId}`);
+
+      setTimeout(() => {
+        localStorage.removeItem(`writing_task1_${sessionId}`);
+        localStorage.removeItem(`writing_task2_${sessionId}`);
+        localStorage.removeItem(`writing_deadline_${sessionId}`);
+      }, 100);
     } catch (err) {
       console.error('Auto-submit error:', err);
       setSubmitError("Auto-submit failed. Please check connection and submit manually.");

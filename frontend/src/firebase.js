@@ -36,6 +36,23 @@ onIdTokenChanged(auth, async (user) => {
           // fallthrough to logout
         }
       }
+      const publicPaths = ['/login', '/Ptest'];
+      const testPaths = ['/listening', '/reading', '/writing'];
+      const currentPath = window.location.pathname;
+      const isPublicPath = publicPaths.includes(currentPath);
+      const isTestPath = testPaths.some(path => currentPath.includes(path));
+
+      if (isTestPath) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('uid');
+        localStorage.removeItem('role');
+        localStorage.removeItem('student_id');
+        localStorage.removeItem('first_name');
+        localStorage.removeItem('last_name');
+        localStorage.removeItem('group');
+        return;
+      }
+
       localStorage.removeItem('token');
       localStorage.removeItem('uid');
       localStorage.removeItem('role');
@@ -43,9 +60,8 @@ onIdTokenChanged(auth, async (user) => {
       localStorage.removeItem('first_name');
       localStorage.removeItem('last_name');
       localStorage.removeItem('group');
-      // Публичные страницы не требуют авторизации
-      const publicPaths = ['/login', '/Ptest'];
-      if (!publicPaths.includes(window.location.pathname)) {
+
+      if (!isPublicPath) {
         window.location.href = '/login';
       }
     }, 1500);
