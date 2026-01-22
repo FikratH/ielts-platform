@@ -248,6 +248,7 @@ class ListeningTestSession(models.Model):
     answers = JSONField(default=dict, blank=True)  # Store user answers
     flagged = JSONField(default=dict, blank=True)  # Store flagged questions
     time_left = models.IntegerField(default=2400)  # Time remaining in seconds (40 minutes)
+    time_taken = models.FloatField(null=True, blank=True)
     score = models.FloatField(null=True, blank=True)  # Auto-graded score
     correct_answers_count = models.IntegerField(default=0)
     total_questions_count = models.IntegerField(default=0)
@@ -487,5 +488,4 @@ class PlacementTestSubmission(models.Model):
     
     def __str__(self):
         return f"{self.full_name} - {self.score}/20 ({self.submitted_at.strftime('%Y-%m-%d')})"
-
 
