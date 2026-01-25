@@ -186,6 +186,7 @@
         {"name": "answers", "type": "JSONField", "default": {}},
         {"name": "flagged", "type": "JSONField", "default": {}},
         {"name": "time_left", "type": "IntegerField", "default": 2400},
+        {"name": "time_taken", "type": "FloatField", "nullable": true},
         {"name": "score", "type": "FloatField", "nullable": true},
         {"name": "correct_answers_count", "type": "IntegerField", "default": 0},
         {"name": "total_questions_count", "type": "IntegerField", "default": 0},

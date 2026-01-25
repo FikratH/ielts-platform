@@ -19,6 +19,7 @@
 - ✅ Retry логика обновляет payload
 - ✅ Writing localStorage удаляется после навигации
 - ✅ `last_updated` добавлено в модели
+- ✅ `time_taken` добавлено в ListeningTestSession (используется при submit)
 
 ---
 

@@ -112,6 +112,36 @@ def apply_date_range_filter(queryset, request, field_name):
         queryset = queryset.filter(**{f'{field_name}__date__lte': date_to})
     return queryset
 
+def _require_roles(request, allowed_roles=('admin', 'curator')):
+    """Bearer Firebase auth + role check; returns (user, error_response_or_none)."""
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Bearer '):
+        return None, Response({'error': 'Authentication required'}, status=401)
+    id_token = auth_header.split(' ')[1]
+    decoded = verify_firebase_token(id_token)
+    if not decoded:
+        return None, Response({'error': 'Invalid token'}, status=401)
+    uid = decoded.get('uid')
+    try:
+        user = User.objects.get(uid=uid)
+    except User.DoesNotExist:
+        return None, Response({'error': 'User not found'}, status=401)
+    if allowed_roles and user.role not in allowed_roles:
+        return None, Response({'error': 'Access forbidden'}, status=403)
+    return user, None
+
+def _normalize_emails(emails):
+    seen = set()
+    result = []
+    for e in emails or []:
+        if not e:
+            continue
+        lowered = e.strip().lower()
+        if lowered and lowered not in seen:
+            seen.add(lowered)
+            result.append(lowered)
+    return result
+
 # ------------------------------
 # User Profile Views
 # ------------------------------
@@ -4272,6 +4302,373 @@ class AdminTeacherSurveyResultsView(APIView):
                 'not_satisfied_count': total_surveys - satisfied_count,
                 'satisfaction_rate': round(satisfaction_rate, 1)
             }
+        })
+
+
+# ==================== BATCH API (IELTS) ====================
+class BatchStudentProfilesView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
+        if error:
+            return error
+
+        emails = request.data.get('emails')
+        if not isinstance(emails, list) or len(emails) == 0:
+            return Response({'error': 'Emails array is required and cannot be empty'}, status=400)
+
+        try:
+            limit = int(request.data.get('limit', 50))
+        except (TypeError, ValueError):
+            return Response({'error': 'Limit must be an integer'}, status=400)
+        if limit < 1:
+            return Response({'error': 'Limit must be greater than 0'}, status=400)
+
+        normalized = _normalize_emails(emails)
+        total = len(normalized)
+        limited = normalized[:limit]
+
+        users = User.objects.filter(email__in=limited)
+        user_map = {u.email.lower(): u for u in users}
+
+        results = []
+        for email in limited:
+            user = user_map.get(email)
+            if not user:
+                results.append({'email': email, 'error': 'Student not found'})
+                continue
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or None
+            results.append({
+                'email': user.email,
+                'data': {
+                    'fullName': full_name,
+                    'firstName': user.first_name,
+                    'lastName': user.last_name,
+                    'studentId': user.student_id,
+                    'email': user.email,
+                    'group': user.group,
+                    'teacher': user.teacher,
+                    'curatorId': user.curator_id,
+                    'status': 'Active' if user.is_active else 'Inactive'
+                }
+            })
+
+        return Response({
+            'total': total,
+            'processed': len(limited),
+            'limit': limit,
+            'results': results
+        })
+
+
+class BatchStudentsLatestTestDetailsView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
+        if error:
+            return error
+
+        emails = request.data.get('emails')
+        if not isinstance(emails, list) or len(emails) == 0:
+            return Response({'error': 'Emails array is required and cannot be empty'}, status=400)
+
+        try:
+            limit = int(request.data.get('limit', 50))
+        except (TypeError, ValueError):
+            return Response({'error': 'Limit must be an integer'}, status=400)
+        if limit < 1:
+            return Response({'error': 'Limit must be greater than 0'}, status=400)
+
+        include_diagnostics = bool(request.data.get('includeDiagnostics', False))
+        include_answers = bool(request.data.get('includeAnswers', False))
+
+        normalized = _normalize_emails(emails)
+        total = len(normalized)
+        limited = normalized[:limit]
+
+        users = User.objects.filter(email__in=limited)
+        user_map = {u.email.lower(): u for u in users}
+
+        def latest_listening(student):
+            qs = ListeningTestSession.objects.filter(user=student, submitted=True)
+            if not include_diagnostics:
+                qs = qs.filter(is_diagnostic=False)
+            session = qs.select_related('test').order_by('-completed_at', '-started_at').first()
+            if not session:
+                return None
+            result = getattr(session, 'listeningtestresult', None)
+            answers = None
+            if include_answers:
+                answers = list(
+                    ListeningStudentAnswer.objects.filter(session=session)
+                    .values('question_id', 'answer', 'flagged', 'submitted_at')
+                )
+            return {
+                'sessionId': session.id,
+                'testId': session.test.id if session.test else None,
+                'testTitle': session.test.title if session.test else None,
+                'completedAt': session.completed_at,
+                'correctAnswersCount': session.correct_answers_count,
+                'totalQuestionsCount': session.total_questions_count,
+                'rawScore': getattr(session, 'raw_score', session.correct_answers_count),
+                'bandScore': result.band_score if result else None,
+                'submitted': session.submitted,
+                'answers': answers
+            }
+
+        def latest_reading(student):
+            qs = ReadingTestSession.objects.filter(user=student, completed=True)
+            if not include_diagnostics:
+                qs = qs.filter(is_diagnostic=False)
+            session = qs.select_related('test', 'result').order_by('-end_time', '-start_time').first()
+            if not session:
+                return None
+            result = getattr(session, 'result', None)
+            return {
+                'sessionId': session.id,
+                'testId': session.test.id if session.test else None,
+                'testTitle': session.test.title if session.test else None,
+                'endTime': session.end_time,
+                'rawScore': result.raw_score if result else None,
+                'totalScore': result.total_score if result else None,
+                'bandScore': result.band_score if result else None,
+                'completed': session.completed,
+                'answers': session.answers if include_answers else None
+            }
+
+        def latest_writing(student):
+            qs = Essay.objects.filter(user=student)
+            if not include_diagnostics:
+                qs = qs.filter(models.Q(test_session__isnull=True) | models.Q(test_session__is_diagnostic=False))
+            essay = qs.order_by('-submitted_at').first()
+            if not essay:
+                return None
+            feedback = getattr(essay, 'teacher_feedback', None)
+            return {
+                'essayId': essay.id,
+                'taskType': essay.task_type,
+                'questionText': essay.question_text,
+                'submittedText': essay.submitted_text,
+                'submittedAt': essay.submitted_at,
+                'overallBand': essay.overall_band,
+                'scoreTask': essay.score_task,
+                'scoreCoherence': essay.score_coherence,
+                'scoreLexical': essay.score_lexical,
+                'scoreGrammar': essay.score_grammar,
+                'taskId': essay.task_id,
+                'promptId': essay.prompt_id,
+                'teacherFeedback': {
+                    'published': feedback.published if feedback else False,
+                    'publishedAt': feedback.published_at if feedback else None,
+                    'teacherOverallScore': feedback.teacher_overall_score if feedback else None
+                } if feedback else None
+            }
+
+        def latest_speaking(student):
+            session = SpeakingSession.objects.filter(student=student).order_by('-conducted_at').first()
+            if not session:
+                return None
+            return {
+                'sessionId': session.id,
+                'conductedAt': session.conducted_at,
+                'overallBandScore': session.overall_band_score,
+                'fluencyCoherenceScore': session.fluency_coherence_score,
+                'lexicalResourceScore': session.lexical_resource_score,
+                'grammaticalRangeScore': session.grammatical_range_score,
+                'pronunciationScore': session.pronunciation_score,
+                'completed': session.completed
+            }
+
+        results = []
+        for email in limited:
+            user = user_map.get(email)
+            if not user:
+                results.append({'email': email, 'error': 'Student not found'})
+                continue
+
+            listening_data = latest_listening(user)
+            reading_data = latest_reading(user)
+            writing_data = latest_writing(user)
+            speaking_data = latest_speaking(user)
+
+            bands = []
+            if listening_data and listening_data.get('bandScore') is not None:
+                bands.append(listening_data['bandScore'])
+            if reading_data and reading_data.get('bandScore') is not None:
+                bands.append(reading_data['bandScore'])
+            if writing_data and writing_data.get('overallBand') is not None:
+                bands.append(writing_data['overallBand'])
+            if speaking_data and speaking_data.get('overallBandScore') is not None:
+                bands.append(speaking_data['overallBandScore'])
+            overall_band = compute_ielts_average(bands)
+
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or None
+            results.append({
+                'email': user.email,
+                'data': {
+                    'studentId': user.student_id,
+                    'fullName': full_name,
+                    'email': user.email,
+                    'listeningTest': listening_data,
+                    'readingTest': reading_data,
+                    'writing': writing_data,
+                    'speaking': speaking_data,
+                    'overallBandApprox': overall_band
+                }
+            })
+
+        return Response({
+            'total': total,
+            'processed': len(limited),
+            'limit': limit,
+            'results': results
+        })
+
+
+class BatchStudentsTestResultsView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
+        if error:
+            return error
+
+        emails = request.data.get('emails')
+        if not isinstance(emails, list) or len(emails) == 0:
+            return Response({'error': 'Emails array is required and cannot be empty'}, status=400)
+
+        try:
+            limit = int(request.data.get('limit', 50))
+        except (TypeError, ValueError):
+            return Response({'error': 'Limit must be an integer'}, status=400)
+        if limit < 1:
+            return Response({'error': 'Limit must be greater than 0'}, status=400)
+
+        try:
+            per_module_limit = int(request.data.get('perModuleLimit', 10))
+        except (TypeError, ValueError):
+            return Response({'error': 'perModuleLimit must be an integer'}, status=400)
+        if per_module_limit < 1:
+            return Response({'error': 'perModuleLimit must be greater than 0'}, status=400)
+
+        include_diagnostics = bool(request.data.get('includeDiagnostics', False))
+        include_answers = bool(request.data.get('includeAnswers', False))
+
+        normalized = _normalize_emails(emails)
+        total = len(normalized)
+        limited = normalized[:limit]
+
+        users = User.objects.filter(email__in=limited)
+        user_map = {u.email.lower(): u for u in users}
+
+        results = []
+        for email in limited:
+            user = user_map.get(email)
+            if not user:
+                results.append({'email': email, 'error': 'Student not found'})
+                continue
+
+            listening_qs = ListeningTestSession.objects.filter(user=user, submitted=True)
+            if not include_diagnostics:
+                listening_qs = listening_qs.filter(is_diagnostic=False)
+            listening_sessions = listening_qs.select_related('test').order_by('-completed_at', '-started_at')[:per_module_limit]
+            listening_data = []
+            for sess in listening_sessions:
+                result_obj = getattr(sess, 'listeningtestresult', None)
+                listening_data.append({
+                    'sessionId': sess.id,
+                    'testId': sess.test.id if sess.test else None,
+                    'testTitle': sess.test.title if sess.test else None,
+                    'completedAt': sess.completed_at,
+                    'correctAnswersCount': sess.correct_answers_count,
+                    'totalQuestionsCount': sess.total_questions_count,
+                    'rawScore': getattr(sess, 'raw_score', sess.correct_answers_count),
+                    'bandScore': result_obj.band_score if result_obj else None,
+                    'submitted': sess.submitted,
+                    'answers': list(
+                        ListeningStudentAnswer.objects.filter(session=sess)
+                        .values('question_id', 'answer', 'flagged', 'submitted_at')
+                    ) if include_answers else None
+                })
+
+            reading_qs = ReadingTestSession.objects.filter(user=user, completed=True)
+            if not include_diagnostics:
+                reading_qs = reading_qs.filter(is_diagnostic=False)
+            reading_sessions = reading_qs.select_related('test', 'result').order_by('-end_time', '-start_time')[:per_module_limit]
+            reading_data = []
+            for sess in reading_sessions:
+                result_obj = getattr(sess, 'result', None)
+                reading_data.append({
+                    'sessionId': sess.id,
+                    'testId': sess.test.id if sess.test else None,
+                    'testTitle': sess.test.title if sess.test else None,
+                    'endTime': sess.end_time,
+                    'rawScore': result_obj.raw_score if result_obj else None,
+                    'totalScore': result_obj.total_score if result_obj else None,
+                    'bandScore': result_obj.band_score if result_obj else None,
+                    'completed': sess.completed,
+                    'answers': sess.answers if include_answers else None
+                })
+
+            essays_qs = Essay.objects.filter(user=user)
+            if not include_diagnostics:
+                essays_qs = essays_qs.filter(models.Q(test_session__isnull=True) | models.Q(test_session__is_diagnostic=False))
+            essays = essays_qs.order_by('-submitted_at')[:per_module_limit]
+            essays_data = []
+            for essay in essays:
+                feedback = getattr(essay, 'teacher_feedback', None)
+                essays_data.append({
+                    'essayId': essay.id,
+                    'taskType': essay.task_type,
+                    'questionText': essay.question_text,
+                    'submittedText': essay.submitted_text,
+                    'submittedAt': essay.submitted_at,
+                    'overallBand': essay.overall_band,
+                    'scoreTask': essay.score_task,
+                    'scoreCoherence': essay.score_coherence,
+                    'scoreLexical': essay.score_lexical,
+                    'scoreGrammar': essay.score_grammar,
+                    'taskId': essay.task_id,
+                    'promptId': essay.prompt_id,
+                    'teacherFeedbackPublished': feedback.published if feedback else False,
+                    'teacherOverallScore': feedback.teacher_overall_score if feedback else None
+                })
+
+            speaking_qs = SpeakingSession.objects.filter(student=user).order_by('-conducted_at')[:per_module_limit]
+            speaking_data = []
+            for session in speaking_qs:
+                speaking_data.append({
+                    'sessionId': session.id,
+                    'conductedAt': session.conducted_at,
+                    'overallBandScore': session.overall_band_score,
+                    'fluencyCoherenceScore': session.fluency_coherence_score,
+                    'lexicalResourceScore': session.lexical_resource_score,
+                    'grammaticalRangeScore': session.grammatical_range_score,
+                    'pronunciationScore': session.pronunciation_score,
+                    'completed': session.completed
+                })
+
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or None
+            results.append({
+                'email': user.email,
+                'data': {
+                    'studentId': user.student_id,
+                    'fullName': full_name,
+                    'email': user.email,
+                    'listeningSessions': listening_data,
+                    'readingSessions': reading_data,
+                    'essays': essays_data,
+                    'speakingSessions': speaking_data
+                }
+            })
+
+        return Response({
+            'total': total,
+            'processed': len(limited),
+            'limit': limit,
+            'results': results
         })
 
 

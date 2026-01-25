@@ -108,6 +108,11 @@ from .views import (
     TeacherSessionPublishView,
     StudentSessionFeedbackView,
     
+    # Batch API (IELTS)
+    BatchStudentProfilesView,
+    BatchStudentsLatestTestDetailsView,
+    BatchStudentsTestResultsView,
+    
     # Placement Test Views
     PlacementTestQuestionsView,
     PlacementTestSubmitView,
@@ -146,6 +151,11 @@ urlpatterns = router.urls + [
     path('diagnostic/summary/', DiagnosticSummaryView.as_view(), name='diagnostic-summary'),
     path('diagnostic/curator/', CuratorDiagnosticResultsView.as_view(), name='diagnostic-curator'),
     
+    # Batch endpoints (IELTS)
+    path('batch/students/profiles/', BatchStudentProfilesView.as_view(), name='batch-students-profiles'),
+    path('batch/students/latest-test-details/', BatchStudentsLatestTestDetailsView.as_view(), name='batch-students-latest-tests'),
+    path('batch/students/test-results/', BatchStudentsTestResultsView.as_view(), name='batch-students-test-results'),
+
 
     
     # Writing session endpoints
