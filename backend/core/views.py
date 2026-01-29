@@ -102,6 +102,12 @@ def _parse_date_param(value):
     except (TypeError, ValueError):
         return None
 
+def _parse_date_body(value):
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
 
 def apply_date_range_filter(queryset, request, field_name):
     date_from = _parse_date_param(request.query_params.get('date_from'))
@@ -4657,6 +4663,178 @@ class BatchStudentsTestResultsView(APIView):
                     'studentId': user.student_id,
                     'fullName': full_name,
                     'email': user.email,
+                    'listeningSessions': listening_data,
+                    'readingSessions': reading_data,
+                    'essays': essays_data,
+                    'speakingSessions': speaking_data
+                }
+            })
+
+        return Response({
+            'total': total,
+            'processed': len(limited),
+            'limit': limit,
+            'results': results
+        })
+
+
+class BatchStudentsTestResultsWeekView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
+        if error:
+            return error
+
+        emails = request.data.get('emails')
+        if not isinstance(emails, list) or len(emails) == 0:
+            return Response({'error': 'Emails array is required and cannot be empty'}, status=400)
+
+        try:
+            limit = int(request.data.get('limit', 50))
+        except (TypeError, ValueError):
+            return Response({'error': 'Limit must be an integer'}, status=400)
+        if limit < 1:
+            return Response({'error': 'Limit must be greater than 0'}, status=400)
+
+        try:
+            per_module_limit = int(request.data.get('perModuleLimit', 10))
+        except (TypeError, ValueError):
+            return Response({'error': 'perModuleLimit must be an integer'}, status=400)
+        if per_module_limit < 1:
+            return Response({'error': 'perModuleLimit must be greater than 0'}, status=400)
+
+        include_diagnostics = bool(request.data.get('includeDiagnostics', False))
+        include_answers = bool(request.data.get('includeAnswers', False))
+
+        week_start = _parse_date_body(request.data.get('weekStart'))
+        week_end = _parse_date_body(request.data.get('weekEnd'))
+        if not week_start:
+            return Response({'error': 'weekStart is required in YYYY-MM-DD format'}, status=400)
+        if week_end and week_end < week_start:
+            return Response({'error': 'weekEnd must be >= weekStart'}, status=400)
+        if not week_end:
+            week_end = week_start + timedelta(days=6)
+
+        normalized = _normalize_emails(emails)
+        total = len(normalized)
+        limited = normalized[:limit]
+
+        users = User.objects.filter(email__in=limited)
+        user_map = {u.email.lower(): u for u in users}
+
+        results = []
+        for email in limited:
+            user = user_map.get(email)
+            if not user:
+                results.append({'email': email, 'error': 'Student not found'})
+                continue
+
+            listening_qs = ListeningTestSession.objects.filter(
+                user=user, submitted=True,
+                completed_at__date__gte=week_start,
+                completed_at__date__lte=week_end
+            )
+            if not include_diagnostics:
+                listening_qs = listening_qs.filter(is_diagnostic=False)
+            listening_sessions = listening_qs.select_related('test').order_by('-completed_at', '-started_at')[:per_module_limit]
+            listening_data = []
+            for sess in listening_sessions:
+                result_obj = getattr(sess, 'listeningtestresult', None)
+                listening_data.append({
+                    'sessionId': sess.id,
+                    'testId': sess.test.id if sess.test else None,
+                    'testTitle': sess.test.title if sess.test else None,
+                    'completedAt': sess.completed_at,
+                    'correctAnswersCount': sess.correct_answers_count,
+                    'totalQuestionsCount': sess.total_questions_count,
+                    'rawScore': getattr(sess, 'raw_score', sess.correct_answers_count),
+                    'bandScore': result_obj.band_score if result_obj else None,
+                    'submitted': sess.submitted,
+                    'answers': list(
+                        ListeningStudentAnswer.objects.filter(session=sess)
+                        .values('question_id', 'answer', 'flagged', 'submitted_at')
+                    ) if include_answers else None
+                })
+
+            reading_qs = ReadingTestSession.objects.filter(
+                user=user, completed=True,
+                end_time__date__gte=week_start,
+                end_time__date__lte=week_end
+            )
+            if not include_diagnostics:
+                reading_qs = reading_qs.filter(is_diagnostic=False)
+            reading_sessions = reading_qs.select_related('test', 'result').order_by('-end_time', '-start_time')[:per_module_limit]
+            reading_data = []
+            for sess in reading_sessions:
+                result_obj = getattr(sess, 'result', None)
+                reading_data.append({
+                    'sessionId': sess.id,
+                    'testId': sess.test.id if sess.test else None,
+                    'testTitle': sess.test.title if sess.test else None,
+                    'endTime': sess.end_time,
+                    'rawScore': result_obj.raw_score if result_obj else None,
+                    'totalScore': result_obj.total_score if result_obj else None,
+                    'bandScore': result_obj.band_score if result_obj else None,
+                    'completed': sess.completed,
+                    'answers': sess.answers if include_answers else None
+                })
+
+            essays_qs = Essay.objects.filter(
+                user=user,
+                submitted_at__date__gte=week_start,
+                submitted_at__date__lte=week_end
+            )
+            if not include_diagnostics:
+                essays_qs = essays_qs.filter(models.Q(test_session__isnull=True) | models.Q(test_session__is_diagnostic=False))
+            essays = essays_qs.order_by('-submitted_at')[:per_module_limit]
+            essays_data = []
+            for essay in essays:
+                feedback = getattr(essay, 'teacher_feedback', None)
+                essays_data.append({
+                    'essayId': essay.id,
+                    'taskType': essay.task_type,
+                    'questionText': essay.question_text,
+                    'submittedText': essay.submitted_text,
+                    'submittedAt': essay.submitted_at,
+                    'overallBand': essay.overall_band,
+                    'scoreTask': essay.score_task,
+                    'scoreCoherence': essay.score_coherence,
+                    'scoreLexical': essay.score_lexical,
+                    'scoreGrammar': essay.score_grammar,
+                    'taskId': essay.task_id,
+                    'promptId': essay.prompt_id,
+                    'teacherFeedbackPublished': feedback.published if feedback else False,
+                    'teacherOverallScore': feedback.teacher_overall_score if feedback else None
+                })
+
+            speaking_qs = SpeakingSession.objects.filter(
+                student=user,
+                conducted_at__date__gte=week_start,
+                conducted_at__date__lte=week_end
+            ).order_by('-conducted_at')[:per_module_limit]
+            speaking_data = []
+            for session in speaking_qs:
+                speaking_data.append({
+                    'sessionId': session.id,
+                    'conductedAt': session.conducted_at,
+                    'overallBandScore': session.overall_band_score,
+                    'fluencyCoherenceScore': session.fluency_coherence_score,
+                    'lexicalResourceScore': session.lexical_resource_score,
+                    'grammaticalRangeScore': session.grammatical_range_score,
+                    'pronunciationScore': session.pronunciation_score,
+                    'completed': session.completed
+                })
+
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or None
+            results.append({
+                'email': user.email,
+                'data': {
+                    'studentId': user.student_id,
+                    'fullName': full_name,
+                    'email': user.email,
+                    'weekStart': week_start.isoformat(),
+                    'weekEnd': week_end.isoformat(),
                     'listeningSessions': listening_data,
                     'readingSessions': reading_data,
                     'essays': essays_data,

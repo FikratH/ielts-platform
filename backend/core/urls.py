@@ -112,6 +112,7 @@ from .views import (
     BatchStudentProfilesView,
     BatchStudentsLatestTestDetailsView,
     BatchStudentsTestResultsView,
+    BatchStudentsTestResultsWeekView,
     
     # Placement Test Views
     PlacementTestQuestionsView,
@@ -155,6 +156,7 @@ urlpatterns = router.urls + [
     path('batch/students/profiles/', BatchStudentProfilesView.as_view(), name='batch-students-profiles'),
     path('batch/students/latest-test-details/', BatchStudentsLatestTestDetailsView.as_view(), name='batch-students-latest-tests'),
     path('batch/students/test-results/', BatchStudentsTestResultsView.as_view(), name='batch-students-test-results'),
+    path('batch/students/test-results-week/', BatchStudentsTestResultsWeekView.as_view(), name='batch-students-test-results-week'),
 
 
     
