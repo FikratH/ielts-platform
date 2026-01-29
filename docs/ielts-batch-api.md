@@ -256,12 +256,12 @@ async function getBatchProfiles(emails, idToken) {
 Зачем это нужно: ID token доказывает роль и живёт недолго (TTL), поэтому безопаснее, чем жёсткий API‑ключ.
 
 ## Как получить ответы на вопросы (опционально)
-- Добавьте `includeAnswers: true` в тело запроса.  
+- В тело запроса добавьте `includeAnswers: true`.  
 - В `/latest-test-details/` и `/test-results/` появится:
   - Listening: `answers` — список `{question_id, answer, flagged, submitted_at}`.  
   - Reading: `answers` — JSON из сессии (`question_id: answer`).  
-  - Writing: всегда возвращает `submittedText` + `questionText` + `taskId` + `promptId`, `includeAnswers` не требуется.  
-- Чтобы не раздувать payload, оставляйте `includeAnswers` по умолчанию `false`.
+  - Writing: текст эссе уже включён (`submittedText`).  
+Если не нужен объёмный payload, оставьте `includeAnswers` по умолчанию `false`.
 
 ## Быстрый чек‑лист интеграции
 1) Получите Firebase ID token для админа/куратора.  

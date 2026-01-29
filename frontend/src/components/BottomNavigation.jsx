@@ -78,10 +78,10 @@ const BottomNavigation = ({ role, setRole }) => {
   ];
 
   const adminNavItems = [
-    { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/admin/students', label: 'Students', icon: Users },
     { to: '/admin/teachers', label: 'Teachers', icon: UserCheck },
     { to: '/admin/listening', label: 'Tests', icon: Headphones },
+    { to: '/admin/placement-test-results', label: 'Placement', icon: Target },
   ];
 
   const isTeacherRole = role === 'teacher' || role === 'speaking_mentor';

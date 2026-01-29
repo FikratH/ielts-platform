@@ -61,7 +61,7 @@ const LoginPage = () => {
       window.dispatchEvent(new Event('local-storage'));
       
       if (response.data.role === 'admin') {
-        navigate('/admin/dashboard');
+        navigate('/admin/students');
       } else if (response.data.role === 'curator') {
         navigate('/curator/dashboard');
       } else if (response.data.role === 'teacher') {

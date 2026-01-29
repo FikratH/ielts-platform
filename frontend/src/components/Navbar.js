@@ -117,7 +117,7 @@ const Navbar = ({ role, setRole }) => {
   return (
     <nav className="bg-white shadow-md border-b sticky top-0 z-50 font-sans">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3 flex justify-between items-center">
-        <Link to={!role ? '/login' : (role === 'admin' ? '/admin/dashboard' : role === 'teacher' ? '/curator/dashboard' : role === 'speaking_mentor' ? '/teacher/speaking' : role === 'curator' ? '/curator/dashboard' : role === 'placement_viewer' ? '/admin/placement-test-results' : '/dashboard')} className="flex items-center gap-2 sm:gap-3">
+        <Link to={!role ? '/login' : (role === 'admin' ? '/admin/students' : role === 'teacher' ? '/curator/dashboard' : role === 'speaking_mentor' ? '/teacher/speaking' : role === 'curator' ? '/curator/dashboard' : role === 'placement_viewer' ? '/admin/placement-test-results' : '/dashboard')} className="flex items-center gap-2 sm:gap-3">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 rounded-full shadow bg-white object-cover" />
           <span className="hidden sm:inline text-base sm:text-xl font-semibold text-blue-800 tracking-wide font-sans">Master Education</span>
         </Link>

@@ -200,7 +200,7 @@ function App() {
           <Route path="/Ptest" element={<PlacementTestPage />} />
           <Route path="/" element={
             !role ? <Navigate to="/login" /> : 
-            (role === 'admin' ? <Navigate to="/admin/dashboard" /> : 
+            (role === 'admin' ? <Navigate to="/admin/students" /> : 
              role === 'teacher' ? <Navigate to="/curator/dashboard" /> :
              role === 'speaking_mentor' ? <Navigate to="/teacher/speaking" /> :
              role === 'curator' ? <Navigate to="/curator/dashboard" /> :
