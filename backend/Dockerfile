@@ -17,7 +17,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend /app
 
-RUN chmod +x /app/entrypoint.sh
+# Normalize line endings in case the file was created on Windows (CRLF).
+RUN sed -i 's/\r$//' /app/entrypoint.sh \
+  && chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 

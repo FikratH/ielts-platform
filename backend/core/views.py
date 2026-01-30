@@ -85,6 +85,7 @@ from django.db import models, transaction
 from .permissions import IsCurator, IsTeacherOrCurator
 from django.utils import timezone
 from datetime import timedelta
+from .email_utils import send_writing_feedback_published_email
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -850,6 +851,8 @@ class TeacherFeedbackPublishView(APIView):
         upsert.is_valid(raise_exception=True)
         data = upsert.validated_data
         from django.utils import timezone as dj_tz
+        existing_feedback = TeacherFeedback.objects.filter(essay=essay).first()
+        was_published = bool(existing_feedback and existing_feedback.published)
         # Обрабатываем пустые строки как None для числовых полей
         def clean_score(score):
             if score == '' or score is None:
@@ -877,6 +880,17 @@ class TeacherFeedbackPublishView(APIView):
                 'published_at': dj_tz.now(),
             }
         )
+        if not was_published:
+            try:
+                send_writing_feedback_published_email(
+                    student=essay.user,
+                    teacher=teacher,
+                    essay=essay,
+                    session=essay.test_session,
+                    task_type=essay.task_type
+                )
+            except Exception:
+                pass
         return Response(TeacherFeedbackSerializer(feedback).data)
 
 class StudentTeacherFeedbackView(APIView):
@@ -989,7 +1003,10 @@ class TeacherSessionPublishView(APIView):
         from django.utils import timezone as dj_tz
         essays = Essay.objects.filter(test_session=session)
         published_ids = []
+        should_notify = False
         for essay in essays:
+            existing_feedback = TeacherFeedback.objects.filter(essay=essay).first()
+            was_published = bool(existing_feedback and existing_feedback.published)
             fb, _ = TeacherFeedback.objects.get_or_create(essay=essay, defaults={'teacher': teacher})
             # Если пришли данные в теле запроса (могут быть обновления), применяем их перед публикацией
             payload = request.data if isinstance(request.data, dict) else {}
@@ -1008,6 +1025,17 @@ class TeacherSessionPublishView(APIView):
             fb.published_at = dj_tz.now()
             fb.save()
             published_ids.append(essay.id)
+            if not was_published:
+                should_notify = True
+        if should_notify:
+            try:
+                send_writing_feedback_published_email(
+                    student=session.user,
+                    teacher=teacher,
+                    session=session
+                )
+            except Exception:
+                pass
         return Response({'published_essays': published_ids})
 
 
