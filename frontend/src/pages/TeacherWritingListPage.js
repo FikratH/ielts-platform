@@ -7,7 +7,15 @@ const TeacherWritingListPage = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ prompt_id: '', task_type: '', group: '', student_id: '', published: '' });
+  const [filters, setFilters] = useState({
+    prompt_id: '',
+    task_type: '',
+    group: '',
+    student_id: '',
+    published: '',
+    search: '',
+    feedback_status: ''
+  });
   const [showFilters, setShowFilters] = useState(false);
 
   const loadData = async () => {
@@ -104,7 +112,14 @@ const TeacherWritingListPage = () => {
           
           {showFilters && (
             <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+                <input 
+                  name="search" 
+                  value={filters.search} 
+                  onChange={onFilterChange} 
+                  placeholder="Name / ID / Email" 
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
                 <input 
                   name="prompt_id" 
                   value={filters.prompt_id} 
@@ -146,6 +161,16 @@ const TeacherWritingListPage = () => {
           <option value="true">Published</option>
           <option value="false">Draft</option>
         </select>
+                <select 
+                  name="feedback_status" 
+                  value={filters.feedback_status} 
+                  onChange={onFilterChange} 
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="">All Feedback</option>
+                  <option value="with">With Feedback</option>
+                  <option value="without">No Feedback</option>
+                </select>
               </div>
               <div className="flex justify-end">
                 <button 

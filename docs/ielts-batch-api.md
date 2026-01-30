@@ -24,12 +24,10 @@ Authorization: Bearer <id_token>
 - `limit` (int, опционально, по умолчанию 50) — сколько email обработать.
 - `includeDiagnostics` (bool, опционально, по умолчанию false) — включать ли диагностические попытки (listening/reading/writing).
 - `perModuleLimit` (int, опционально, по умолчанию 10) — только для `/test-results`, ограничение количества записей по каждому модулю.
-- `includeAnswers` (bool, опционально, по умолчанию false) — добавляет ответы к Listening/Reading.
 
 Особенности:
 - Если в списке больше, чем `limit`, обрабатываются первые N после дедупликации.
 - Для отсутствующих студентов возвращается `error`.
-> Важно: в примерах указаны placeholder-адреса (`student1@test.com`). При вызове используйте реальные email студентов из вашей БД, иначе получите `Student not found`.
 
 ---
 
@@ -40,9 +38,9 @@ Authorization: Bearer <id_token>
 ```bash
 curl -X POST "https://ieltsapi.mastereducation.kz/api/batch/students/profiles/" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <id_token>" \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFjMzIxOTgzNGRhNTBlMjBmYWVhZWE3Yzg2Y2U3YjU1MzhmMTdiZTEiLCJ0eXAiOiJKV1QifQ" \
   -d '{
-    "emails": ["student1@test.com", "student2@test.com"],
+    "emails": ["6123@ielts.local", "MasterTest@ielts.local"],
     "limit": 10
   }'
 ```
@@ -196,55 +194,6 @@ curl -X POST "https://ieltsapi.mastereducation.kz/api/batch/students/test-result
 Особенности:
 - Возвращает до `perModuleLimit` последних записей по каждому модулю.
 - При `includeDiagnostics=false` диагностические сессии не включаются.
-
----
-
-## 4️⃣ POST `/api/batch/students/test-results-week/`
-**Описание:** Результаты за конкретную неделю (Listening/Reading/Writing/Speaking).
-
-### Доп. параметры запроса
-- `weekStart` (YYYY-MM-DD, обязательно) — дата начала недели.
-- `weekEnd` (YYYY-MM-DD, опционально) — дата конца недели; если не указать, берём `weekStart + 6 дней`.
-- `perModuleLimit` (int, default 10) — ограничение записей на модуль.
-
-### Пример запроса
-```bash
-curl -X POST "https://ieltsapi.mastereducation.kz/api/batch/students/test-results-week/" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <id_token>" \
-  -d '{
-    "emails": ["student1@test.com"],
-    "weekStart": "2026-01-19",
-    "weekEnd": "2026-01-25",
-    "perModuleLimit": 10,
-    "includeDiagnostics": false,
-    "includeAnswers": true
-  }'
-```
-
-### Пример ответа (усечённый)
-```json
-{
-  "total": 1,
-  "processed": 1,
-  "limit": 50,
-  "results": [
-    {
-      "email": "student1@test.com",
-      "data": {
-        "studentId": "2024001",
-        "fullName": "Aruzhan Bek",
-        "weekStart": "2026-01-19",
-        "weekEnd": "2026-01-25",
-        "listeningSessions": [...],
-        "readingSessions": [...],
-        "essays": [...],
-        "speakingSessions": [...]
-      }
-    }
-  ]
-}
-```
 
 ---
 

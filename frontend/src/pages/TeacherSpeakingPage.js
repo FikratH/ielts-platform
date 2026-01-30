@@ -12,12 +12,24 @@ const TeacherSpeakingPage = () => {
   const [loading, setLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [studentFilters, setStudentFilters] = useState({
+    search: '',
+    group: '',
+    has_session: '',
+    last_days: '',
+    last_from: '',
+    last_to: ''
+  });
 
-  const loadStudents = async () => {
+  const loadStudents = async (filters = studentFilters) => {
     setStudentsLoading(true);
     try {
-      const response = await api.get('/teacher/speaking/students/');
+      const params = new URLSearchParams();
+      Object.entries(filters || {}).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      const response = await api.get(`/teacher/speaking/students/?${params.toString()}`);
       setStudents(response.data.students || []);
     } catch (error) {
       console.error('Error loading students:', error);
@@ -27,13 +39,18 @@ const TeacherSpeakingPage = () => {
     }
   };
 
-  const loadSessions = async () => {
+  const loadSessions = async (filters = studentFilters, studentId = selectedStudentId) => {
     try {
       const params = new URLSearchParams();
-      if (selectedStudentId) {
-        params.append('student_id', selectedStudentId);
+      if (studentId) {
+        params.append('student_id', studentId);
       }
       params.append('completed', 'true');
+      if (filters?.search) params.append('search', filters.search);
+      if (filters?.group) params.append('group', filters.group);
+      if (filters?.last_days) params.append('last_days', filters.last_days);
+      if (filters?.last_from) params.append('date_from', filters.last_from);
+      if (filters?.last_to) params.append('date_to', filters.last_to);
       
       const response = await api.get(`/teacher/speaking/sessions/?${params.toString()}`);
       setSessions(response.data.sessions || []);
@@ -43,10 +60,36 @@ const TeacherSpeakingPage = () => {
     }
   };
 
+  const onStudentFilterChange = (e) => {
+    const { name, value } = e.target;
+    setStudentFilters(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'last_days' && value) {
+        next.last_from = '';
+        next.last_to = '';
+      }
+      if ((name === 'last_from' || name === 'last_to') && value) {
+        next.last_days = '';
+      }
+      return next;
+    });
+  };
+
+  const applyStudentFilters = async () => {
+    setSelectedStudentId('');
+    await Promise.all([
+      loadStudents({ ...studentFilters }),
+      loadSessions({ ...studentFilters }, '')
+    ]);
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([loadStudents(), loadSessions()]);
+      await Promise.all([
+        loadStudents(studentFilters),
+        loadSessions(studentFilters, selectedStudentId)
+      ]);
       setLoading(false);
     };
     
@@ -55,16 +98,9 @@ const TeacherSpeakingPage = () => {
 
   useEffect(() => {
     if (!loading) {
-      loadSessions();
+      loadSessions(studentFilters, selectedStudentId);
     }
   }, [selectedStudentId]);
-
-  const filteredStudents = students.filter(student => 
-    !searchTerm || 
-    `${student.first_name} ${student.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleStartNewSession = async (student) => {
     try {
@@ -128,24 +164,94 @@ const TeacherSpeakingPage = () => {
                     <div className="w-2 h-6 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full mr-3"></div>
                     {isMentor ? 'All Students' : 'My Students'}
                   </h3>
-                  <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg 
+                      className={`w-5 h-5 transition-transform ${showFilters ? 'rotate-180' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {showFilters && (
+                <div className="p-6 border-b border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
                     <input
                       type="text"
-                      placeholder="Search students..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      name="search"
+                      placeholder="Name / ID / Email"
+                      value={studentFilters.search}
+                      onChange={onStudentFilterChange}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <input
+                      type="text"
+                      name="group"
+                      placeholder="Group"
+                      value={studentFilters.group}
+                      onChange={onStudentFilterChange}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <select
+                      name="has_session"
+                      value={studentFilters.has_session}
+                      onChange={onStudentFilterChange}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="">Speaking Status</option>
+                      <option value="true">Has Speaking</option>
+                      <option value="false">No Speaking Yet</option>
+                    </select>
+                    <select
+                      name="last_days"
+                      value={studentFilters.last_days}
+                      onChange={onStudentFilterChange}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="">Last Session</option>
+                      <option value="7">Last 7 days</option>
+                      <option value="14">Last 14 days</option>
+                      <option value="30">Last 30 days</option>
+                    </select>
+                    <input
+                      type="date"
+                      name="last_from"
+                      value={studentFilters.last_from}
+                      onChange={onStudentFilterChange}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <input
+                      type="date"
+                      name="last_to"
+                      value={studentFilters.last_to}
+                      onChange={onStudentFilterChange}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={applyStudentFilters}
+                      className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
                 </div>
-              </div>
-              
+              )}
+
               <div className="p-6">
                 {studentsLoading ? (
                   <LoadingSpinner text="Loading students..." />
-                ) : filteredStudents.length > 0 ? (
+                ) : students.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredStudents.map((student) => (
+                    {students.map((student) => (
                       <StudentCard
                         key={student.id}
                         student={student}
@@ -160,9 +266,7 @@ const TeacherSpeakingPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </div>
-                    <p className="text-gray-500">
-                      {searchTerm ? 'No students match your search' : 'No students assigned to you'}
-                    </p>
+                    <p className="text-gray-500">No students match the filters</p>
                   </div>
                 )}
               </div>

@@ -733,20 +733,42 @@ class TeacherEssayListView(ListAPIView):
         student_id = self.request.query_params.get('student_id')
         group = self.request.query_params.get('group')
         published = self.request.query_params.get('published')
+        search = self.request.query_params.get('search')
+        feedback_status = self.request.query_params.get('feedback_status')
         if prompt_id:
             qs = qs.filter(prompt_id=prompt_id)
         if task_type:
-            qs = qs.filter(task_type=task_type)
+            t = str(task_type).strip().lower()
+            if t in ['1', 'task1', 'task 1', 't1']:
+                t = 'task1'
+            elif t in ['2', 'task2', 'task 2', 't2']:
+                t = 'task2'
+            qs = qs.filter(task_type=t)
         if student_id:
             qs = qs.filter(user__student_id=student_id)
         if group:
-            qs = qs.filter(user__group=group)
+            qs = qs.filter(user__group__icontains=group.strip())
         if published is not None:
             p = str(published).lower()
             if p in ['1', 'true', 'yes']:
                 qs = qs.filter(teacher_feedback__published=True)
             elif p in ['0', 'false', 'no']:
                 qs = qs.exclude(teacher_feedback__published=True)
+        if feedback_status:
+            fs = str(feedback_status).strip().lower()
+            if fs in ['with', 'has', 'done', 'true', '1', 'yes']:
+                qs = qs.filter(teacher_feedback__isnull=False)
+            elif fs in ['without', 'none', 'missing', 'pending', 'false', '0', 'no']:
+                qs = qs.filter(teacher_feedback__isnull=True)
+        if search:
+            s = search.strip()
+            if s:
+                qs = qs.filter(
+                    models.Q(user__first_name__icontains=s) |
+                    models.Q(user__last_name__icontains=s) |
+                    models.Q(user__student_id__icontains=s) |
+                    models.Q(user__email__icontains=s)
+                )
         return qs.order_by('-submitted_at')
 
 class TeacherEssayDetailView(APIView):
@@ -1027,6 +1049,13 @@ class TeacherSpeakingStudentsView(APIView):
         if error_response:
             return error_response
         
+        search = request.query_params.get('search')
+        group = request.query_params.get('group')
+        has_session = request.query_params.get('has_session')
+        last_days = request.query_params.get('last_days')
+        last_from = _parse_date_param(request.query_params.get('last_from'))
+        last_to = _parse_date_param(request.query_params.get('last_to'))
+        
         if teacher.role == 'speaking_mentor':
             students = User.objects.filter(role='student').order_by('first_name', 'last_name')
         else:
@@ -1036,6 +1065,44 @@ class TeacherSpeakingStudentsView(APIView):
             if not teacher_name:
                 return Response({'students': []})
             students = User.objects.filter(role='student', teacher=teacher_name).order_by('first_name', 'last_name')
+
+        if search:
+            s = search.strip()
+            if s:
+                students = students.filter(
+                    models.Q(first_name__icontains=s) |
+                    models.Q(last_name__icontains=s) |
+                    models.Q(student_id__icontains=s) |
+                    models.Q(email__icontains=s)
+                )
+        if group:
+            students = students.filter(group__icontains=group.strip())
+
+        # Annotate latest completed speaking session date (teacher-scoped for teachers)
+        session_filter = models.Q(speaking_sessions__completed=True)
+        if teacher.role != 'speaking_mentor':
+            session_filter &= models.Q(speaking_sessions__teacher=teacher)
+        students = students.annotate(latest_session_date=models.Max('speaking_sessions__conducted_at', filter=session_filter))
+
+        if has_session:
+            hs = str(has_session).strip().lower()
+            if hs in ['1', 'true', 'yes']:
+                students = students.filter(latest_session_date__isnull=False)
+            elif hs in ['0', 'false', 'no']:
+                students = students.filter(latest_session_date__isnull=True)
+
+        if last_days:
+            try:
+                days = int(last_days)
+                if days > 0:
+                    cutoff = timezone.now() - timedelta(days=days)
+                    students = students.filter(latest_session_date__gte=cutoff)
+            except (TypeError, ValueError):
+                pass
+        if last_from:
+            students = students.filter(latest_session_date__date__gte=last_from)
+        if last_to:
+            students = students.filter(latest_session_date__date__lte=last_to)
         
         students_data = []
         for student in students:
@@ -1074,6 +1141,9 @@ class TeacherSpeakingSessionsView(APIView):
         # Filter parameters
         student_id = request.query_params.get('student_id')
         completed_only = request.query_params.get('completed', 'true').lower() == 'true'
+        search = request.query_params.get('search')
+        group = request.query_params.get('group')
+        last_days = request.query_params.get('last_days')
         
         if teacher.role == 'speaking_mentor':
             sessions = SpeakingSession.objects.all()
@@ -1086,6 +1156,28 @@ class TeacherSpeakingSessionsView(APIView):
         
         if completed_only:
             sessions = sessions.filter(completed=True)
+
+        if search:
+            s = search.strip()
+            if s:
+                sessions = sessions.filter(
+                    models.Q(student__first_name__icontains=s) |
+                    models.Q(student__last_name__icontains=s) |
+                    models.Q(student__student_id__icontains=s) |
+                    models.Q(student__email__icontains=s)
+                )
+        if group:
+            sessions = sessions.filter(student__group__icontains=group.strip())
+        if last_days:
+            try:
+                days = int(last_days)
+                if days > 0:
+                    cutoff = timezone.now() - timedelta(days=days)
+                    sessions = sessions.filter(conducted_at__gte=cutoff)
+            except (TypeError, ValueError):
+                pass
+
+        sessions = apply_date_range_filter(sessions, request, 'conducted_at')
         
         sessions = sessions.order_by('-conducted_at')
         serializer = SpeakingSessionHistorySerializer(sessions, many=True)
