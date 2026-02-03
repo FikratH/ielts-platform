@@ -4,6 +4,7 @@ import api from '../api';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase-config';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AiFeedbackPanel from '../components/AiFeedbackPanel';
 
 const ListeningResultPage = () => {
     const { sessionId } = useParams();
@@ -12,12 +13,22 @@ const ListeningResultPage = () => {
     const [result, setResult] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [aiFeedback, setAiFeedback] = useState('');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState('');
+    const [aiCached, setAiCached] = useState(false);
 
     useEffect(() => {
         if (user && sessionId) {
             fetchResult();
         }
     }, [user, sessionId]);
+
+    useEffect(() => {
+        if (result && sessionId) {
+            fetchAiFeedback();
+        }
+    }, [result, sessionId]);
 
     const fetchResult = async () => {
         setIsLoading(true);
@@ -28,6 +39,20 @@ const ListeningResultPage = () => {
             setError('Failed to load listening test results. Please try again.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const fetchAiFeedback = async () => {
+        setAiLoading(true);
+        setAiError('');
+        try {
+            const response = await api.get(`/listening-sessions/${sessionId}/ai-feedback/`);
+            setAiFeedback(response.data?.feedback || '');
+            setAiCached(Boolean(response.data?.cached));
+        } catch (err) {
+            setAiError('Failed to load AI feedback. Please try again.');
+        } finally {
+            setAiLoading(false);
         }
     };
 
@@ -175,6 +200,36 @@ const ListeningResultPage = () => {
                             Back to Dashboard
                         </button>
                     </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 mb-6 sm:mb-8 border border-blue-100">
+                    <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6 border-b border-blue-100 pb-2 sm:pb-4">
+                        <h3 className="text-lg sm:text-2xl font-bold text-blue-700">
+                            AI Feedback
+                        </h3>
+                        {aiCached && (
+                            <span className="text-xs text-gray-500">cached</span>
+                        )}
+                    </div>
+                    {aiLoading && (
+                        <div className="py-6">
+                            <LoadingSpinner text="Generating feedback..." />
+                        </div>
+                    )}
+                    {aiError && (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center justify-between gap-4">
+                            <span>{aiError}</span>
+                            <button
+                                onClick={fetchAiFeedback}
+                                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
+                    {!aiLoading && !aiError && (
+                        <AiFeedbackPanel feedback={aiFeedback} />
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 border border-blue-100">

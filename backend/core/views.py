@@ -79,6 +79,12 @@ from firebase_admin import auth as firebase_auth
 from .models import ReadingTest, ReadingPart, ReadingQuestion, ReadingAnswerOption, ReadingTestSession, ReadingTestResult
 from .serializers import ReadingTestSerializer, ReadingPartSerializer, ReadingQuestionSerializer, ReadingAnswerOptionSerializer, ReadingTestSessionSerializer, ReadingTestResultSerializer, ReadingTestReadSerializer
 from .utils import ai_score_essay
+from .ai_feedback import (
+    build_feedback_payload,
+    generate_ai_feedback,
+    cache_feedback,
+    AI_FEEDBACK_PROMPT_VERSION,
+)
 from .models import TeacherSatisfactionSurvey
 from .serializers import TeacherSatisfactionSurveySerializer
 from django.db import models, transaction
@@ -2742,6 +2748,39 @@ class ListeningTestResultView(APIView):
         serializer = ListeningTestSessionResultSerializer(session)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+class ListeningAIFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(ListeningTestSession, pk=session_id, user=request.user)
+
+        if not session.submitted:
+            return Response({'error': 'Session not submitted yet'}, status=status.HTTP_400_BAD_REQUEST)
+
+        refresh = request.query_params.get('refresh') == '1'
+        result = ListeningTestResult.objects.filter(session=session).first()
+        if result and result.ai_feedback and result.ai_feedback_version == AI_FEEDBACK_PROMPT_VERSION and not refresh:
+            return Response({
+                'feedback': result.ai_feedback,
+                'cached': True,
+                'prompt_version': AI_FEEDBACK_PROMPT_VERSION,
+                'updated_at': result.ai_feedback_updated_at.isoformat() if result.ai_feedback_updated_at else None
+            })
+
+        try:
+            payload = build_feedback_payload(session, 'listening')
+            feedback_text = generate_ai_feedback('listening', payload)
+            cache_feedback(result, feedback_text)
+            return Response({
+                'feedback': feedback_text,
+                'cached': False,
+                'prompt_version': AI_FEEDBACK_PROMPT_VERSION,
+                'updated_at': result.ai_feedback_updated_at.isoformat() if result and result.ai_feedback_updated_at else None
+            })
+        except Exception as e:
+            return Response({'error': 'AI feedback failed', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # --- ListeningTestClone: admin view ---
 class ListeningTestCloneViewSet(viewsets.ModelViewSet):
     queryset = ListeningTestClone.objects.all().order_by('-cloned_at')
@@ -3711,6 +3750,39 @@ class ReadingTestResultView(APIView):
             return Response({'error': 'Result not found or test not completed.'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+class ReadingAIFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(ReadingTestSession, pk=session_id, user=request.user)
+
+        if not session.completed:
+            return Response({'error': 'Session not completed yet'}, status=status.HTTP_400_BAD_REQUEST)
+
+        refresh = request.query_params.get('refresh') == '1'
+        result = ReadingTestResult.objects.filter(session=session).first()
+        if result and result.ai_feedback and result.ai_feedback_version == AI_FEEDBACK_PROMPT_VERSION and not refresh:
+            return Response({
+                'feedback': result.ai_feedback,
+                'cached': True,
+                'prompt_version': AI_FEEDBACK_PROMPT_VERSION,
+                'updated_at': result.ai_feedback_updated_at.isoformat() if result.ai_feedback_updated_at else None
+            })
+
+        try:
+            payload = build_feedback_payload(session, 'reading')
+            feedback_text = generate_ai_feedback('reading', payload)
+            cache_feedback(result, feedback_text)
+            return Response({
+                'feedback': feedback_text,
+                'cached': False,
+                'prompt_version': AI_FEEDBACK_PROMPT_VERSION,
+                'updated_at': result.ai_feedback_updated_at.isoformat() if result and result.ai_feedback_updated_at else None
+            })
+        except Exception as e:
+            return Response({'error': 'AI feedback failed', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class GetEmailBySIDView(APIView):
     permission_classes = [AllowAny]

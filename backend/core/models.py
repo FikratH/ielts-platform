@@ -270,6 +270,9 @@ class ListeningTestResult(models.Model):
     band_score = models.FloatField(default=0)
     breakdown = JSONField(default=dict, blank=True)  # Per-question feedback
     calculated_at = models.DateTimeField(auto_now_add=True)
+    ai_feedback = models.TextField(null=True, blank=True)
+    ai_feedback_version = models.CharField(max_length=32, null=True, blank=True)
+    ai_feedback_updated_at = models.DateTimeField(null=True, blank=True)
 
 class ListeningTestClone(models.Model):
     source_test = models.ForeignKey(ListeningTest, related_name='clones', on_delete=models.CASCADE)
@@ -367,6 +370,9 @@ class ReadingTestResult(models.Model):
     breakdown = models.JSONField(default=dict, blank=True)
     calculated_at = models.DateTimeField(auto_now_add=True)
     time_taken = models.DurationField(null=True, blank=True)
+    ai_feedback = models.TextField(null=True, blank=True)
+    ai_feedback_version = models.CharField(max_length=32, null=True, blank=True)
+    ai_feedback_updated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Result for session {self.session.id} - Score: {self.raw_score}/{self.total_score}"
@@ -488,4 +494,3 @@ class PlacementTestSubmission(models.Model):
     
     def __str__(self):
         return f"{self.full_name} - {self.score}/20 ({self.submitted_at.strftime('%Y-%m-%d')})"
-
