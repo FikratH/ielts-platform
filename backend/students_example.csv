@@ -1,8 +1,0 @@
-first_name,last_name,email,student_id,password,group,teacher
-John,Doe,john.doe@example.com,STU001,password123,Group A,Kamila
-Jane,Smith,jane.smith@example.com,STU002,password123,Group A,Kamila
-Alice,Johnson,alice.johnson@example.com,STU003,password123,Group B,Aida
-Bob,Wilson,bob.wilson@example.com,STU004,password123,Group B,Aida
-Sarah,Brown,sarah.brown@example.com,STU005,password123,Group C,
-
-
