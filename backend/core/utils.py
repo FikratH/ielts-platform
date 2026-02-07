@@ -1,26 +1,7 @@
 # core/utils.py
 
-from rest_framework.views import APIView
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-
-# -----------------------------
-# CSRF-exempt базовый класс API
-# -----------------------------
-class CsrfExemptAPIView(APIView):
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
-
 # -------------------------------------
-# Проверка Firebase ID-token (verify_token)
-# -------------------------------------
-# Удаляю всё, что связано с firebase_admin, credentials, FIREBASE_CERT_PATH, verify_token
-
-
-# -------------------------------------
-# Ваши вспомогательные функции для тестов
+# AI Scoring and Utility Functions
 # -------------------------------------
 import openai
 import os
