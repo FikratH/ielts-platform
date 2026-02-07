@@ -2,13 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, onIdTokenChanged } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCGaTlQrpo0EB7H-EP7PYR_QeBHIl0oE-c",
-  authDomain: "ielts-project-6259a.firebaseapp.com",
-  projectId: "ielts-project-6259a",
-  storageBucket: "ielts-project-6259a.firebasestorage.app",
-  messagingSenderId: "938135977743",
-  appId: "1:938135977743:web:8edc003b80c1f2557b087a",
-  measurementId: "G-TXD2ZR6SF4"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);

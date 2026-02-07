@@ -165,7 +165,7 @@ def _normalize_emails(emails):
 # User Profile Views
 # ------------------------------
 class UserProfileView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -197,7 +197,7 @@ class UserProfileView(APIView):
 # Student Dashboard Summary View
 # ------------------------------
 class DashboardSummaryView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def _get_current_user(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -451,7 +451,7 @@ class DashboardSummaryView(APIView):
 # Diagnostic Summary Endpoints
 # ------------------------------
 class DiagnosticSummaryView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -540,7 +540,7 @@ class DiagnosticSummaryView(APIView):
 
 
 class CuratorDiagnosticResultsView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -709,7 +709,7 @@ def get_teacher_from_request(request, allowed_roles=None):
 
 
 class TeacherEssayListView(ListAPIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     serializer_class = TeacherEssayListItemSerializer
 
     def get_queryset(self):
@@ -785,7 +785,7 @@ class TeacherEssayListView(ListAPIView):
         return qs.order_by('-submitted_at')
 
 class TeacherEssayDetailView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, essay_id):
         teacher, error_response = get_teacher_from_request(request)
@@ -804,7 +804,7 @@ class TeacherEssayDetailView(APIView):
         })
 
 class TeacherFeedbackSaveView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, essay_id):
         teacher, error_response = get_teacher_from_request(request)
@@ -847,7 +847,7 @@ class TeacherFeedbackSaveView(APIView):
         return Response(TeacherFeedbackSerializer(feedback).data)
 
 class TeacherFeedbackPublishView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, essay_id):
         teacher, error_response = get_teacher_from_request(request)
@@ -923,7 +923,7 @@ class StudentTeacherFeedbackView(APIView):
 # ------------------------------
 
 class TeacherSessionFeedbackView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         teacher, error_response = get_teacher_from_request(request)
@@ -1001,7 +1001,7 @@ class TeacherSessionFeedbackView(APIView):
 
 
 class TeacherSessionPublishView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, session_id):
         teacher, error_response = get_teacher_from_request(request)
@@ -1082,7 +1082,7 @@ from .serializers import (
 
 class TeacherSpeakingStudentsView(APIView):
     """Get list of students assigned to the teacher for speaking assessment"""
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
@@ -1171,7 +1171,7 @@ class TeacherSpeakingStudentsView(APIView):
 
 class TeacherSpeakingSessionsView(APIView):
     """Get speaking sessions history for teacher"""
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
@@ -1260,7 +1260,7 @@ class TeacherSpeakingSessionsView(APIView):
 
 class TeacherSpeakingSessionDetailView(APIView):
     """Get, update, or complete a specific speaking session"""
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request, session_id):
         teacher, error_response = get_teacher_from_request(request, allowed_roles=('teacher', 'speaking_mentor'))
@@ -1326,7 +1326,7 @@ class TeacherSpeakingSessionDetailView(APIView):
 
 class StudentSpeakingSessionsView(APIView):
     """Get speaking sessions for student (only completed ones)"""
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1352,7 +1352,7 @@ class StudentSpeakingSessionsView(APIView):
 
 class StudentSpeakingSessionDetailView(APIView):
     """Get specific speaking session details for student"""
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1388,9 +1388,14 @@ class TeachersListView(ListAPIView):
         return User.objects.filter(role='teacher').order_by('first_name', 'last_name')
 
 class FirebaseLoginView(APIView):
+<<<<<<< HEAD
+    permission_classes = [AllowAny]
+
+=======
     permission_classes = [AllowAny]  # Public endpoint for login
     
     @method_decorator(ratelimit(key='ip', rate='5/m', method='POST'))
+>>>>>>> 9c4ad6699bd4655cf0f8f467221474accc9a3ef7
     def post(self, request, *args, **kwargs):
         # 1. Забираем токен из body — либо под ключом 'token', либо 'idToken'
         id_token = request.data.get('token') or request.data.get('idToken')
@@ -1489,7 +1494,7 @@ class FirebaseLoginView(APIView):
 
 class AdminEssayListView(ListAPIView):
     serializer_class = EssaySerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -1517,7 +1522,7 @@ class AdminEssayListView(ListAPIView):
 
 class EssayListView(ListAPIView):
     serializer_class = EssaySerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -1577,7 +1582,7 @@ class EssayListView(ListAPIView):
 
 class EssayDetailView(RetrieveAPIView):
     serializer_class = EssaySerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -1602,7 +1607,7 @@ class EssayDetailView(RetrieveAPIView):
 
 
 class StartWritingSessionView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, test_id=None):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1673,7 +1678,7 @@ class StartWritingSessionView(APIView):
 
 
 class SubmitTaskView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1741,7 +1746,7 @@ class SubmitTaskView(APIView):
 
 
 class FinishWritingSessionView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1858,7 +1863,7 @@ class FinishWritingSessionView(APIView):
 
 
 class WritingSessionSyncView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def patch(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -1913,7 +1918,7 @@ class WritingPromptSerializer(serializers.ModelSerializer):
 class WritingPromptViewSet(viewsets.ModelViewSet):
     queryset = WritingPrompt.objects.all().order_by('-created_at')
     serializer_class = WritingPromptSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -1985,7 +1990,7 @@ class WritingPromptViewSet(viewsets.ModelViewSet):
 
 class WritingTestViewSet(viewsets.ModelViewSet):
     serializer_class = WritingTestSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -2057,24 +2062,8 @@ class WritingTestViewSet(viewsets.ModelViewSet):
 
         return super().create(request)
 
-    @action(detail=True, methods=['post'], url_path='toggle-active')
+    @action(detail=True, methods=['post'], url_path='toggle-active', permission_classes=[IsAdmin])
     def toggle_active(self, request, pk=None):
-        # Only admins can toggle active status
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Authentication required'}, status=401)
-        id_token = auth_header.split(' ')[1]
-        decoded = verify_firebase_token(id_token)
-        if not decoded:
-            return Response({'error': 'Invalid token'}, status=401)
-        uid = decoded['uid']
-        try:
-            user = User.objects.get(uid=uid)
-            if user.role != 'admin':
-                return Response({'error': 'Admin access required'}, status=403)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=401)
-
         test = self.get_object()
         test.is_active = not test.is_active
         test.save()
@@ -2084,7 +2073,7 @@ class WritingTestViewSet(viewsets.ModelViewSet):
 class WritingTaskViewSet(viewsets.ModelViewSet):
     queryset = WritingTask.objects.all()
     serializer_class = WritingTaskSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         # Filter by test if specified
@@ -2133,7 +2122,7 @@ class WritingTaskViewSet(viewsets.ModelViewSet):
 
 
 class WritingTestSessionDetailView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -2158,7 +2147,7 @@ class WritingTestSessionDetailView(APIView):
 
 
 class WritingTestExportCSVView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, test_id):
         # Check admin access
@@ -2231,7 +2220,7 @@ class WritingTestExportCSVView(APIView):
 
 class ListeningTestListView(ListAPIView):
     serializer_class = ListeningTestListSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -2256,7 +2245,7 @@ class ListeningTestListView(ListAPIView):
 
 class ListeningTestDetailView(RetrieveAPIView):
     serializer_class = ListeningTestSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     queryset = ListeningTest.objects.all()
 
     def get_serializer_context(self):
@@ -2266,7 +2255,7 @@ class ListeningTestDetailView(RetrieveAPIView):
 
 
 class StartListeningTestView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, pk):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -2316,7 +2305,7 @@ class StartListeningTestView(APIView):
 
 
 class SubmitListeningTestView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -2382,7 +2371,7 @@ class SubmitListeningTestView(APIView):
 
 class ListeningTestSessionListView(ListAPIView):
     serializer_class = ListeningTestSessionHistorySerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -2405,7 +2394,7 @@ class ListeningTestSessionListView(ListAPIView):
 
 class ListeningTestSessionDetailView(RetrieveAPIView):
     serializer_class = ListeningTestSessionResultSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
@@ -2429,7 +2418,7 @@ class ListeningTestSessionDetailView(RetrieveAPIView):
 class ListeningTestViewSet(viewsets.ModelViewSet):
     queryset = ListeningTest.objects.all().order_by('-created_at')
     serializer_class = ListeningTestSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -2484,21 +2473,21 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
                 item['user_completed'] = False
         return response
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def activate(self, request, pk=None):
         test = self.get_object()
         test.is_active = True
         test.save()
         return Response({'message': 'Test activated successfully'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def deactivate(self, request, pk=None):
         test = self.get_object()
         test.is_active = False
         test.save()
         return Response({'message': 'Test deactivated successfully'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def clone(self, request, pk=None):
         source_test = self.get_object()
         
@@ -2562,13 +2551,13 @@ class ListeningTestViewSet(viewsets.ModelViewSet):
 class ListeningPartViewSet(viewsets.ModelViewSet):
     queryset = ListeningPart.objects.all().order_by('test', 'part_number')
     serializer_class = ListeningPartSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
 # --- ListeningQuestion CRUD ---
 class ListeningQuestionViewSet(viewsets.ModelViewSet):
     queryset = ListeningQuestion.objects.all().order_by('part', 'order')
     serializer_class = ListeningQuestionSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
 # --- ListeningTestSession: start, sync, submit ---
 class ListeningTestSessionView(APIView):
@@ -2794,7 +2783,7 @@ class ListeningAIFeedbackView(APIView):
 class ListeningTestCloneViewSet(viewsets.ModelViewSet):
     queryset = ListeningTestClone.objects.all().order_by('-cloned_at')
     serializer_class = ListeningTestCloneSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     @action(detail=True, methods=['post'])
     def clone(self, request, pk=None):
@@ -3414,7 +3403,7 @@ class AdminStudentDetailView(RetrieveUpdateDestroyAPIView):
 class ReadingTestViewSet(viewsets.ModelViewSet):
     queryset = ReadingTest.objects.all().order_by('-created_at')
     serializer_class = ReadingTestSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -3468,14 +3457,14 @@ class ReadingTestViewSet(viewsets.ModelViewSet):
                 item['user_completed'] = False
         return response
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def activate(self, request, pk=None):
         test = self.get_object()
         test.is_active = True
         test.save()
         return Response({'message': 'Test activated successfully'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def deactivate(self, request, pk=None):
         test = self.get_object()
         test.is_active = False
@@ -3486,19 +3475,19 @@ class ReadingTestViewSet(viewsets.ModelViewSet):
 class ReadingPartViewSet(viewsets.ModelViewSet):
     queryset = ReadingPart.objects.all()
     serializer_class = ReadingPartSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
 
 class ReadingQuestionViewSet(viewsets.ModelViewSet):
     queryset = ReadingQuestion.objects.all()
     serializer_class = ReadingQuestionSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
 
 class ReadingAnswerOptionViewSet(viewsets.ModelViewSet):
     queryset = ReadingAnswerOption.objects.all()
     serializer_class = ReadingAnswerOptionSerializer
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
 
 class ReadingTestSessionViewSet(viewsets.ModelViewSet):
@@ -3824,7 +3813,7 @@ class ReadingAIFeedbackView(APIView):
             return Response({'error': 'AI feedback failed', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class GetEmailBySIDView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [IsAuthenticated]  # Security: Protect PII endpoint
 
     def get(self, request):
         sid = request.query_params.get('student_id')
@@ -3846,7 +3835,7 @@ class GetEmailBySIDView(APIView):
 
 
 class GetEmailByCuratorIDView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [IsAuthenticated]  # Security: Protect PII endpoint
 
     def get(self, request):
         curator_id = request.query_params.get('curator_id')
@@ -3930,7 +3919,7 @@ class WritingPromptExportCSVView(APIView):
         return response
 
 class EssaySubmissionView(CsrfExemptAPIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -3958,7 +3947,7 @@ class EssaySubmissionView(CsrfExemptAPIView):
             return Response(serializer.errors, status=400)
 
 class AdminStudentResultsView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4081,7 +4070,7 @@ class AdminStudentResultsView(APIView):
 
 
 class AdminReadingSessionListView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4130,7 +4119,7 @@ class AdminReadingSessionListView(APIView):
 
 
 class AdminReadingSessionResultView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4161,7 +4150,7 @@ class AdminReadingSessionResultView(APIView):
 
 
 class AdminListeningSessionResultView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4204,7 +4193,7 @@ class AdminListeningSessionResultView(APIView):
 
 
 class AdminListeningSessionListView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4254,7 +4243,7 @@ class AdminListeningSessionListView(APIView):
 
 
 class AdminEssayListView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4307,7 +4296,7 @@ class AdminEssayListView(APIView):
 
 
 class AdminListeningSessionDetailView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4350,7 +4339,7 @@ class AdminListeningSessionDetailView(APIView):
 
 
 class AdminReadingSessionDetailView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -4394,7 +4383,7 @@ class AdminReadingSessionDetailView(APIView):
 # ------------------------------
 
 class TeacherSatisfactionSurveyView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         """Get survey status for current student"""
@@ -4501,7 +4490,7 @@ class TeacherSatisfactionSurveyView(APIView):
 
 
 class AdminTeacherSurveyResultsView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def get(self, request):
         """Get all survey results for admin"""
@@ -4544,7 +4533,7 @@ class AdminTeacherSurveyResultsView(APIView):
 
 # ==================== BATCH API (IELTS) ====================
 class BatchStudentProfilesView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
@@ -4600,7 +4589,7 @@ class BatchStudentProfilesView(APIView):
 
 
 class BatchStudentsLatestTestDetailsView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
@@ -4765,7 +4754,7 @@ class BatchStudentsLatestTestDetailsView(APIView):
 
 
 class BatchStudentsTestResultsView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
@@ -4910,7 +4899,7 @@ class BatchStudentsTestResultsView(APIView):
 
 
 class BatchStudentsTestResultsWeekView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         _, error = _require_roles(request, allowed_roles=('admin', 'curator'))
@@ -7177,7 +7166,7 @@ class CuratorWritingExportCSVView(APIView):
 
 
 class ReadingTestResultView(APIView):
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request, session_id):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -7787,7 +7776,7 @@ class PlacementTestQuestionsView(APIView):
     GET /api/placement-test/questions/
     Получить 20 активных вопросов placement теста (без правильных ответов)
     """
-    permission_classes = [AllowAny]  # Public endpoint for prospective students
+    permission_classes = [AllowAny]
     
     def get(self, request):
         questions = PlacementTestQuestion.objects.filter(is_active=True).order_by('order')
@@ -7840,7 +7829,7 @@ class PlacementTestSubmitView(APIView):
         ]
     }
     """
-    # REMOVED: permission_classes = [AllowAny] - using default IsAuthenticated
+    permission_classes = [AllowAny]
     
     def post(self, request):
         full_name = request.data.get('full_name', '').strip()

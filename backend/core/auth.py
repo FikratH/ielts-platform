@@ -19,6 +19,4 @@ class FirebaseAuthentication(BaseAuthentication):
             user = User.objects.get(uid=uid)
             return (user, None)
         except User.DoesNotExist:
-            # Автоматически создаём пользователя с ролью student, если его нет в базе
-            user = User.objects.create(uid=uid, role='student')
-            return (user, None)
+            raise AuthenticationFailed("User not registered. Please contact administrator.")

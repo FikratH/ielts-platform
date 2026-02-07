@@ -7,9 +7,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable must be set. Generate one with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'")
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure--ta2y@alw7^!#svy_c@#tm60d_%47*w34#@p2ytktl51y$h9c*')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
@@ -42,6 +40,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.SecurityHeadersMiddleware',  # Security: Add security headers
 ]
 
 ROOT_URLCONF = 'ielts_platform.urls'
@@ -128,9 +127,15 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'core.auth.FirebaseAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    # Security: Rate limiting to prevent abuse
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    },
 }
 
 MEDIA_URL = '/media/'

@@ -1,12 +1,159 @@
 # core/utils.py
 
+
+from rest_framework.views import APIView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+# -----------------------------
+# CSRF-exempt базовый класс API
+# -----------------------------
+class CsrfExemptAPIView(APIView):
+    @method_decorator(csrf_exempt)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+
+# -----------------------------
+# Secure File Validation
+# -----------------------------
+# File magic bytes for content-type validation
+FILE_SIGNATURES = {
+    # Images
+    b'\xff\xd8\xff': 'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'GIF87a': 'image/gif',
+    b'GIF89a': 'image/gif',
+    b'RIFF': 'image/webp',  # WebP starts with RIFF
+    # Audio
+    b'ID3': 'audio/mpeg',  # MP3 with ID3 tag
+    b'\xff\xfb': 'audio/mpeg',  # MP3 without ID3
+    b'\xff\xfa': 'audio/mpeg',
+    b'\xff\xf3': 'audio/mpeg',
+    b'\xff\xf2': 'audio/mpeg',
+    b'OggS': 'audio/ogg',
+    b'RIFF': 'audio/wav',  # WAV also starts with RIFF
+    b'ftyp': 'audio/m4a',  # M4A/MP4 (after first 4 bytes)
+}
+
+
+def validate_file_content_type(file_obj, allowed_types):
+    """
+    Validate file content type by checking magic bytes.
+    More secure than relying on content_type header which can be spoofed.
+    
+    Args:
+        file_obj: Uploaded file object
+        allowed_types: List of allowed MIME types
+        
+    Returns:
+        tuple: (is_valid: bool, detected_type: str or None, error: str or None)
+    """
+    if not file_obj:
+        return False, None, "No file provided"
+    
+    try:
+        # Read first 12 bytes for magic byte detection
+        file_obj.seek(0)
+        header = file_obj.read(12)
+        file_obj.seek(0)
+        
+        detected_type = None
+        
+        # Check against known signatures
+        for signature, mime_type in FILE_SIGNATURES.items():
+            if header.startswith(signature):
+                detected_type = mime_type
+                break
+        
+        # Special handling for M4A (ftyp appears after 4 bytes)
+        if header[4:8] == b'ftyp':
+            detected_type = 'audio/m4a'
+        
+        # Special handling for WebP (RIFF....WEBP)
+        if header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+            detected_type = 'image/webp'
+        elif header[:4] == b'RIFF' and header[8:12] == b'WAVE':
+            detected_type = 'audio/wav'
+        
+        if detected_type is None:
+            # Fall back to client-provided type with warning
+            detected_type = getattr(file_obj, 'content_type', None)
+            if detected_type not in allowed_types:
+                return False, detected_type, f"Unrecognized file type: {detected_type}"
+        
+        if detected_type not in allowed_types:
+            return False, detected_type, f"File type {detected_type} not allowed"
+        
+        return True, detected_type, None
+        
+    except Exception as e:
+        return False, None, f"Error validating file: {str(e)}"
+
+
 # -------------------------------------
-# AI Scoring and Utility Functions
+# Проверка Firebase ID-token (verify_token)
+# -------------------------------------
+# Удаляю всё, что связано с firebase_admin, credentials, FIREBASE_CERT_PATH, verify_token
+
+
+# -------------------------------------
+# Ваши вспомогательные функции для тестов
 # -------------------------------------
 import openai
 import os
+import re
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+
+def sanitize_ai_input(text, max_length=10000):
+    """
+    Sanitize user input before sending to AI models.
+    Prevents prompt injection attacks and limits input size.
+    
+    Args:
+        text: User-provided text to sanitize
+        max_length: Maximum allowed character length
+        
+    Returns:
+        Sanitized text string
+    """
+    if not text:
+        return ""
+    
+    # Convert to string if not already
+    text = str(text)
+    
+    # Limit length to prevent resource exhaustion
+    if len(text) > max_length:
+        text = text[:max_length]
+    
+    # Remove common prompt injection patterns
+    injection_patterns = [
+        r'(?i)ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)',
+        r'(?i)forget\s+(all\s+)?(previous|above|prior)',
+        r'(?i)disregard\s+(all\s+)?(previous|above|prior)',
+        r'(?i)system\s*:\s*',
+        r'(?i)assistant\s*:\s*',
+        r'(?i)you\s+are\s+now',
+        r'(?i)new\s+instructions?\s*:',
+        r'(?i)override\s+(all\s+)?',
+        r'(?i)\[SYSTEM\]',
+        r'(?i)\[INST\]',
+        r'(?i)\[\\/INST\]',
+        r'(?i)<\|im_start\|>',
+        r'(?i)<\|im_end\|>',
+    ]
+    
+    for pattern in injection_patterns:
+        text = re.sub(pattern, '[FILTERED]', text)
+    
+    # Remove control characters (except newlines and tabs)
+    text = ''.join(char for char in text if char in '\n\t' or (ord(char) >= 32 and ord(char) != 127))
+    
+    return text.strip()
+
 
 # IELTS Writing AI scoring (GPT-4 Vision)
 def ai_score_essay(question_text, essay_text, task_type, image_url=None):
@@ -14,7 +161,9 @@ def ai_score_essay(question_text, essay_text, task_type, image_url=None):
         raise RuntimeError('OPENAI_API_KEY not set in environment')
     openai.api_key = OPENAI_API_KEY
 
-
+    # Security: Sanitize user inputs to prevent prompt injection
+    essay_text = sanitize_ai_input(essay_text, max_length=15000)
+    question_text = sanitize_ai_input(question_text, max_length=2000)
 
     # Проверяем минимальную длину текста
     min_words = 50 if task_type == 'task1' else 100
