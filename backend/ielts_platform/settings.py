@@ -29,15 +29,17 @@ INSTALLED_APPS = [
     'rest_framework',
     'core',
     'corsheaders',
+    'csp',  # Django CSP for Content-Security-Policy headers
 ]
 
 MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',  # Security headers first
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
+    'csp.middleware.CSPMiddleware',  # Content Security Policy
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -138,6 +140,29 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
 
+# Security Headers (OWASP, NIST, CIS Benchmarks)
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_SSL_REDIRECT = not DEBUG  # Redirect HTTP to HTTPS in production
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only cookies in production
+CSRF_COOKIE_SECURE = not DEBUG  # HTTPS only CSRF cookie in production
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access to CSRF token
+SESSION_COOKIE_SAMESITE = 'Strict'  # CSRF protection
+CSRF_COOKIE_SAMESITE = 'Strict'
+# Content Security Policy (prevent XSS)
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'",)
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # Allow inline styles for UI libraries
+CSP_IMG_SRC = ("'self'", 'data:', 'https:')
+CSP_FONT_SRC = ("'self'",)
+CSP_CONNECT_SRC = ("'self'",)
+CSP_FRAME_ANCESTORS = ("'none'",)  # Prevent clickjacking
+
 
 FIREBASE_CERT_PATH = BASE_DIR / "core" / "firebase_credentials.json"
 
@@ -145,9 +170,24 @@ FIREBASE_CERT_PATH = BASE_DIR / "core" / "firebase_credentials.json"
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'security': {
+            'format': '{levelname} {asctime} SECURITY {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'security': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'security',
         },
     },
     'root': {
@@ -162,7 +202,12 @@ LOGGING = {
         },
         'core': {
             'handlers': ['console'],
-            'level': 'ERROR',  # Только ошибки для core приложения
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'security': {
+            'handlers': ['security'],
+            'level': 'INFO',
             'propagate': False,
         },
     },

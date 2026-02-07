@@ -2,6 +2,12 @@ import os
 import csv
 from dotenv import load_dotenv
 load_dotenv()
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
+import logging
+import magic
+
+security_logger = logging.getLogger('security')
 
 def ielts_round_score(score):
     if score is None:
@@ -1383,7 +1389,8 @@ class TeachersListView(ListAPIView):
 
 class FirebaseLoginView(APIView):
     permission_classes = [AllowAny]  # Public endpoint for login
-
+    
+    @method_decorator(ratelimit(key='ip', rate='5/m', method='POST'))
     def post(self, request, *args, **kwargs):
         # 1. Забираем токен из body — либо под ключом 'token', либо 'idToken'
         id_token = request.data.get('token') or request.data.get('idToken')
@@ -1398,13 +1405,15 @@ class FirebaseLoginView(APIView):
         try:
             decoded = verify_firebase_token(id_token)
         except ValueError as e:
+            security_logger.warning(f"Failed login attempt - Invalid token from IP {request.META.get('REMOTE_ADDR')}")
             return Response(
-                {"detail": str(e)},
+                {"detail": "Authentication failed"},  # Generic message to prevent information disclosure
                 status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as e:
+            security_logger.error(f"Login error from IP {request.META.get('REMOTE_ADDR')}: {str(e)}")
             return Response(
-                {"detail": f"Token verification failed: {str(e)}"},
+                {"detail": "Authentication failed"},  # Generic message
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
@@ -2868,6 +2877,7 @@ class SecureAudioUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
     
+    @method_decorator(ratelimit(key='user', rate='10/h', method='POST'))
     def post(self, request):
         # Check admin permissions
         try:
@@ -2886,7 +2896,21 @@ class SecureAudioUploadView(APIView):
         if audio_file.size > 50 * 1024 * 1024:
             return Response({'error': 'File too large. Maximum size is 50MB'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check file type
+        # CRITICAL: Validate actual file content using magic numbers (MIME type validation)
+        try:
+            file_content = audio_file.read(2048)  # Read first 2KB for magic number detection
+            audio_file.seek(0)  # Reset file pointer
+            detected_mime = magic.from_buffer(file_content, mime=True)
+            
+            allowed_mimes = ['audio/mpeg', 'audio/mp3', 'audio/x-wav', 'audio/wav', 'audio/ogg', 'audio/x-m4a']
+            if detected_mime not in allowed_mimes:
+                security_logger.warning(f"File upload rejected - invalid MIME type {detected_mime} from user {user.uid}")
+                return Response({'error': 'Invalid file type detected. Only audio files allowed.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            security_logger.error(f"File validation error: {str(e)}")
+            return Response({'error': 'File validation failed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Additional check: verify content-type header matches detected MIME
         allowed_types = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a']
         if audio_file.content_type not in allowed_types:
             return Response({'error': 'Invalid file type. Allowed: MP3, WAV, OGG, M4A'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2923,6 +2947,7 @@ class AdminImageUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
+    @method_decorator(ratelimit(key='user', rate='20/h', method='POST'))
     def post(self, request):
         # Check admin permissions
         try:
@@ -2940,10 +2965,24 @@ class AdminImageUploadView(APIView):
         if image_file.size > 10 * 1024 * 1024:
             return Response({'error': 'File too large. Maximum size is 10MB'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check file type
-        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        # CRITICAL: Validate actual file content using magic numbers
+        try:
+            file_content = image_file.read(2048)
+            image_file.seek(0)
+            detected_mime = magic.from_buffer(file_content, mime=True)
+
+            allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+            if detected_mime not in allowed_mimes:
+                security_logger.warning(f"Image upload rejected - invalid MIME type {detected_mime}")
+                return Response({'error': 'Invalid image type detected'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            security_logger.error(f"Image validation error: {str(e)}")
+            return Response({'error': 'File validation failed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate file type (secondary check)
+        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
         if image_file.content_type not in allowed_types:
-            return Response({'error': 'Invalid file type. Allowed: JPEG, PNG, WEBP, GIF'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Invalid file type. Allowed: JPEG, PNG, GIF, WEBP'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             import uuid
