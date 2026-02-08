@@ -1388,14 +1388,9 @@ class TeachersListView(ListAPIView):
         return User.objects.filter(role='teacher').order_by('first_name', 'last_name')
 
 class FirebaseLoginView(APIView):
-<<<<<<< HEAD
-    permission_classes = [AllowAny]
-
-=======
     permission_classes = [AllowAny]  # Public endpoint for login
     
     @method_decorator(ratelimit(key='ip', rate='5/m', method='POST'))
->>>>>>> 9c4ad6699bd4655cf0f8f467221474accc9a3ef7
     def post(self, request, *args, **kwargs):
         # 1. Забираем токен из body — либо под ключом 'token', либо 'idToken'
         id_token = request.data.get('token') or request.data.get('idToken')
